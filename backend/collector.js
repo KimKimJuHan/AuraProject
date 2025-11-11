@@ -18,7 +18,7 @@ function translateSmartTags(itadTags, steamTags) {
 // 딜레이 (Steam API용 3초)
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// ★★★ '탭별 데이터' 수집 로직 (v3.1) ★★★
+// ★★★ '탭별 데이터' 수집 로직 (v3.2 - Steam 가격 폴백) ★★★
 async function collectGamesData() {
   const ITAD_API_KEY = process.env.ITAD_API_KEY;
   console.log('[시작] 탭별 데이터 수집 시작...');
@@ -69,8 +69,6 @@ async function collectGamesData() {
           continue; 
         }
 
-        // ★ [삭제] 3B. '리뷰 점수' (접근 불가 API라 삭제) ---
-
         // --- 3C. 스팀 API 호출 전 딜레이 ---
         await delay(3000); 
 
@@ -88,22 +86,23 @@ async function collectGamesData() {
         const steamTags = steamData.categories ? steamData.categories.map(cat => cat.description) : [];
         const smartTags = translateSmartTags(infoData.tags, steamTags);
 
-        // --- 3F. '가격 정보' 조합 (★ '0원' 버그 수정) ---
+        // --- 3F. '가격 정보' 조합 (★ Steam 가격 폴백 추가) ---
         const priceData = priceMap.get(itad_id);
         const steamStoreUrl = `https://store.steampowered.com/app/${steamAppId}`;
         
         let priceInfo = { 
-          regular_price: null, // ★ [수정] 'null'로 초기화
-          current_price: null, // ★ [수정] 'null'로 초기화
+          regular_price: null, 
+          current_price: null, 
           discount_percent: 0, 
-          store_url: steamStoreUrl, // ★ [수정] 스팀을 기본 URL로 설정
-          store_name: 'Steam',      // ★ [수정] 스팀을 기본 이름으로 설정
+          store_url: steamStoreUrl,
+          store_name: 'Steam',
           historical_low: 0, 
           expiry: null, 
           isFree: false 
         };
 
         if (steamData.is_free === true) { 
+            // 1. (무료 게임)
             priceInfo = {
               ...priceInfo,
               regular_price: 0,
@@ -111,8 +110,8 @@ async function collectGamesData() {
               isFree: true,
             };
         } 
-        // ★ [수정] ITAD에 가격 데이터가 '있을' 때만 덮어쓰기
         else if (priceData && priceData.deals && priceData.deals.length > 0) { 
+            // 2. (ITAD 가격 정보 있음)
             const bestDeal = priceData.deals[0];
             const historicalLow = (priceData.historyLow && priceData.historyLow.all) ? priceData.historyLow.all.amountInt : 0;
 
@@ -140,7 +139,22 @@ async function collectGamesData() {
                 };
             }
         }
-        // (ITAD에 가격 정보가 없으면 'priceInfo'는 'null' 상태로 저장됨)
+        // ★ [수정] 3. (ITAD 가격은 없지만, Steam에 가격이 있음)
+        else if (steamData.price_overview) {
+            console.log(`[정보] ${infoData.title}: ITAD 가격 없음. Steam 정가로 대체합니다.`);
+            priceInfo = {
+                // (Steam 가격은 100이 곱해져 있으므로 나눠야 함)
+                current_price: steamData.price_overview.final / 100, 
+                regular_price: steamData.price_overview.initial / 100,
+                discount_percent: steamData.price_overview.discount_percent,
+                store_url: steamStoreUrl,
+                store_name: 'Steam',
+                historical_low: 0, // (ITAD 정보가 없으므로 0)
+                expiry: null,
+                isFree: false
+            };
+        }
+        // 4. (모든 곳에 가격 정보가 없으면 priceInfo.regular_price는 'null' 유지)
 
         // --- 3G. 'PC 사양' 조합 ---
         let pcReq = { minimum: "정보 없음", recommended: "정보 없음" };
@@ -171,7 +185,6 @@ async function collectGamesData() {
           releaseDate: new Date(infoData.releaseDate),
           screenshots: screenshots,
           trailers: trailers,
-          // ★ [삭제] 리뷰 필드 삭제
         };
 
         // --- 3J. MongoDB에 저장 ---
