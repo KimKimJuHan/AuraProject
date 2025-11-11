@@ -1,0 +1,40 @@
+name: Run Game Data Collector
+
+on:
+  # 1. 매일 아침 9시(UTC 0시)에 자동으로 실행
+  schedule:
+    - cron: '0 0 * * *'
+
+  # 2. GitHub [Actions] 탭에서 수동으로 실행 가능하게 함
+  workflow_dispatch:
+
+jobs:
+  run-collector:
+    runs-on: ubuntu-latest # (리눅스 가상 서버에서 실행)
+
+    steps:
+      # 1. GitHub 저장소의 코드를 가상 서버로 복사
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js 18 버전 설치
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' 
+
+      # 3. backend 폴더로 이동해서 npm install 실행
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm install
+
+      # 4. 수집기 스크립트 실행 (중요!)
+      - name: Run collector script
+        run: |
+          cd backend
+          node collector.js
+        env:
+          # GitHub Secrets에 등록한 키들을 환경변수로 주입
+          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
