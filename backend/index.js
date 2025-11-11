@@ -11,10 +11,16 @@ const PORT = 8000;
 app.use(cors());
 app.use(express.json());
 
-// ★ MongoDB 기본 포트 '27017'로 연결
-mongoose.connect('mongodb://localhost:27017/game-project')
-  .then(() => console.log("✅ 몽고DB 연결 성공"))
-  .catch(err => console.error("❌ 몽고DB 연결 실패:", err));
+// ★ [수정] MONGODB_URI 환경 변수를 사용하여 Atlas DB에 연결
+const dbUri = process.env.MONGODB_URI;
+if (!dbUri) {
+  console.error("❌ 오류: MONGODB_URI 환경 변수가 .env 파일에 설정되지 않았습니다.");
+  process.exit(1); // 환경 변수가 없으면 서버 실행 중단
+}
+
+mongoose.connect(dbUri)
+  .then(() => console.log("✅ 몽고DB (Atlas) 연결 성공"))
+  .catch(err => console.error("❌ 몽고DB (Atlas) 연결 실패:", err));
 
 // --- '상세 페이지' API 로직 ( '스냅샷' 방식) ---
 app.get('/api/games/:id', async (req, res) => {
@@ -33,7 +39,8 @@ app.get('/api/games/:id', async (req, res) => {
 // --- '메인 페이지' API 로직 ( '스냅샷' + 페이지네이션) ---
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1 } = req.body; 
-  const limit = 20; // 한 페이지에 20개
+  // ★ [수정] 프론트엔드 요청에 따라 한 페이지에 10개씩
+  const limit = 10; 
   const skip = (page - 1) * limit; 
 
   try {
