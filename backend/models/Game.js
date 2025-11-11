@@ -33,17 +33,25 @@ const gameSchema = new mongoose.Schema({
   // 7. '출시일' (New 탭용)
   releaseDate: { type: Date },
 
-  // ★ 8. '스냅샷' 가격 정보 (Prices API + Steam API)
+  // 8. '스냅샷' 가격 정보 (Prices API + Steam API)
   price_info: {
     regular_price: Number,
     current_price: Number,
     discount_percent: Number,
     store_url: String,
-    store_name: String, // ★ [추가] "Steam", "GOG" 등 스토어 이름
+    store_name: String, // "Steam", "GOG" 등 스토어 이름
     historical_low: Number,
     expiry: String, 
-    isFree: { type: Boolean, default: false } // ★ '무료' 게임 체크
-  }
+    isFree: { type: Boolean, default: false }
+  },
+
+  // ★ [신규] 9. 미디어 정보 (Steam API)
+  screenshots: [String], // 스크린샷 URL 배열
+  trailers: [String], // 트레일러 URL 배열 (webm)
+
+  // ★ [신규] 10. 리뷰 점수 (ITAD Internal API)
+  review_score: { type: Number, default: 0 }, // 리뷰 점수 (예: 88)
+  review_platform: { type: String, default: 'N/A' } // "OpenCritic" 또는 "Metacritic"
 });
 
 module.exports = mongoose.model('Game', gameSchema);
