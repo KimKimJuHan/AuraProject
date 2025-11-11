@@ -18,36 +18,35 @@ function translateSmartTags(itadTags, steamTags) {
 // 딜레이 (Steam API용 3초)
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// ★★★ '탭별 데이터' 수집 로직 (v3) ★★★
+// ★★★ '탭별 데이터' 수집 로직 (v3.1) ★★★
 async function collectGamesData() {
   const ITAD_API_KEY = process.env.ITAD_API_KEY;
   console.log('[시작] 탭별 데이터 수집 시작...');
 
   let collectedCount = 0;
-  // ★ [수정] 탭별 데이터 수집 (API 200개 제한 준수)
   const POPULAR_LIMIT = 120; // '인기' 탭용 120개
   const DEALS_LIMIT = 30; // '할인' 탭용 30개
 
   try {
-    // --- 1A. '인기' 게임 목록 가져오기 (120개) ---
+    // --- 1A. '인기' 게임 목록 (120개) ---
     const popularResponse = await axios.get('https://api.isthereanydeal.com/stats/most-popular/v1', {
       params: { key: ITAD_API_KEY, limit: POPULAR_LIMIT, offset: 0 }
     });
     const popularIds = popularResponse.data.map(game => game.id);
     console.log(`[정보] '인기' 게임 ${popularIds.length}개 ID 수집`);
 
-    // --- 1B. '할인' 게임 목록 가져오기 (30개) ---
+    // --- 1B. '할인' 게임 목록 (30개) ---
     const dealsResponse = await axios.get('https://api.isthereanydeal.com/deals/v2', {
-      params: { key: ITAD_API_KEY, limit: DEALS_LIMIT, sort: '-cut' } // 할인율(-cut) 기준
+      params: { key: ITAD_API_KEY, limit: DEALS_LIMIT, sort: '-cut' } 
     });
     const dealIds = dealsResponse.data.list.map(deal => deal.id);
     console.log(`[정보] '할인' 게임 ${dealIds.length}개 ID 수집`);
 
-    // --- 1C. 두 목록을 합치고 중복 제거 (총 150개 미만) ---
+    // --- 1C. 중복 제거 목록 ---
     const allGameIds = [...new Set([...popularIds, ...dealIds])];
     console.log(`[정보] 중복 제거 후 총 ${allGameIds.length}개의 고유 게임 수집`);
 
-    // --- 2. '가격' 정보 한 번에 가져오기 (API 200개 제한 OK) ---
+    // --- 2. '가격' 정보 한 번에 가져오기 ---
     const priceResponse = await axios.post(
       `https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`,
       allGameIds 
@@ -70,27 +69,9 @@ async function collectGamesData() {
           continue; 
         }
 
-        // --- ★ [신규] 3B. '리뷰 점수' (ITAD Internal API) ---
-        let reviewScore = 0;
-        let reviewPlatform = 'N/A';
-        try {
-          const reviewResponse = await axios.get('https://api.isthereanydeal.com/internal/reviews/v1', {
-            params: { key: ITAD_API_KEY, appid: steamAppId }
-          });
-          const reviewData = reviewResponse.data;
-          // OpenCritic 점수를 우선 사용, 없으면 Metacritic 사용자 점수 사용
-          if (reviewData?.opencritic?.score) {
-            reviewScore = reviewData.opencritic.score;
-            reviewPlatform = 'OpenCritic';
-          } else if (reviewData?.metauser?.score) {
-            reviewScore = reviewData.metauser.score;
-            reviewPlatform = 'Metacritic';
-          }
-        } catch (reviewErr) {
-          console.log(`[정보] ${infoData.title}의 리뷰 점수를 가져올 수 없습니다. (무시)`);
-        }
+        // ★ [삭제] 3B. '리뷰 점수' (접근 불가 API라 삭제) ---
 
-        // ★ [유지] 3C. 스팀 API 호출 전 딜레이
+        // --- 3C. 스팀 API 호출 전 딜레이 ---
         await delay(3000); 
 
         // --- 3D. '스팀 상세정보' (Steam API) ---
@@ -107,22 +88,35 @@ async function collectGamesData() {
         const steamTags = steamData.categories ? steamData.categories.map(cat => cat.description) : [];
         const smartTags = translateSmartTags(infoData.tags, steamTags);
 
-        // --- 3F. '가격 정보' 조합 ---
+        // --- 3F. '가격 정보' 조합 (★ '0원' 버그 수정) ---
         const priceData = priceMap.get(itad_id);
-        let priceInfo = { current_price: 0, regular_price: 0, discount_percent: 0, store_url: '#', store_name: '정보 없음', historical_low: 0, expiry: null, isFree: false };
+        const steamStoreUrl = `https://store.steampowered.com/app/${steamAppId}`;
+        
+        let priceInfo = { 
+          regular_price: null, // ★ [수정] 'null'로 초기화
+          current_price: null, // ★ [수정] 'null'로 초기화
+          discount_percent: 0, 
+          store_url: steamStoreUrl, // ★ [수정] 스팀을 기본 URL로 설정
+          store_name: 'Steam',      // ★ [수정] 스팀을 기본 이름으로 설정
+          historical_low: 0, 
+          expiry: null, 
+          isFree: false 
+        };
+
         if (steamData.is_free === true) { 
             priceInfo = {
               ...priceInfo,
+              regular_price: 0,
+              current_price: 0,
               isFree: true,
-              store_url: `https://store.steampowered.com/app/${steamAppId}`,
-              store_name: "Steam"
             };
         } 
-        else if (priceData) { 
-            const bestDeal = (priceData.deals && priceData.deals.length > 0) ? priceData.deals[0] : null;
+        // ★ [수정] ITAD에 가격 데이터가 '있을' 때만 덮어쓰기
+        else if (priceData && priceData.deals && priceData.deals.length > 0) { 
+            const bestDeal = priceData.deals[0];
             const historicalLow = (priceData.historyLow && priceData.historyLow.all) ? priceData.historyLow.all.amountInt : 0;
 
-            if (bestDeal && bestDeal.cut > 0) { // (A) 할인 중
+            if (bestDeal.cut > 0) { // (A) 할인 중
                 priceInfo = {
                     current_price: bestDeal.price.amountInt,
                     regular_price: bestDeal.regular.amountInt,
@@ -133,20 +127,20 @@ async function collectGamesData() {
                     expiry: bestDeal.expiry,
                     isFree: false
                 };
-            } else if (priceData.deals && priceData.deals.length > 0) { // (B) 정가
-                const regularPriceDeal = priceData.deals[0];
+            } else { // (B) 정가
                 priceInfo = {
-                    current_price: regularPriceDeal.regular.amountInt,
-                    regular_price: regularPriceDeal.regular.amountInt,
+                    current_price: bestDeal.regular.amountInt,
+                    regular_price: bestDeal.regular.amountInt,
                     discount_percent: 0,
-                    store_url: regularPriceDeal.url,
-                    store_name: regularPriceDeal.shop.name, 
+                    store_url: bestDeal.url,
+                    store_name: bestDeal.shop.name, 
                     historical_low: historicalLow,
                     expiry: null,
                     isFree: false
                 };
             }
         }
+        // (ITAD에 가격 정보가 없으면 'priceInfo'는 'null' 상태로 저장됨)
 
         // --- 3G. 'PC 사양' 조합 ---
         let pcReq = { minimum: "정보 없음", recommended: "정보 없음" };
@@ -157,9 +151,8 @@ async function collectGamesData() {
             };
         }
 
-        // --- ★ [신규] 3H. '미디어' 정보 추출 ---
+        // --- 3H. '미디어' 정보 추출 ---
         const screenshots = steamData.screenshots ? steamData.screenshots.map(s => s.path_full) : [];
-        // (최대 1080p webm 포맷 필터링)
         const trailers = steamData.movies ? steamData.movies
             .filter(m => m.webm && (m.webm['1080'] || m.webm.max)) 
             .map(m => m.webm['1080'] || m.webm.max) : [];
@@ -176,10 +169,9 @@ async function collectGamesData() {
           popularity: (infoData.stats.waitlisted || 0) + (infoData.stats.collected || 0),
           price_info: priceInfo, 
           releaseDate: new Date(infoData.releaseDate),
-          screenshots: screenshots, // ★ [신규]
-          trailers: trailers, // ★ [신규]
-          review_score: reviewScore, // ★ [신규]
-          review_platform: reviewPlatform // ★ [신규]
+          screenshots: screenshots,
+          trailers: trailers,
+          // ★ [삭제] 리뷰 필드 삭제
         };
 
         // --- 3J. MongoDB에 저장 ---
@@ -188,11 +180,11 @@ async function collectGamesData() {
         collectedCount++;
 
       } catch (err) {
-        console.error(`[실패] ${itad_id} 처리 중 개별 에러:`, err.message, err.response?.data);
+        console.error(`[실패] ${itad_id} 처리 중 개별 에러:`, err.message);
       }
     }
   } catch (error) {
-    console.error(`[치명적 실패] '인기' 또는 '가격' API 호출 실패:`, error.message, error.response?.data);
+    console.error(`[치명적 실패] '인기' 또는 '가격' API 호출 실패:`, error.message);
   }
   console.log(`[결과] 총 ${collectedCount}개의 게임을 DB에 저장했습니다.`);
 }
@@ -208,7 +200,7 @@ async function runCollector() {
   await mongoose.connect(dbUri); 
   console.log("✅ (수집기) 몽고DB 연결 성공");
 
-  await collectGamesData(); // ★ [수정] 새 함수 이름으로 변경
+  await collectGamesData();
   
   console.log("--- 메인 페이지 데이터 수집 완료 ---");
   await mongoose.disconnect();
