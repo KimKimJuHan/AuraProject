@@ -68,7 +68,7 @@ function ShopPage() {
   if (error) return <div style={{ padding: '20px', color: 'red' }}>데이터 로딩 실패: {error}</div>;
   if (!gameData) return <div style={{ padding: '20px' }}>데이터 없음!</div>;
 
-  // ★ [신규] '무료 게임' 처리
+  // ★ [수정] '무료 게임' 및 '구매 버튼' 텍스트 수정
   const renderPriceSection = () => {
     if (!gameData.price_info) return null;
     
@@ -78,24 +78,26 @@ function ShopPage() {
         <>
           <h2 style={{ color: '#04BFAD' }}>무료 게임</h2>
           <a href={gameData.price_info.store_url} target="_blank" rel="noopener noreferrer" style={styles.buyButton}>
-            스팀에서 받기
+            {/* ★ [수정] store_name 사용 */}
+            {gameData.price_info.store_name || 'Steam'}에서 받기
           </a>
         </>
       );
     }
 
     // (유료 게임 로직)
+    // ★ [수정] 스토어 이름이 없으면 "최저가 구매"
+    const storeName = gameData.price_info.store_name || "최저가";
+
     return (
       <>
         <h2 style={{ color: '#04BFAD' }}>
           {gameData.price_info.current_price.toLocaleString()}원
-          {/* ★ [수정] 0% 할인은 표시 안 함 */}
           {gameData.price_info.discount_percent > 0 && (
             <span> ({gameData.price_info.discount_percent}% 할인)</span>
           )}
         </h2>
         
-        {/* ★ [수정] 할인 중이고, countdown 값이 있을 때만 타이머 표시 */}
         {gameData.price_info.discount_percent > 0 && countdown && (
           <p style={{ color: '#E04B4B', fontWeight: 'bold' }}>
             할인 종료까지: {countdown}
@@ -106,7 +108,8 @@ function ShopPage() {
           역대 최저가: {gameData.price_info.historical_low.toLocaleString()}원
         </p>
         <a href={gameData.price_info.store_url} target="_blank" rel="noopener noreferrer" style={styles.buyButton}>
-          스팀에서 구매하기
+          {/* ★ [수정] 스토어 이름 동적 표시 */}
+          {storeName}에서 구매하기
         </a>
       </>
     );
