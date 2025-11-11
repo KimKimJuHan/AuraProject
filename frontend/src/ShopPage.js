@@ -12,35 +12,33 @@ const styles = {
   wishlistButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#027373', color: 'white', border: '1px solid #5FCDD9', borderRadius: '5px' },
   thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #5FCDD9', borderRadius: '5px', background: '#027373', color: 'white' },
   
-  // ★ [신규] 미디어 및 리뷰 스타일
+  // ★ [수정] 미디어 갤러리 스타일 (메인 이미지 포함)
   mediaContainer: { 
     display: 'flex', 
     overflowX: 'auto', // 가로 스크롤
-    padding: '10px 0' 
+    padding: '10px 0',
+    backgroundColor: '#172026', // 배경색 어둡게
   },
-  screenshot: { 
-    height: '150px', 
+  mediaItem: { // ★ [수정] 이름 변경 (이미지/비디오 공통)
+    height: '180px', // 높이 통일
     marginRight: '10px', 
     borderRadius: '5px',
-    border: '1px solid #027373'
+    border: '1px solid #027373',
+    cursor: 'pointer',
   },
-  trailer: { 
-    width: '100%', 
-    maxWidth: '560px', 
-    height: '315px', 
+  mainMediaDisplay: { // ★ [신규] 선택된 미디어 표시 영역
+    width: '100%',
+    height: 'auto',
+    maxHeight: '450px', // (트레일러 기준 16:9)
     border: 'none', 
     borderRadius: '5px', 
-    marginBottom: '10px' 
+    marginBottom: '10px',
+    backgroundColor: '#000', // (비디오 로딩 시 배경)
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  reviewBox: {
-    display: 'inline-block',
-    padding: '8px 12px',
-    borderRadius: '5px',
-    fontWeight: 'bold',
-    fontSize: '18px',
-    backgroundColor: '#04BFAD', // (초록색)
-    color: '#172026' // (어두운 배경색)
-  }
+  // ★ [삭제] 리뷰 관련 스타일 삭제
 };
 // --- [스타일 끝] ---
 
@@ -74,6 +72,9 @@ function ShopPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { id } = useParams(); 
+  
+  // ★ [신규] 미디어 갤러리용 상태
+  const [selectedMedia, setSelectedMedia] = useState({ type: 'image', url: null });
 
   useEffect(() => {
     fetch(`http://localhost:8000/api/games/${id}`)
@@ -85,6 +86,10 @@ function ShopPage() {
         if (data.error) throw new Error(data.error);
         setGameData(data);
         setLoading(false);
+        // ★ [신규] 로딩 완료 후 메인 이미지를 갤러리 기본값으로 설정
+        if (data.main_image) {
+          setSelectedMedia({ type: 'image', url: data.main_image });
+        }
       })
       .catch(err => {
         console.error("API 호출 실패:", err);
@@ -99,65 +104,82 @@ function ShopPage() {
   if (error) return <div style={{ padding: '20px', color: 'red' }}>데이터 로딩 실패: {error}</div>;
   if (!gameData) return <div style={{ padding: '20px' }}>데이터 없음!</div>;
 
-  // ★ [신규] '리뷰 점수' 렌더링
-  const renderReviewScore = () => {
-    if (!gameData.review_score || gameData.review_score === 0) {
-      return null; // 점수 없으면 표시 안 함
-    }
-    
-    // 점수대별 색상 변경
-    let reviewStyle = {...styles.reviewBox};
-    if (gameData.review_score < 50) {
-      reviewStyle.backgroundColor = '#E04B4B'; // (빨간색)
-    } else if (gameData.review_score < 75) {
-      reviewStyle.backgroundColor = '#F2B705'; // (노란색)
-    }
-
-    return (
-      <div style={{ marginTop: '15px' }}>
-        <div style={reviewStyle}>
-          {gameData.review_platform}: {gameData.review_score}점
-        </div>
-      </div>
-    );
-  };
-
-  // ★ [신규] '트레일러 및 스크린샷' 렌더링
+  // ★ [삭제] '리뷰 점수' 렌더링 (삭제)
+  
+  // ★ [수정] '트레일러 및 스크린샷' 렌더링 (메인 이미지 포함)
   const renderMediaGallery = () => {
-    const hasTrailers = gameData.trailers && gameData.trailers.length > 0;
-    const hasScreenshots = gameData.screenshots && gameData.screenshots.length > 0;
+    // 1. 모든 미디어 소스를 하나의 배열로 합침
+    const allMedia = [];
+    if (gameData.main_image) {
+      allMedia.push({ type: 'image', url: gameData.main_image });
+    }
+    if (gameData.trailers) {
+      gameData.trailers.forEach(url => allMedia.push({ type: 'video', url }));
+    }
+    if (gameData.screenshots) {
+      // (메인 이미지가 스크린샷에 중복될 수 있으므로 필터링)
+      gameData.screenshots.forEach(url => {
+        if (url !== gameData.main_image) {
+          allMedia.push({ type: 'image', url });
+        }
+      });
+    }
 
-    if (!hasTrailers && !hasScreenshots) return null;
+    if (allMedia.length === 0) return null;
+
+    // 2. 선택된 미디어를 보여주는 메인 뷰
+    const renderMainMedia = () => {
+      if (!selectedMedia.url) return <div style={styles.mainMediaDisplay}></div>;
+
+      if (selectedMedia.type === 'image') {
+        return <img src={selectedMedia.url} alt="Main Media" style={styles.mainMediaDisplay} />;
+      }
+      
+      if (selectedMedia.type === 'video') {
+        return (
+          <video 
+            controls 
+            autoPlay // (선택 시 자동 재생)
+            style={styles.mainMediaDisplay} 
+            src={selectedMedia.url}
+            key={selectedMedia.url} // (src 변경 시 리로드)
+          >
+            브라우저가 video 태그를 지원하지 않습니다.
+          </video>
+        );
+      }
+      return null;
+    };
 
     return (
       <>
+        {/* 1. 선택된 미디어 표시 영역 */}
+        {renderMainMedia()}
+
+        {/* 2. 썸네일 가로 스크롤 영역 */}
+        <div style={styles.mediaContainer}>
+          {allMedia.map((media, index) => {
+            // (비디오 썸네일은 따로 없으므로 첫 번째 스크린샷이나 메인 이미지를 썸네일로 써야 함 - 지금은 간단하게 이미지 URL로만)
+            const thumbnailUrl = media.type === 'image' 
+              ? media.url 
+              : gameData.screenshots?.[0] || gameData.main_image; // (비디오 썸네일 대체)
+              
+            return (
+              <img 
+                key={index} 
+                src={thumbnailUrl} 
+                alt={`Media ${index+1}`} 
+                style={{
+                  ...styles.mediaItem, 
+                  // (선택된 미디어 테두리 강조)
+                  border: selectedMedia.url === media.url ? '2px solid #5FCDD9' : '1px solid #027373'
+                }}
+                onClick={() => setSelectedMedia(media)} 
+              />
+            );
+          })}
+        </div>
         <hr style={{ borderColor: '#027373' }} />
-        {/* 첫 번째 트레일러만 재생 */}
-        {hasTrailers && (
-          <div>
-            <h3>트레일러</h3>
-            <video 
-              controls 
-              style={styles.trailer} 
-              src={gameData.trailers[0]}
-              key={gameData.trailers[0]} // (src 변경 시 리로드)
-            >
-              브라우저가 video 태그를 지원하지 않습니다.
-            </video>
-          </div>
-        )}
-        
-        {/* 스크린샷 가로 스크롤 */}
-        {hasScreenshots && (
-          <div>
-            <h3>스크린샷</h3>
-            <div style={styles.mediaContainer}>
-              {gameData.screenshots.map((url, index) => (
-                <img key={index} src={url} alt={`Screenshot ${index+1}`} style={styles.screenshot} />
-              ))}
-            </div>
-          </div>
-        )}
       </>
     );
   };
@@ -172,6 +194,18 @@ function ShopPage() {
           <h2 style={{ color: '#04BFAD' }}>무료 게임</h2>
           <a href={gameData.price_info.store_url} target="_blank" rel="noopener noreferrer" style={styles.buyButton}>
             {gameData.price_info.store_name || 'Steam'}에서 받기
+          </a>
+        </>
+      );
+    }
+    
+    // ★ [수정] '0원' 버그 방지. Collector가 null로 보낸 경우
+    if (gameData.price_info.regular_price === null) {
+      return (
+        <>
+          <h2 style={{ color: '#aaa' }}>가격 정보 없음</h2>
+          <a href={gameData.price_info.store_url} target="_blank" rel="noopener noreferrer" style={styles.buyButton}>
+            Steam에서 확인
           </a>
         </>
       );
@@ -209,17 +243,11 @@ function ShopPage() {
     <div style={{ padding: '20px', maxWidth: '800px', margin: 'auto' }}>
       <h1>{gameData.title}</h1>
       
-      {/* ★ [신규] 리뷰 점수 표시 */}
-      {renderReviewScore()}
-
-      <img src={gameData.main_image} alt={gameData.title} style={{ width: '100%', maxWidth: '460px', borderRadius: '5px', marginTop: '15px' }} />
-      <hr style={{ borderColor: '#027373' }} />
-
-      {renderPriceSection()}
-      
-      {/* ★ [신규] 미디어 갤러리 표시 */}
+      {/* ★ [수정] 메인 이미지 대신 미디어 갤러리 렌더링 */}
       {renderMediaGallery()}
 
+      <hr style={{ borderColor: '#027373' }} />
+      {renderPriceSection()}
       <hr style={{ borderColor: '#027373' }} />
       <h3>태그</h3>
       <div>
@@ -236,7 +264,6 @@ function ShopPage() {
       <h3>PC 요구 사양</h3>
       {gameData.pc_requirements && (
         <div style={styles.specBox}>
-          {/* (보안) Steam에서 온 HTML이므로 신뢰함 */}
           <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements.minimum }} />
           <br/>
           <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements.recommended }} />
