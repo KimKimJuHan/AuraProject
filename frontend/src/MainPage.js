@@ -1,6 +1,6 @@
 // /frontend/src/MainPage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // ★ [수정] useRef 추가
 import { Link } from 'react-router-dom';
 
 // --- 스타일 객체 (버튼 높이 통일) ---

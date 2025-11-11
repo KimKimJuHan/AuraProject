@@ -14,12 +14,13 @@ import ShopPage from './ShopPage';
 
 // --- 스타일 객체 (검색바용) ---
 const styles = {
+  // (기존 스타일)
   navBar: {
     width: '100%', 
     backgroundColor: '#027373', 
     padding: '12px 20px', 
     display: 'flex', 
-    justifyContent: 'space-between', // Home | Search | Spacer
+    justifyContent: 'space-between',
     alignItems: 'center',
     boxSizing: 'border-box'
   },
@@ -28,11 +29,11 @@ const styles = {
     textDecoration: 'none',
     fontSize: '18px',
     fontWeight: 'bold',
-    minWidth: '120px', // (spacer와 너비 맞추기)
+    minWidth: '120px', 
   },
   searchContainer: {
     position: 'relative', 
-    width: '100%', // (중간 영역을 다 차지)
+    width: '100%', 
     maxWidth: '500px',
   },
   searchInput: {
@@ -78,6 +79,15 @@ const styles = {
     cursor: 'pointer',
     color: '#aaa', 
     fontStyle: 'italic',
+  },
+  // ★ [신규] '검색 기록' 지우기 버튼 스타일
+  clearHistoryButton: {
+    padding: '10px 15px',
+    cursor: 'pointer',
+    color: '#FFBABA', // (빨간색 계열)
+    fontStyle: 'italic',
+    textAlign: 'center',
+    backgroundColor: '#1e2d36' // (어두운 배경)
   },
   navSpacer: {
     minWidth: '120px', 
@@ -138,24 +148,56 @@ function NavigationBar() {
     }, 300);
   };
 
+  // ★ [수정] 검색 제출 (Enter) 시 로직
   const handleSubmit = (e) => {
     e.preventDefault(); 
-    if (!searchTerm.trim()) return;
+    const query = searchTerm.trim();
+    if (!query) return;
 
-    const newHistory = [searchTerm, ...history.filter(h => h !== searchTerm).slice(0, 4)];
+    // 1. 검색 기록에 저장
+    const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
     setHistory(newHistory);
     localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
-    setIsFocused(false);
-    alert(`검색: ${searchTerm} (페이지 이동 구현 필요)`);
+    // 2. 자동완성 목록에서 정확히 일치하는 게임 찾기
+    const exactMatch = suggestions.find(
+      (game) => game.title.toLowerCase() === query.toLowerCase()
+    );
+  
+    // 3. 정확히 일치하면, 상세 페이지로 바로 이동
+    if (exactMatch) {
+      setSearchTerm(exactMatch.title); 
+      setIsFocused(false);
+      setSuggestions([]); 
+      navigate(`/game/${exactMatch.slug}`);
+    } else {
+      // 4. (일치하는게 없으면) 나중에 검색 결과 페이지로 이동 (지금은 alert)
+      alert(`'${query}' 검색 결과 페이지로 이동 (구현 필요)`);
+      setIsFocused(false);
+      setSuggestions([]);
+    }
   };
 
+  // ★ [수정] 제안 클릭 시 로직
   const handleSuggestionClick = (game) => {
     setSearchTerm(game.title); 
     setIsFocused(false);
+    
+    // ★ [신규] 클릭 시에도 검색 기록에 저장
+    const newHistory = [game.title, ...history.filter(h => h !== game.title).slice(0, 4)];
+    setHistory(newHistory);
+    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    
     navigate(`/game/${game.slug}`); 
   };
   
+  // ★ [신규] 검색 기록 모두 지우기 함수
+  const handleClearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem('gameSearchHistory');
+    setIsFocused(false); // ( dropdown 닫기)
+  };
+
   const handleClear = () => {
     setSearchTerm("");
     setSuggestions([]);
@@ -191,10 +233,11 @@ function NavigationBar() {
                 <li 
                   key={item.slug || `${item}-${index}`} 
                   style={searchTerm.length > 1 ? styles.suggestionItem : styles.suggestionItemHistory}
-                  onMouseDown={() => {
+                  onMouseDown={() => { // (onFocus/onBlur 충돌 방지를 위해 onMouseDown 사용)
                     if (item.slug) {
                       handleSuggestionClick(item)
                     } else {
+                      // (검색 기록 클릭 시)
                       setSearchTerm(item);
                       fetchSuggestions(item);
                     }
@@ -207,6 +250,17 @@ function NavigationBar() {
               searchTerm.length > 1 && 
               <li style={styles.suggestionItemHistory}>'{searchTerm}' 검색 결과가 없습니다.</li>
             )}
+            
+            {/* ★ [신규] 검색어가 없고 (역사만 보일 때) + 역사가 1개 이상 있을 때 */}
+            {searchTerm.length <= 1 && history.length > 0 && (
+              <li 
+                style={styles.clearHistoryButton}
+                onMouseDown={handleClearHistory} // ★ [신규] 클릭 이벤트 연결
+              >
+                검색 기록 모두 지우기 
+              </li>
+            )}
+            
             {searchTerm.length <= 1 && history.length === 0 &&
               <li style={styles.suggestionItemHistory}>검색 기록이 없습니다.</li>
             }
