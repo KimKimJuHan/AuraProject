@@ -11,11 +11,10 @@ const PORT = 8000;
 app.use(cors());
 app.use(express.json());
 
-// ★ [수정] MONGODB_URI 환경 변수를 사용하여 Atlas DB에 연결
 const dbUri = process.env.MONGODB_URI;
 if (!dbUri) {
   console.error("❌ 오류: MONGODB_URI 환경 변수가 .env 파일에 설정되지 않았습니다.");
-  process.exit(1); // 환경 변수가 없으면 서버 실행 중단
+  process.exit(1); 
 }
 
 mongoose.connect(dbUri)
@@ -39,8 +38,8 @@ app.get('/api/games/:id', async (req, res) => {
 // --- '메인 페이지' API 로직 ( '스냅샷' + 페이지네이션) ---
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1 } = req.body; 
-  // ★ [수정] 프론트엔드 요청에 따라 한 페이지에 10개씩
-  const limit = 10; 
+  // ★ [수정] 페이지당 15개씩 불러오도록 수정
+  const limit = 15; 
   const skip = (page - 1) * limit; 
 
   try {

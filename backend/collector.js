@@ -24,18 +24,19 @@ async function collectPopularGames() {
   console.log('[시작] "Top Sellers" 데이터 수집...');
 
   let collectedCount = 0;
-  // ★ [수정] 수집량을 500개로 늘립니다. (가격/할인 탭 데이터 확보)
-  const BATCH_SIZE = 500; 
+  // ★ [수정] 수집량을 120개로 설정 (탭 4개 x 30개 = 120)
+  // (API 가격 요청 200개 제한보다 낮음)
+  const BATCH_SIZE = 120; 
 
   try {
-    // --- 1. ITAD에서 '가장 인기 있는' 게임 500개 목록 가져오기 ---
+    // --- 1. ITAD에서 '가장 인기 있는' 게임 120개 목록 가져오기 ---
     const popularResponse = await axios.get('https://api.isthereanydeal.com/stats/most-popular/v1', {
       params: { key: ITAD_API_KEY, limit: BATCH_SIZE, offset: 0 }
     });
     const popularList = popularResponse.data; 
     console.log(`[정보] 인기 게임 ${popularList.length}개를 찾았습니다.`);
 
-    // --- 2. 500개 게임의 '실시간 가격' 정보 한 번에 가져오기 ---
+    // --- 2. 120개 게임의 '실시간 가격' 정보 한 번에 가져오기 ---
     const itad_ids = popularList.map(game => game.id); 
     const priceResponse = await axios.post(
       `https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`,
@@ -44,7 +45,7 @@ async function collectPopularGames() {
     const priceMap = new Map(priceResponse.data.map(p => [p.id, p]));
     console.log(`[정보] ${priceMap.size}개의 가격 정보를 가져왔습니다.`);
 
-    // --- 3. "인기 게임 500개"를 하나씩 돌면서 상세 정보 수집 ---
+    // --- 3. "인기 게임 120개"를 하나씩 돌면서 상세 정보 수집 ---
     for (const popularGame of popularList) {
       const itad_id = popularGame.id;
 
@@ -80,13 +81,12 @@ async function collectPopularGames() {
 
         // --- 3D. '가격 정보' (방어 코드 적용) ---
         const priceData = priceMap.get(itad_id);
-        // ★ [수정] store_name 필드 추가
         let priceInfo = { current_price: 0, regular_price: 0, discount_percent: 0, store_url: '#', store_name: '정보 없음', historical_low: 0, expiry: null, isFree: false };
 
         if (steamData.is_free === true) { 
             priceInfo.isFree = true;
             priceInfo.store_url = `https://store.steampowered.com/app/${steamAppId}`;
-            priceInfo.store_name = "Steam"; // ★ [추가] 무료 게임은 스팀
+            priceInfo.store_name = "Steam"; 
         } 
         else if (priceData) { 
             const bestDeal = (priceData.deals && priceData.deals.length > 0) ? priceData.deals[0] : null;
@@ -98,7 +98,7 @@ async function collectPopularGames() {
                     regular_price: bestDeal.regular.amountInt,
                     discount_percent: bestDeal.cut,
                     store_url: bestDeal.url,
-                    store_name: bestDeal.shop.name, // ★ [추가] 할인 스토어 이름
+                    store_name: bestDeal.shop.name, 
                     historical_low: historicalLow,
                     expiry: bestDeal.expiry,
                     isFree: false
@@ -110,7 +110,7 @@ async function collectPopularGames() {
                     regular_price: regularPriceDeal.regular.amountInt,
                     discount_percent: 0,
                     store_url: regularPriceDeal.url,
-                    store_name: regularPriceDeal.shop.name, // ★ [추가] 정가 스토어 이름
+                    store_name: regularPriceDeal.shop.name, 
                     historical_low: historicalLow,
                     expiry: null,
                     isFree: false
@@ -136,7 +136,6 @@ async function collectPopularGames() {
           description: steamData.short_description || "설명 없음",
           smart_tags: smartTags,
           pc_requirements: pcReq, 
-          // ★ [수정] 인기순 정렬 기준을 (찜 + 보유)로 변경
           popularity: (infoData.stats.waitlisted || 0) + (infoData.stats.collected || 0),
           price_info: priceInfo, 
           releaseDate: new Date(infoData.releaseDate) 
