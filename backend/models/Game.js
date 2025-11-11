@@ -39,6 +39,7 @@ const gameSchema = new mongoose.Schema({
     current_price: Number,
     discount_percent: Number,
     store_url: String,
+    store_name: String, // ★ [추가] "Steam", "GOG" 등 스토어 이름
     historical_low: Number,
     expiry: String, 
     isFree: { type: Boolean, default: false } // ★ '무료' 게임 체크
