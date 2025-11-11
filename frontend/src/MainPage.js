@@ -24,12 +24,12 @@ const styles = {
 function GameListItem({ game }) {
   const detailPageUrl = `/game/${game.slug}`;
 
-  // ★ [수정] 가격 표시 로직 (무료 게임 / 0% 할인 처리)
+  // ★ [수정] 가격 표시 로직 (무료, 0원, null 처리)
   const renderPrice = () => {
-    // (DB에 price_info가 없는 '유령 데이터' 방지)
-    if (!game.price_info) return <div style={styles.priceBox}>-</div>; 
+    if (!game.price_info) {
+      return <div style={styles.priceBox}><span style={styles.normalPrice}>-</span></div>;
+    }
 
-    // ★ [신규] 'isFree' 필드가 true이면 "무료" 표시
     if (game.price_info.isFree === true) {
         return (
             <div style={styles.priceBox}>
@@ -38,14 +38,17 @@ function GameListItem({ game }) {
         );
     }
     
-    // (정가 정보가 없는 데이터 방지)
-    if (game.price_info.regular_price === null || game.price_info.regular_price === undefined) {
-        return <div style={styles.priceBox}>-</div>; 
+    // ★ [수정] '0원' 버그 방지. Collector가 null로 보낸 경우
+    if (game.price_info.regular_price === null) {
+        return (
+          <div style={styles.priceBox}>
+            <div style={styles.normalPrice}>가격 정보 없음</div>
+          </div>
+        );
     }
     
     const { current_price, regular_price, discount_percent } = game.price_info;
 
-    // ★ [수정] "discount_percent > 0"일 때만 할인율 표시
     if (discount_percent > 0) {
       return (
         <div style={styles.priceBox}>
@@ -56,7 +59,6 @@ function GameListItem({ game }) {
       );
     }
     
-    // (할인 안 할 때, 정가만 표시)
     return (
       <div style={styles.priceBox}>
         <div style={styles.normalPrice}>
@@ -87,16 +89,22 @@ function MainPage() {
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
+  
+  // ★ [신규] '중복 키' 에러 방지를 위한 ID Set
+  const gameSlugs = useRef(new Set());
 
   // 1. '필터' (탭, 태그)가 바뀔 때 실행되는 효과
   useEffect(() => {
     setGames([]);
     setPage(1);
     setHasMore(true);
+    gameSlugs.current.clear(); // ★ [신규] ID Set 초기화
   }, [selectedTags, activeTab]);
 
   // 2. '데이터 요청' (필터 또는 페이지가 바뀔 때)
   useEffect(() => {
+    // (페이지가 1이 아니거나, '더 보기'가 없으면 중복 실행 방지)
+    if (page === 1 && games.length > 0) return; 
     if (!hasMore) return; 
 
     async function fetchGames() {
@@ -115,7 +123,16 @@ function MainPage() {
         
         const data = await response.json();
         
-        setGames(prevGames => [...prevGames, ...data.games]);
+        // ★ [수정] '중복 키' 에러 방지 로직
+        const newGames = data.games.filter(game => {
+          if (gameSlugs.current.has(game.slug)) {
+            return false; // 이미 있는 ID면 필터링
+          }
+          gameSlugs.current.add(game.slug); // 새 ID면 Set에 추가
+          return true;
+        });
+
+        setGames(prevGames => [...prevGames, ...newGames]);
         setHasMore(page < data.totalPages); 
 
       } catch (err) {
@@ -126,7 +143,7 @@ function MainPage() {
     
     fetchGames();
     
-  }, [selectedTags, activeTab, page, hasMore]); // (exhaustive-deps 경고 해결)
+  }, [selectedTags, activeTab, page, hasMore, games.length]); // (의존성 배열 수정)
 
   // --- (핸들러 함수들은 이전과 동일) ---
   const handleTagClick = (tag) => {
@@ -136,7 +153,6 @@ function MainPage() {
   };
 
   const renderTabs = () => {
-    // ★ 탭 이름 한글화
     const tabs = [
       { key: 'popular', name: '최고 인기' }, 
       { key: 'new', name: '신규 및 인기' },
@@ -175,8 +191,6 @@ function MainPage() {
       </div>
       
       <div style={{ padding: '10px' }}>
-        {/* ★ [수정] key 값을 'game.slug' (ITAD 고유 ID)로 변경 */}
-        {/* (이제 DB가 깨끗하므로 중복 키 오류가 나지 않습니다) */}
         {games.map(game => (
             <GameListItem key={game.slug} game={game} />
         ))}

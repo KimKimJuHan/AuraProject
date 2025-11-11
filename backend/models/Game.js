@@ -35,23 +35,23 @@ const gameSchema = new mongoose.Schema({
 
   // 8. '스냅샷' 가격 정보 (Prices API + Steam API)
   price_info: {
-    regular_price: Number,
-    current_price: Number,
+    regular_price: Number, // ★ [수정] "가격 정보 없음"을 위해 'null' 허용
+    current_price: Number, // ★ [수정] "가격 정보 없음"을 위해 'null' 허용
     discount_percent: Number,
     store_url: String,
-    store_name: String, // "Steam", "GOG" 등 스토어 이름
+    store_name: String, 
     historical_low: Number,
     expiry: String, 
     isFree: { type: Boolean, default: false }
   },
 
-  // ★ [신규] 9. 미디어 정보 (Steam API)
-  screenshots: [String], // 스크린샷 URL 배열
-  trailers: [String], // 트레일러 URL 배열 (webm)
+  // 9. 미디어 정보 (Steam API)
+  screenshots: [String], 
+  trailers: [String], 
 
-  // ★ [신규] 10. 리뷰 점수 (ITAD Internal API)
-  review_score: { type: Number, default: 0 }, // 리뷰 점수 (예: 88)
-  review_platform: { type: String, default: 'N/A' } // "OpenCritic" 또는 "Metacritic"
+  // ★ [삭제] 10. 리뷰 점수 (접근 불가 API라 삭제)
+  // review_score: ...
+  // review_platform: ...
 });
 
 module.exports = mongoose.model('Game', gameSchema);
