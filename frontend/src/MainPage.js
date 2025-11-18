@@ -11,12 +11,14 @@ const TAG_CATEGORIES = {
 };
 
 const styles = {
-  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
-  tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', transition: 'color 0.2s' },
-  tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px' },
+  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'10px' },
+  tabButton: { background: 'none', color: '#b3b3b3', border: 'none', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px' },
+  tabButtonActive: { color: '#fff', borderBottom: '3px solid #E50914', paddingBottom:'5px' },
   
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '10px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px' },
   
+  toggleBtn: { width: '100%', padding: '15px', backgroundColor: '#181818', border: '1px solid #333', color: '#fff', fontWeight:'bold', cursor:'pointer', display:'flex', justifyContent:'space-between', marginBottom:'20px', borderRadius: '8px' },
+
   // 필터 스타일
   filterContainer: {
     display: 'grid',
@@ -31,7 +33,6 @@ const styles = {
     overflow: 'hidden', 
     transition: 'all 0.3s ease'
   },
-  // 헤더가 버튼 역할을 함
   filterHeader: {
     padding: '15px',
     display: 'flex',
@@ -40,7 +41,7 @@ const styles = {
     cursor: 'pointer',
     backgroundColor: '#222',
     borderBottom: '1px solid #333',
-    userSelect: 'none' // 텍스트 드래그 방지
+    userSelect: 'none'
   },
   filterTitle: {
     fontSize: '14px',
@@ -78,24 +79,20 @@ const styles = {
     fontSize: '12px',
     cursor: 'pointer'
   },
-
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5, transition: 'transform 0.2s' }
 };
 
 // 개별 필터 박스 컴포넌트
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
-    // 기본값 false: 닫혀있음
     const [isOpen, setIsOpen] = useState(false); 
 
     return (
         <div style={styles.filterBox}>
-            {/* 헤더를 클릭하면 열리고 닫힘 */}
             <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
                 <span style={styles.filterTitle}>{title}</span>
                 <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
             </div>
             
-            {/* 열려있을 때만 태그 표시 */}
             {isOpen && (
                 <div style={styles.filterContent}>
                     {tags.map(tag => (
@@ -187,6 +184,8 @@ function MainPage() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
+  // ★ [수정] 필터 토글 상태 (false: 접힘)
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const gameSlugs = useRef(new Set());
 
   useEffect(() => {
@@ -216,35 +215,38 @@ function MainPage() {
 
   return (
     <div className="net-panel">
-      {/* 1. 탭 버튼 */}
       <div style={styles.tabContainer}>
         {[{ k:'popular', n:'🔥 인기' }, { k:'new', n:'✨ 신규' }, { k:'discount', n:'💸 할인' }, { k:'price', n:'💰 낮은 가격' }].map(t => (
-            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
+            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? {...styles.tabButton, ...styles.tabButtonActive} : styles.tabButton}>{t.n}</button>
         ))}
       </div>
 
-      {/* 2. 태그 필터 섹션 (전체 토글 버튼 삭제함) */}
-      <div style={styles.filterContainer}>
-          {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-              <FilterCategoryBox 
-                  key={category} 
-                  title={category} 
-                  tags={tags} 
-                  selectedTags={selectedTags} 
-                  onToggleTag={toggleTag} 
-              />
-          ))}
-      </div>
-      
-      {/* 선택된 태그 표시 및 초기화 */}
-      {selectedTags.length > 0 && (
-        <div style={{marginBottom:'20px', color:'#b3b3b3', fontSize:'14px'}}>
-            선택된 태그: <span style={{color:'white'}}>{selectedTags.join(', ')}</span>
-            <button onClick={() => setSelectedTags([])} style={{marginLeft:'10px', background:'none', border:'none', color:'#E50914', cursor:'pointer', textDecoration:'underline'}}>초기화</button>
-        </div>
+      {/* ★ 필터 토글 버튼 */}
+      <button style={styles.toggleBtn} onClick={() => setIsFilterOpen(!isFilterOpen)}>
+          <span>🔍 상세 필터 (장르/태그 선택) {selectedTags.length > 0 && <span style={{color:'#E50914'}}>({selectedTags.length})</span>}</span>
+          <span>{isFilterOpen ? '▲ 접기' : '▼ 펼치기'}</span>
+      </button>
+
+      {/* ★ 필터 내용 (토글) */}
+      {isFilterOpen && (
+          <div style={styles.filterContainer}>
+              {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
+                  <FilterCategoryBox 
+                      key={category} 
+                      title={category} 
+                      tags={tags} 
+                      selectedTags={selectedTags} 
+                      onToggleTag={toggleTag} 
+                  />
+              ))}
+              <div style={{gridColumn: '1 / -1', textAlign:'right'}}>
+                <button onClick={() => setSelectedTags([])} style={{background:'none', border:'none', color:'#E50914', cursor:'pointer', textDecoration:'underline'}}>
+                    선택 초기화 ⟳
+                </button>
+              </div>
+          </div>
       )}
 
-      {/* 3. 게임 리스트 */}
       <div className="net-cards">
         {games.map(game => <GameListItem key={game.slug} game={game} />)}
         {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
