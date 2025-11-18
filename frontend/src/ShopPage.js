@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import Skeleton from './Skeleton'; // ★ 스켈레톤 추가
 
 const styles = {
   buyButton: { display: 'inline-block', padding: '10px 15px', backgroundColor: '#3D46F2', color: '#FFFFFF', textDecoration: 'none', borderRadius: '999px', fontSize: '16px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.7)' },
@@ -16,36 +17,16 @@ const styles = {
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   storePrice: { color: '#A24CD9', fontWeight: 'bold' },
   storeLink: { color: '#D494D9', textDecoration: 'none', border: '1px solid #D494D9', padding: '2px 8px', borderRadius: '4px' },
-  
-  // ★ [수정] 정보 뱃지 스타일 강화 (크기 증가)
-  infoBadge: { 
-      display: 'inline-flex', alignItems: 'center', 
-      padding: '8px 15px', borderRadius: '8px', marginRight: '10px', 
-      fontWeight: 'bold', color: 'black', fontSize: '16px',
-      position: 'relative', cursor: 'help' // 마우스 커서 물음표
-  },
-  // ★ 툴팁 스타일
-  tooltip: {
-      visibility: 'hidden', width: '200px', backgroundColor: '#333', color: '#fff', textAlign: 'center',
-      borderRadius: '6px', padding: '5px', position: 'absolute', zIndex: '1',
-      bottom: '125%', left: '50%', marginLeft: '-100px', opacity: '0', transition: 'opacity 0.3s',
-      fontSize: '12px', fontWeight: 'normal'
-  }
+  infoBadge: { display: 'inline-block', padding: '5px 10px', borderRadius: '5px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#3D46F2', color: 'white', fontSize: '14px', position: 'relative', cursor: 'help' },
+  tooltip: { visibility: 'hidden', width: '200px', backgroundColor: '#333', color: '#fff', textAlign: 'center', borderRadius: '6px', padding: '5px', position: 'absolute', zIndex: '1', bottom: '125%', left: '50%', marginLeft: '-100px', opacity: '0', transition: 'opacity 0.3s', fontSize: '12px', fontWeight: 'normal' }
 };
 
-// 툴팁 컴포넌트
 const InfoWithTooltip = ({ text, color, tooltipText, icon }) => {
     const [hover, setHover] = useState(false);
     return (
-        <span 
-            style={{...styles.infoBadge, backgroundColor: color}}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-        >
+        <span style={{...styles.infoBadge, backgroundColor: color}} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
             {icon} {text}
-            <span style={{...styles.tooltip, visibility: hover ? 'visible' : 'hidden', opacity: hover ? 1 : 0}}>
-                {tooltipText}
-            </span>
+            <span style={{...styles.tooltip, visibility: hover ? 'visible' : 'hidden', opacity: hover ? 1 : 0}}>{tooltipText}</span>
         </span>
     );
 };
@@ -87,10 +68,8 @@ function ShopPage({ region }) {
         setGameData(data);
         setLoading(false);
         if (data.main_image) setSelectedMedia({ type: 'image', url: data.main_image });
-        
         const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
         setIsWishlisted(wishlist.includes(data.slug));
-
         setLikes(data.likes_count || 0);
         setDislikes(data.dislikes_count || 0);
       })
@@ -104,7 +83,6 @@ function ShopPage({ region }) {
     return `${price.toLocaleString()}원`; 
   };
 
-  // ★ [수정] 알림창 제거
   const toggleWishlist = () => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     let newWishlist;
@@ -135,7 +113,18 @@ function ShopPage({ region }) {
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
 
-  if (loading) return <div style={{padding:'20px', color:'white'}}>로딩 중...</div>;
+  // ★ [수정] 상세 페이지 스켈레톤 로딩
+  if (loading) {
+      return (
+          <div style={{ padding: '20px', maxWidth: '800px', margin: 'auto', backgroundColor: '#011526', color: 'white' }}>
+            <Skeleton width="50%" height="40px" style={{marginBottom: '20px'}} /> {/* 제목 */}
+            <Skeleton width="100%" height="450px" style={{marginBottom: '20px'}} /> {/* 미디어 */}
+            <Skeleton width="100%" height="100px" style={{marginBottom: '20px'}} /> {/* 가격 */}
+            <Skeleton width="100%" height="200px" /> {/* 설명 */}
+          </div>
+      );
+  }
+
   if (!gameData) return <div style={{padding:'20px', color:'white'}}>데이터 없음!</div>;
 
   const handleImageError = (e) => { e.target.src = "https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"; };
@@ -245,7 +234,6 @@ function ShopPage({ region }) {
       {renderMediaGallery()}
       <hr style={{ borderColor: '#021E73' }} />
       
-      {/* ★ [수정] 평점 및 플레이타임 UI 개선 (툴팁 포함) */}
       <div style={{marginBottom: '15px', display: 'flex', gap: '10px'}}>
         {gameData.metacritic_score > 0 && (
             <InfoWithTooltip 
@@ -271,8 +259,6 @@ function ShopPage({ region }) {
       <h3>설명</h3>
       <p style={{ color: '#eee' }}>{gameData.description}</p>
       <hr style={{ borderColor: '#021E73' }} />
-      
-      {/* ★ [수정] 사양 정보 문구 개선 */}
       <h3>사양</h3>
       <div style={styles.specBox}>
         <div>

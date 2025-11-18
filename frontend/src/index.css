@@ -12,7 +12,7 @@ body, h1, h2, h3, h4, h5, h6, p, button {
   box-sizing: border-box;
 }
 
-/* 전체 페이지 배경 + 기본 글자색 (Deep Navy & White) */
+/* 전체 페이지 배경 + 기본 글자색 */
 body {
   background-color: #011526;  
   color: #FFFFFF;             
@@ -21,4 +21,27 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+/* ★ [신규] 스켈레톤 애니메이션 (Shimmer Effect) */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: #0f283d; /* 기본 어두운 색 */
+  background-image: linear-gradient(
+    90deg,
+    #0f283d 25%,
+    #1e3b55 50%, /* 지나가는 밝은 빛 */
+    #0f283d 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
 }
