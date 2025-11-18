@@ -1,17 +1,17 @@
 const mongoose = require('mongoose');
 
 const gameSchema = new mongoose.Schema({
-  // 1. ITAD의 고유 ID (기준 ID)
+  // 1. ITAD의 고유 ID
   slug: { type: String, required: true, unique: true },
   
   // 2. 기본 정보
   steam_appid: { type: Number, required: true },
-  title: { type: String, required: true },
+  title: { type: String, required: true },      // 영어 제목 (ITAD 기준)
+  title_ko: { type: String, default: "" },      // ★ [신규] 한글 제목 (Steam 기준)
   main_image: { type: String },
   description: { type: String },
   
   // 3. 커스텀 태그 및 사양
-  // ([String] 타입이므로 태그가 늘어나도 스키마 수정 불필요)
   smart_tags: [String], 
   pc_requirements: {
     minimum: String,
@@ -32,8 +32,6 @@ const gameSchema = new mongoose.Schema({
     historical_low: Number,
     expiry: String, 
     isFree: { type: Boolean, default: false },
-    
-    // ★ 다나와 스타일 가격 비교를 위한 전체 딜 목록
     deals: [{
       shopName: String,
       price: Number,
@@ -43,17 +41,17 @@ const gameSchema = new mongoose.Schema({
     }]
   },
 
-  // 6. 미디어 정보 (상세 페이지 갤러리용)
+  // 6. 미디어 정보
   screenshots: [String], 
   trailers: [String],
 
-  // 7. 추가 정보 (HLTB & 평점)
+  // 7. 추가 정보
   play_time: { type: String, default: "정보 없음" }, 
   metacritic_score: { type: Number, default: 0 },
 
-  // 8. 투표 시스템 (좋아요/싫어요)
+  // 8. 투표 시스템
   votes: [{
-    identifier: String, // IP 주소
+    identifier: String,
     type: { type: String, enum: ['like', 'dislike'] },
     weight: { type: Number, default: 1 },
     date: { type: Date, default: Date.now }
