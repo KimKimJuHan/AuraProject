@@ -1,3 +1,5 @@
+// /backend/collector.js
+
 require('dotenv').config();
 const mongoose = require('mongoose');
 const axios = require('axios');
@@ -18,8 +20,11 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function collectGamesData() {
   const ITAD_API_KEY = process.env.ITAD_API_KEY;
-  console.log('[시작] 데이터 수집 시작 (평점/HLTB 포함)...');
+  console.log('[시작] 데이터 수집 시작 (하이브리드 모드)...');
 
+  // ★ [수정] 변수 선언 위치 확인 (이게 없으면 에러 남)
+  let collectedCount = 0;
+  
   const POPULAR_LIMIT = 120; 
   const DEALS_LIMIT = 30;
 
@@ -127,10 +132,11 @@ async function collectGamesData() {
             const bestMatch = hltbResults.find(h => h.similarity > 0.8); 
             if (bestMatch) playTime = `${bestMatch.gameplayMain} 시간`;
         } catch (hltbErr) {
-            console.log(`[정보] HLTB 데이터 없음: ${infoData.title}`);
+            // HLTB 에러는 무시 (로그만 출력)
+            // console.log(`[정보] HLTB 데이터 없음: ${infoData.title}`);
         }
 
-        // ★ [신규] Metacritic 점수 추출
+        // Metacritic 점수
         const metacriticScore = steamData.metacritic ? steamData.metacritic.score : 0;
 
         const gameDataToSave = {
@@ -150,11 +156,13 @@ async function collectGamesData() {
           screenshots: screenshots,
           trailers: trailers,
           play_time: playTime,
-          metacritic_score: metacriticScore // ★ 저장
+          metacritic_score: metacriticScore
         };
 
         await Game.updateOne({ slug: itad_id }, gameDataToSave, { upsert: true });
         console.log(`[성공] ${infoData.title}`);
+        
+        // ★ [수정] 카운트 증가 (이제 에러 안 남)
         collectedCount++;
 
       } catch (err) {
