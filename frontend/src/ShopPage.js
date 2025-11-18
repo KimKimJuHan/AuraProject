@@ -12,12 +12,10 @@ const styles = {
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '20px 0', gap:'10px' },
   mediaItem: { height: '100px', borderRadius: '4px', border: '2px solid transparent', cursor: 'pointer', transition:'border 0.2s' },
   mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', maxHeight:'500px', marginBottom: '10px', borderRadius: '4px', backgroundColor: '#000', display: 'flex', justifyContent: 'center', objectFit:'contain' },
-  
-  // ★ [수정] 클릭 가능한 스토어 행 스타일 (hover 효과)
-  storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: 'inherit', transition: 'background 0.2s' },
-  
+  storeRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   storePrice: { color: '#A24CD9', fontWeight: 'bold' },
+  storeLink: { color: '#b3b3b3', textDecoration: 'none', border: '1px solid #b3b3b3', padding: '2px 8px', borderRadius: '4px', fontSize:'12px' },
   
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' }
@@ -40,7 +38,7 @@ function useCountdown(expiryTimestamp) {
     const intervalId = setInterval(() => {
       const now = new Date().getTime();
       const distance = new Date(expiryTimestamp).getTime() - now;
-      if (distance < 0) { clearInterval(intervalId); setTimeLeft(null); } 
+      if (distance < 0) { clearInterval(intervalId); setTimeLeft("종료됨"); }
       else {
         const days = Math.floor(distance / (1000 * 60 * 60 * 24));
         const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -128,7 +126,6 @@ function ShopPage({ region }) {
       return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
   };
 
-  // ★ [신규] 가격 비교 리스트 렌더링 (전체 클릭 가능)
   const renderStoreList = () => {
     const deals = pi?.deals || [];
     if (deals.length === 0 && pi) {
@@ -143,7 +140,7 @@ function ShopPage({ region }) {
         <a key={idx} href={deal.url} target="_blank" rel="noreferrer" style={styles.storeRowLink} className="store-row-hover">
             <div style={{display:'flex', alignItems:'center'}}>
                 <span style={styles.storeName}>{deal.shopName}</span>
-                {deal.discount > 0 && <span style={{marginLeft:'10px', color:'#D94F4C', fontSize:'12px'}}>-{deal.discount}%</span>}
+                {deal.discount > 0 && <span style={{marginLeft:'10px', color:'#E50914', fontSize:'12px', fontWeight:'bold'}}>-{deal.discount}%</span>}
             </div>
             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                 {deal.regularPrice > deal.price && <span style={{textDecoration:'line-through', color:'#888', fontSize:'12px'}}>{getPriceDisplay(deal.regularPrice)}</span>}
@@ -156,7 +153,6 @@ function ShopPage({ region }) {
 
   return (
     <div>
-      {/* 배경 히어로 */}
       <div style={{position:'relative', height:'75vh', width:'100%', backgroundImage:`url(${gameData.screenshots?.[0] || gameData.main_image})`, backgroundSize:'cover', backgroundPosition:'center'}}>
          <div style={{position:'absolute', inset:0, background:'linear-gradient(to top, #141414, transparent 80%)'}}></div>
          <div style={{position:'absolute', bottom:'50px', left:'4%', maxWidth:'800px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)'}}>
@@ -182,10 +178,12 @@ function ShopPage({ region }) {
                     <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('like')}>👍 {likes}</button>
                     <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
                 </div>
+
+                {/* ★ [수정] 할인 중 + 타이머가 있을 때만 표시 */}
                 {pi?.discount_percent > 0 && countdown && (
-                    <div style={{color:'#E50914', fontWeight:'bold', fontSize:'15px', display:'flex', alignItems:'center', gap:'5px'}}>
-                        <span>⏰ 할인 종료까지:</span>
-                        <span>{countdown}</span>
+                    <div style={{color:'#E50914', fontWeight:'bold', fontSize:'15px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(0,0,0,0.6)', padding:'5px 10px', borderRadius:'4px', width:'fit-content'}}>
+                        <span>🔥 특가 할인 중!</span>
+                        <span>(⏰ 남은 시간: {countdown})</span>
                     </div>
                 )}
             </div>
@@ -207,7 +205,6 @@ function ShopPage({ region }) {
             ))}
         </div>
 
-        {/* ★ [수정] 가격 비교 리스트 */}
         <h3 className="net-section-title" style={{marginTop:'40px'}}>가격 비교</h3>
         <div style={{border:'1px solid #333', borderRadius:'8px', overflow:'hidden'}}>
             {renderStoreList()}
