@@ -1,118 +1,20 @@
+// /frontend/src/MainPage.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
-// --- 스타일 객체 (새로운 디자인) ---
 const styles = {
-  tabButtonActive: {
-    background: '#3D46F2',      // 메인 블루
-    color: '#FFFFFF',
-    border: 'none',
-    padding: '10px 15px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    marginRight: '5px',
-    fontWeight: 'bold',
-    borderRadius: '10px 10px 0 0',
-    boxShadow: '0 -2px 0 #A24CD9 inset'
-  },
-  tabButton: {
-    background: 'transparent',
-    color: '#D494D9',           // 연보라
-    border: 'none',
-    padding: '10px 15px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    marginRight: '5px',
-    borderRadius: '10px 10px 0 0'
-  },
-  tagButtonActive: {
-    margin: '5px',
-    backgroundColor: '#A24CD9', // 퍼플
-    color: '#011526',
-    border: '1px solid #A24CD9',
-    padding: '0 10px',
-    cursor: 'pointer',
-    width: '120px',
-    height: '35px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxSizing: 'border-box',
-    borderRadius: '999px',
-    fontWeight: 'bold'
-  },
-  tagButton: {
-    margin: '5px',
-    backgroundColor: '#021E73',
-    color: '#FFFFFF',
-    border: '1px solid #3D46F2',
-    padding: '0 10px',
-    cursor: 'pointer',
-    width: '120px',
-    height: '35px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxSizing: 'border-box',
-    borderRadius: '999px'
-  },
-  listItem: {
-    display: 'flex',
-    alignItems: 'center',
-    backgroundColor: '#021E73',
-    color: 'white',
-    textDecoration: 'none',
-    marginBottom: '6px',
-    padding: '10px',
-    minHeight: '80px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.6)'
-  },
-  priceBox: {
-    marginRight: '15px',
-    width: '120px',
-    textAlign: 'right',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    justifyContent: 'center'
-  },
-  discountBadge: {
-    backgroundColor: '#D94F4C', // 빨간 할인 배지
-    color: '#FFFFFF',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    fontSize: '18px',
-    fontWeight: 'bold'
-  },
-  regularPrice: {
-    textDecoration: 'line-through',
-    color: '#BBBBBB',
-    fontSize: '12px',
-    marginTop: '4px'
-  },
-  currentPrice: {
-    color: '#A24CD9',           // 현재가 퍼플
-    fontSize: '14px'
-  },
-  normalPrice: {
-    color: '#FFFFFF',
-    fontSize: '14px'
-  },
-  loadMoreButton: {
-    display: 'block',
-    width: '220px',
-    margin: '20px auto',
-    padding: '10px 15px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    backgroundColor: '#048ABF', // 서브 포인트 블루
-    color: '#FFFFFF',
-    border: 'none',
-    borderRadius: '999px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.7)'
-  }
+  tabButtonActive: { background: '#3D46F2', color: '#FFFFFF', border: 'none', padding: '10px 15px', cursor: 'pointer', fontSize: '16px', marginRight: '5px', fontWeight: 'bold', borderRadius: '10px 10px 0 0', boxShadow: '0 -2px 0 #A24CD9 inset' },
+  tabButton: { background: 'transparent', color: '#D494D9', border: 'none', padding: '10px 15px', cursor: 'pointer', fontSize: '16px', marginRight: '5px', borderRadius: '10px 10px 0 0' },
+  tagButtonActive: { margin: '5px', backgroundColor: '#A24CD9', color: '#011526', border: '1px solid #A24CD9', padding: '0 10px', cursor: 'pointer', width: '120px', height: '35px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', borderRadius: '999px', fontWeight: 'bold' },
+  tagButton: { margin: '5px', backgroundColor: '#021E73', color: '#FFFFFF', border: '1px solid #3D46F2', padding: '0 10px', cursor: 'pointer', width: '120px', height: '35px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', borderRadius: '999px' },
+  listItem: { display: 'flex', alignItems: 'center', backgroundColor: '#021E73', color: 'white', textDecoration: 'none', marginBottom: '6px', padding: '10px', minHeight: '80px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.6)' },
+  priceBox: { marginRight: '15px', width: '120px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' },
+  discountBadge: { backgroundColor: '#D94F4C', color: '#FFFFFF', padding: '4px 8px', borderRadius: '4px', fontSize: '18px', fontWeight: 'bold' },
+  regularPrice: { textDecoration: 'line-through', color: '#BBBBBB', fontSize: '12px', marginTop: '4px' },
+  currentPrice: { color: '#A24CD9', fontSize: '14px' },
+  normalPrice: { color: '#FFFFFF', fontSize: '14px' },
+  loadMoreButton: { display: 'block', width: '220px', margin: '20px auto', padding: '10px 15px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: '#048ABF', color: '#FFFFFF', border: 'none', borderRadius: '999px', boxShadow: '0 4px 12px rgba(0,0,0,0.7)' }
 };
 
 function GameListItem({ game }) {
@@ -167,7 +69,6 @@ function MainPage() {
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
-    // ★ [수정] 경고 발생하던 라인 삭제 (불필요한 로직)
     if (!hasMore) return; 
 
     async function fetchGames() {
