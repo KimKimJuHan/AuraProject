@@ -6,7 +6,6 @@ const styles = {
   tagButton: { margin: '4px', padding: '5px 10px', backgroundColor: '#A24CD9', color: '#011526', borderRadius: '999px', fontSize: '14px', border: 'none' },
   specBox: { backgroundColor: '#021E73', padding: '15px', lineHeight: '1.6', borderRadius: '8px', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(0,0,0,0.6)' },
   wishlistButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#A24CD9', color: '#011526', border: 'none', borderRadius: '999px', fontWeight: 'bold' },
-  // ★ 찜 취소 버튼 스타일
   wishlistButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#D94F4C', color: '#FFFFFF', border: 'none', borderRadius: '999px', fontWeight: 'bold' },
   thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #3D46F2', borderRadius: '999px', background: '#021E73', color: '#FFFFFF' },
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '10px 0', backgroundColor: '#011526' },
@@ -16,7 +15,6 @@ const styles = {
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   storePrice: { color: '#A24CD9', fontWeight: 'bold' },
   storeLink: { color: '#D494D9', textDecoration: 'none', border: '1px solid #D494D9', padding: '2px 8px', borderRadius: '4px' },
-  // ★ HLTB, Metacritic 뱃지
   infoBadge: { display: 'inline-block', padding: '5px 10px', borderRadius: '5px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#3D46F2', color: 'white', fontSize: '14px' }
 };
 
@@ -44,7 +42,7 @@ function ShopPage() {
   const [gameData, setGameData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
-  const [isWishlisted, setIsWishlisted] = useState(false); // ★ 찜 상태
+  const [isWishlisted, setIsWishlisted] = useState(false);
 
   useEffect(() => {
     fetch(`http://localhost:8000/api/games/${id}`)
@@ -54,15 +52,12 @@ function ShopPage() {
         setGameData(data);
         setLoading(false);
         if (data.main_image) setSelectedMedia({ type: 'image', url: data.main_image });
-        
-        // ★ 로컬 스토리지에서 찜 상태 확인
         const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
         setIsWishlisted(wishlist.includes(data.slug));
       })
       .catch(err => console.error(err));
   }, [id]); 
 
-  // ★ 찜 토글 함수
   const toggleWishlist = () => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     let newWishlist;
@@ -82,7 +77,12 @@ function ShopPage() {
   if (loading) return <div style={{padding:'20px', color:'white'}}>로딩 중...</div>;
   if (!gameData) return <div style={{padding:'20px', color:'white'}}>데이터 없음!</div>;
 
-  const handleImageError = (e) => { e.target.src = "https://via.placeholder.com/600x300?text=No+Image"; };
+  // ★ [수정] 이미지 로딩 에러 시 아예 숨기거나 기본 이미지로 대체
+  const handleImageError = (e) => { 
+      // 1. 이미지를 숨기려면: e.target.style.display = 'none';
+      // 2. 대체 이미지를 보여주려면:
+      e.target.src = "https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"; 
+  };
 
   const renderMediaGallery = () => {
     const allMedia = [];
@@ -98,7 +98,12 @@ function ShopPage() {
           {selectedMedia?.type === 'video' ? (
             <video controls autoPlay src={selectedMedia.url} style={{maxWidth:'100%', maxHeight:'500px'}} />
           ) : (
-            <img src={selectedMedia?.url} onError={handleImageError} alt="Main" style={{maxWidth:'100%', maxHeight:'500px'}} />
+            <img 
+                src={selectedMedia?.url} 
+                onError={handleImageError} // 에러 핸들링
+                alt="Main" 
+                style={{maxWidth:'100%', maxHeight:'500px'}} 
+            />
           )}
         </div>
         <div style={styles.mediaContainer}>
@@ -106,9 +111,9 @@ function ShopPage() {
             <img 
               key={idx} 
               src={media.type === 'video' ? gameData.main_image : media.url}
-              onError={handleImageError}
+              onError={(e) => e.target.style.display = 'none'} // 썸네일 에러나면 숨김
               alt="thumb"
-              style={{ ...styles.mediaItem, border: selectedMedia?.url === media.url ? '2px solid #5FCDD9' : '1px solid #021E73' }}
+              style={{ ...styles.mediaItem, border: selectedMedia?.url === media.url ? '2px solid #5FCDD9' : '1px solid #027373' }}
               onClick={() => setSelectedMedia(media)}
             />
           ))}
@@ -173,10 +178,7 @@ function ShopPage() {
         </h2>
         {pi.discount_percent > 0 && countdown && <p style={{ color: '#D94F4C' }}>남은 시간: {countdown}</p>}
         <p style={{ color: '#A24CD9' }}>역대 최저가: {pi.historical_low.toLocaleString()}원</p>
-        
-        <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
-             최저가 구매 ({storeName})
-        </a>
+        <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>{storeName}에서 구매하기</a>
         
         <div style={{marginTop:'20px', border:'1px solid #3D46F2', borderRadius:'8px', overflow:'hidden'}}>
             <div style={{padding:'10px', backgroundColor:'#011526', fontWeight:'bold', borderBottom:'1px solid #3D46F2'}}>다른 스토어 가격 비교</div>
@@ -192,7 +194,6 @@ function ShopPage() {
       {renderMediaGallery()}
       <hr style={{ borderColor: '#021E73' }} />
       
-      {/* ★ [신규] 평점 및 플레이타임 표시 */}
       <div style={{marginBottom: '15px'}}>
         {gameData.metacritic_score > 0 && (
             <span style={{...styles.infoBadge, backgroundColor: '#F2B705', color: 'black'}}>
@@ -219,13 +220,8 @@ function ShopPage() {
         <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements?.recommended }} />
       </div>
       <hr style={{ borderColor: '#021E73' }} />
-      
       <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-        {/* ★ 찜 버튼 로직 연결 */}
-        <button 
-            style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} 
-            onClick={toggleWishlist}
-        >
+        <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>
             {isWishlisted ? '💔 찜 취소' : '❤️ 찜하기'}
         </button>
         <div style={{ display: 'flex', gap: '10px' }}>

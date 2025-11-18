@@ -1,10 +1,13 @@
+// /frontend/src/App.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
-import ComparisonPage from './ComparisonPage'; // ★ [신규]
+import ComparisonPage from './ComparisonPage';
 
+// --- 스타일 객체 ---
 const styles = {
   navBar: { width: '100%', backgroundColor: '#021E73', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', boxShadow: '0 2px 8px rgba(0,0,0,0.6)' },
   homeLink: { color: '#D494D9', textDecoration: 'none', fontSize: '20px', fontWeight: 'bold', minWidth: '120px', letterSpacing: '0.5px' },
@@ -16,8 +19,8 @@ const styles = {
   suggestionItemSelected: { padding: '10px 15px', cursor: 'pointer', color: '#FFFFFF', backgroundColor: '#3D46F2', fontWeight: 'bold' },
   suggestionItemHistory: { padding: '10px 15px', cursor: 'pointer', color: '#D494D9', fontStyle: 'italic' },
   clearHistoryButton: { padding: '10px 15px', cursor: 'pointer', color: '#D94F4C', fontStyle: 'italic', textAlign: 'center', backgroundColor: '#011526' },
-  // ★ [신규] 비교 버튼 스타일
   compareLink: { color: '#A24CD9', textDecoration: 'none', fontSize: '16px', fontWeight: 'bold', minWidth: '120px', textAlign: 'right', border: '1px solid #A24CD9', padding: '5px 10px', borderRadius: '999px' },
+  navSpacer: { minWidth: '120px' } // 모바일 반응형 등을 위한 여백용 (비교 링크 없을때)
 };
 
 function NavigationBar() {
@@ -169,10 +172,10 @@ function NavigationBar() {
               searchTerm.length > 1 && <li style={styles.suggestionItemHistory}>검색 결과 없음</li>
             )}
             {searchTerm.length <= 1 && history.length > 0 && <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>검색 기록 모두 지우기</li>}
+            {searchTerm.length <= 1 && history.length === 0 && <li style={styles.suggestionItemHistory}>검색 기록 없음</li>}
           </ul>
         )}
       </div>
-      {/* ★ [신규] 찜/비교 페이지 링크 */}
       <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
     </nav>
   );
@@ -186,7 +189,6 @@ function App() {
         <Routes>
           <Route path="/" element={<MainPage />} />
           <Route path="/game/:id" element={<ShopPage />} />
-          {/* ★ [신규] 비교 페이지 라우트 */}
           <Route path="/comparison" element={<ComparisonPage />} />
         </Routes>
       </div>

@@ -1,4 +1,5 @@
 /* /frontend/src/index.css */
+
 /* 기본 스타일 초기화 */
 body, h1, h2, h3, h4, h5, h6, p, button {
   margin: 0;
@@ -11,14 +12,13 @@ body, h1, h2, h3, h4, h5, h6, p, button {
   box-sizing: border-box;
 }
 
-/* 전체 페이지 배경 + 기본 글자색 */
+/* 전체 페이지 배경 + 기본 글자색 (Deep Navy & White) */
 body {
-  background-color: #011526;  /* 아주 어두운 남색 */
-  color: #FFFFFF;             /* 기본 흰색 텍스트 */
+  background-color: #011526;  
+  color: #FFFFFF;             
   min-height: 100vh;
 }
 
-/* React root */
 #root {
   min-height: 100vh;
 }
