@@ -2,8 +2,8 @@ name: Run Game Data Collector
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *' # 매일 자정 실행
+  workflow_dispatch: # 수동 실행 버튼
 
 jobs:
   run-collector:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'  # ★ 팀원님 로컬 버전과 동일하게 변경
+          node-version: '20'
 
       - name: Install dependencies
         run: |
@@ -24,10 +24,11 @@ jobs:
           npm install
 
       - name: Run collector script
+        # ★ 여기가 제일 중요합니다! env: 부분이 run: 바로 아래에 있어야 합니다.
+        env:
+          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
         run: |
           cd backend
           node collector.js
-        env:
-          ITAD_API_KEY: "${{ secrets.ITAD_API_KEY }}"
-          MONGODB_URI: "${{ secrets.MONGODB_URI }}"
-          STEAM_API_KEY: "${{ secrets.STEAM_API_KEY }}"
