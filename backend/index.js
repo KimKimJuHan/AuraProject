@@ -33,11 +33,13 @@ app.get('/api/games/:id', async (req, res) => {
   }
 });
 
-// 2. 메인/검색 페이지 API (★ 검색 로직 단순화 & 강화)
+// 2. 메인/검색 페이지 API (★ 디버깅 로그 추가)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body; 
   const limit = 15; 
   const skip = (page - 1) * limit; 
+
+  console.log(`🔍 [API 요청] 검색어: "${searchQuery || ''}", 태그: [${tags || ''}], 정렬: ${sortBy}`);
 
   try {
     let filter = {};
@@ -47,17 +49,17 @@ app.post('/api/recommend', async (req, res) => {
       filter.smart_tags = { $all: tags };
     }
     
-    // ★ [수정] 검색어 필터 (복잡한 로직 제거 -> 단순 포함 검색)
+    // ★ 검색어 필터 (단순 포함 검색)
     if (searchQuery) {
         const query = searchQuery.trim();
-        // 특수문자만 이스케이프 처리 (오류 방지)
         const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         
-        // 영어 제목 OR 한글 제목에 검색어가 '포함'되어 있으면 찾음 (대소문자 무시)
+        // 영어 제목 OR 한글 제목에 '포함'되어 있으면 찾음 (대소문자 무시)
         filter.$or = [
             { title: { $regex: escapedQuery, $options: 'i' } },
             { title_ko: { $regex: escapedQuery, $options: 'i' } }
         ];
+        console.log(`   -> DB 필터 조건: title 또는 title_ko에 "${escapedQuery}" 포함 (대소문자 무시)`);
     }
 
     // 정렬 로직
@@ -81,6 +83,11 @@ app.post('/api/recommend', async (req, res) => {
       .sort(sortRule)
       .skip(skip)   
       .limit(limit); 
+    
+    console.log(`   -> 검색 결과: ${totalGames}개 찾음 (이번 페이지: ${games.length}개 반환)`);
+    if (games.length > 0) {
+        console.log(`   -> 첫 번째 결과: ${games[0].title} / ${games[0].title_ko}`);
+    }
       
     res.status(200).json({
       games: games,
@@ -88,29 +95,31 @@ app.post('/api/recommend', async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("❌ API 오류:", error);
     res.status(500).json({ error: "데이터 로딩 중 오류" });
   }
 });
 
-// 3. 검색 자동완성 API (★ 동일하게 단순화)
+// 3. 검색 자동완성 API
 app.get('/api/search/autocomplete', async (req, res) => {
   const query = req.query.q; 
   if (typeof query !== 'string' || !query) return res.json([]);
 
   const escapedQuery = query.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  console.log(`🔍 [자동완성] 입력값: "${query}"`);
   
   try {
-    // 단순 포함 검색
+    const regex = new RegExp(escapedQuery, 'i'); 
     const suggestions = await Game.find({
         $or: [ 
-            { title: { $regex: escapedQuery, $options: 'i' } }, 
-            { title_ko: { $regex: escapedQuery, $options: 'i' } } 
+            { title: { $regex: regex } }, 
+            { title_ko: { $regex: regex } } 
         ]
     })
     .select('title title_ko slug')
     .limit(10); 
     
+    console.log(`   -> 자동완성 결과: ${suggestions.length}개`);
     res.json(suggestions);
   } catch (error) {
     res.status(500).json({ error: "검색 오류" });
@@ -126,15 +135,7 @@ app.get('/api/user/library/:steamId', async (req, res) => {
     const response = await axios.get(
       `http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${apiKey}&steamid=${req.params.steamId}&include_appinfo=true&format=json`
     );
-    const games = response.data.response.games || [];
-    const formattedGames = games.map(game => ({
-      appid: game.appid,
-      name: game.name,
-      playtime_forever: Math.round(game.playtime_forever / 60), 
-      img_icon_url: `http://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg`
-    }));
-    formattedGames.sort((a, b) => b.playtime_forever - a.playtime_forever);
-    res.json(formattedGames);
+    res.json(response.data.response.games || []);
   } catch (error) {
     res.status(500).json({ error: "Steam Profile Error" });
   }
