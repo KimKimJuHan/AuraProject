@@ -1,152 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 
-// --- 스타일 객체 (팀원 디자인 반영) ---
 const styles = {
-  container: { 
-    padding: '30px 40px', 
-    minHeight: '100vh', 
-    backgroundColor: '#11131F', // 더 어두운 배경 (이미지 참고)
-    color: '#FFFFFF' 
-  },
-  // ★ 필터 섹션 (카테고리 박스)
-  filterSection: {
-    border: '1px solid #2A2E3B',
-    borderRadius: '12px',
-    padding: '20px',
-    marginBottom: '30px',
-    backgroundColor: '#1A1D29' // 패널 배경
-  },
-  categoryRow: {
-    display: 'flex',
-    marginBottom: '15px',
-    alignItems: 'flex-start'
-  },
-  categoryTitle: {
-    width: '100px',
-    fontWeight: 'bold',
-    color: '#A0AEC0',
-    marginTop: '8px',
-    fontSize: '14px'
-  },
-  tagsContainer: {
-    flex: 1,
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '8px'
-  },
-  // ★ 태그 버튼 스타일 (이미지와 유사하게)
-  filterTag: {
-    padding: '6px 14px',
-    borderRadius: '20px', // 둥근 알약 모양
-    border: '1px solid #3D46F2',
-    backgroundColor: 'transparent',
-    color: '#94A3B8',
-    cursor: 'pointer',
-    fontSize: '13px',
-    transition: 'all 0.2s'
-  },
-  filterTagSelected: {
-    padding: '6px 14px',
-    borderRadius: '20px',
-    border: '1px solid #3D46F2',
-    backgroundColor: '#3D46F2', // 선택 시 밝은 파랑
-    color: 'white',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 'bold'
-  },
-  
-  // ★ 검색바 섹션
-  searchBarContainer: {
-    display: 'flex',
-    marginBottom: '20px',
-    gap: '10px'
-  },
-  searchInput: {
-    flex: 1,
-    padding: '12px 20px',
-    borderRadius: '8px',
-    border: '1px solid #2A2E3B',
-    backgroundColor: '#141721',
-    color: 'white',
-    fontSize: '16px',
-    outline: 'none'
-  },
-  searchButton: {
-    padding: '10px 25px',
-    borderRadius: '8px',
-    border: 'none',
-    backgroundColor: '#3D46F2',
-    color: 'white',
-    fontWeight: 'bold',
-    cursor: 'pointer'
-  },
-
-  // ★ 결과 섹션
-  resultHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '15px',
-    color: '#A0AEC0',
-    fontSize: '14px'
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', // 반응형 그리드
-    gap: '20px'
-  },
-  
-  // ★ 카드 스타일 (이미지 비율, 라운딩)
-  card: {
-    backgroundColor: '#1A1D29',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    textDecoration: 'none',
-    color: 'white',
-    display: 'flex',
-    flexDirection: 'column',
-    border: '1px solid #2A2E3B',
-    transition: 'transform 0.2s',
-    height: '100%'
-  },
-  cardImage: {
-    width: '100%',
-    height: '160px',
-    objectFit: 'cover'
-  },
-  cardBody: {
-    padding: '15px',
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between'
-  },
-  cardTitle: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '10px',
-    lineHeight: '1.4'
-  },
-  cardFooter: {
-    marginTop: 'auto',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  priceText: {
-    color: '#3D46F2', // 가격 강조색
-    fontWeight: 'bold'
-  },
-  discountText: {
-    color: '#48BB78', // 할인율 (초록)
-    fontSize: '12px',
-    marginLeft: '5px'
-  }
+  container: { padding: '30px 40px', minHeight: '100vh', backgroundColor: '#11131F', color: '#FFFFFF' },
+  filterSection: { border: '1px solid #2A2E3B', borderRadius: '12px', padding: '20px', marginBottom: '30px', backgroundColor: '#1A1D29' },
+  categoryRow: { display: 'flex', marginBottom: '15px', alignItems: 'flex-start' },
+  categoryTitle: { width: '100px', fontWeight: 'bold', color: '#A0AEC0', marginTop: '8px', fontSize: '14px' },
+  tagsContainer: { flex: 1, display: 'flex', flexWrap: 'wrap', gap: '8px' },
+  filterTag: { padding: '6px 14px', borderRadius: '20px', border: '1px solid #3D46F2', backgroundColor: 'transparent', color: '#94A3B8', cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s' },
+  filterTagSelected: { padding: '6px 14px', borderRadius: '20px', border: '1px solid #3D46F2', backgroundColor: '#3D46F2', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' },
+  searchBarContainer: { display: 'flex', marginBottom: '20px', gap: '10px' },
+  searchInput: { flex: 1, padding: '12px 20px', borderRadius: '8px', border: '1px solid #2A2E3B', backgroundColor: '#141721', color: 'white', fontSize: '16px', outline: 'none' },
+  searchButton: { padding: '10px 25px', borderRadius: '8px', border: 'none', backgroundColor: '#3D46F2', color: 'white', fontWeight: 'bold', cursor: 'pointer' },
+  resultHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', color: '#A0AEC0', fontSize: '14px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' },
+  card: { backgroundColor: '#1A1D29', borderRadius: '12px', overflow: 'hidden', textDecoration: 'none', color: 'white', display: 'flex', flexDirection: 'column', border: '1px solid #2A2E3B', transition: 'transform 0.2s', height: '100%' },
+  cardImage: { width: '100%', height: '160px', objectFit: 'cover' },
+  cardBody: { padding: '15px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' },
+  cardTitle: { fontSize: '16px', fontWeight: 'bold', marginBottom: '10px', lineHeight: '1.4' },
+  cardFooter: { marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 };
 
-// ★ 카테고리별 태그 데이터 (이미지 기반)
 const TAG_CATEGORIES = {
   '장르': ['RPG', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', 'FPS'],
   '시점': ['1인칭', '3인칭'],
@@ -162,43 +36,32 @@ function SearchResultsPage() {
   const [localSearchTerm, setLocalSearchTerm] = useState(initialQuery);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedTags, setSelectedTags] = useState([]); // 선택된 태그들
+  const [selectedTags, setSelectedTags] = useState([]);
 
-  // 태그 토글 함수
   const toggleTag = (tag) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-    );
+    setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
 
-  // 검색 실행 (API 호출)
   const executeSearch = () => {
     setLoading(true);
     
-    // API에 보낼 데이터 준비
-    const payload = {
-        tags: selectedTags,
-        sortBy: 'popular', // 기본 정렬
-        page: 1
-    };
-
-    // 검색어가 있으면 자동완성 API 활용, 없으면 추천 API 활용 (필터링)
-    // 여기서는 간단하게 'recommend' API를 재활용하되, 검색어 필터링은 프론트에서 하거나 백엔드 개선 필요.
-    // ★ 현재 백엔드 구조상 '검색어' + '태그' 동시 검색 API가 없으므로
-    //    일단 'recommend' API로 태그 기반 검색을 수행합니다.
-    //    (텍스트 검색은 상단바에서 이미 수행했으므로)
-
+    // 태그 기반으로 1차 데이터를 가져옴 (추천 API 사용)
     fetch('http://localhost:8000/api/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ tags: selectedTags, sortBy: 'popular', page: 1 })
     })
     .then(res => res.json())
     .then(data => {
-        // 만약 텍스트 검색어가 있다면, 결과에서 2차 필터링 (임시)
         let filtered = data.games;
+        
+        // 검색어가 있다면 2차 필터링 (한글/영어 모두 검색)
         if (localSearchTerm) {
-            filtered = filtered.filter(g => g.title.toLowerCase().includes(localSearchTerm.toLowerCase()));
+            const lowerQuery = localSearchTerm.toLowerCase();
+            filtered = filtered.filter(g => 
+                g.title.toLowerCase().includes(lowerQuery) || 
+                (g.title_ko && g.title_ko.toLowerCase().includes(lowerQuery)) // ★ 한글 제목 검색 추가
+            );
         }
         setResults(filtered);
         setLoading(false);
@@ -209,31 +72,27 @@ function SearchResultsPage() {
     });
   };
 
-  // 페이지 로드 시 / 태그 변경 시 자동 검색
   useEffect(() => {
     executeSearch();
-  }, [selectedTags]); // 태그가 바뀔 때마다 재검색
+  }, [selectedTags]); 
 
-  // 엔터 키 입력 시 검색
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') executeSearch();
   };
 
   return (
     <div style={styles.container}>
-      {/* 1. 상단 검색바 */}
       <div style={styles.searchBarContainer}>
         <input 
             style={styles.searchInput} 
             value={localSearchTerm}
             onChange={(e) => setLocalSearchTerm(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="검색어 (예: Baldur, Souls...)"
+            placeholder="검색어 (예: Baldur, 포탈...)"
         />
-        <button style={styles.searchButton} onClick={executeSearch}>추천 받기</button>
+        <button style={styles.searchButton} onClick={executeSearch}>검색</button>
       </div>
 
-      {/* 2. 카테고리별 필터 섹션 */}
       <div style={styles.filterSection}>
         {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
             <div key={category} style={styles.categoryRow}>
@@ -256,7 +115,6 @@ function SearchResultsPage() {
         </div>
       </div>
 
-      {/* 3. 결과 목록 */}
       <div style={styles.resultHeader}>
         <span>결과 {results.length} 개</span>
       </div>
@@ -274,7 +132,8 @@ function SearchResultsPage() {
                 onError={(e) => e.target.src = "https://via.placeholder.com/300x160/1A1D29/FFFFFF?text=No+Image"}
               />
               <div style={styles.cardBody}>
-                <div style={styles.cardTitle}>{game.title}</div>
+                {/* ★ 제목 표시: 한글 제목이 있으면 우선 표시 */}
+                <div style={styles.cardTitle}>{game.title_ko || game.title}</div>
                 <div style={styles.cardFooter}>
                     {game.price_info?.isFree ? (
                         <span style={{color:'#48BB78', fontWeight:'bold'}}>무료</span>
@@ -289,12 +148,11 @@ function SearchResultsPage() {
                         </>
                     )}
                 </div>
-                {/* 진행 바 스타일의 평점 (임시 시각화) */}
                 {game.metacritic_score > 0 && (
                     <div style={{marginTop:'10px'}}>
                         <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', color:'#ccc', marginBottom:'3px'}}>
                             <span>Metacritic</span>
-                            <span>{game.metacritic_score}%</span>
+                            <span>{game.metacritic_score}점</span>
                         </div>
                         <div style={{width:'100%', height:'4px', backgroundColor:'#333', borderRadius:'2px'}}>
                             <div style={{width:`${game.metacritic_score}%`, height:'100%', backgroundColor:'#3D46F2', borderRadius:'2px'}}></div>
@@ -304,6 +162,12 @@ function SearchResultsPage() {
               </div>
             </Link>
           ))}
+          {results.length === 0 && (
+            <div style={{gridColumn: '1 / -1', textAlign: 'center', marginTop: '50px', color: '#888'}}>
+                <p>검색 결과가 없습니다.</p>
+                <p style={{fontSize:'14px'}}>다른 검색어나 태그를 시도해 보세요.</p>
+            </div>
+          )}
         </div>
       )}
     </div>
