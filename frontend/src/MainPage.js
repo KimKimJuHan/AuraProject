@@ -1,7 +1,6 @@
-// /frontend/src/MainPage.js
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import Skeleton from './Skeleton'; // ★ 스켈레톤 가져오기
 
 const styles = {
   tabButtonActive: { background: '#3D46F2', color: '#FFFFFF', border: 'none', padding: '10px 15px', cursor: 'pointer', fontSize: '16px', marginRight: '5px', fontWeight: 'bold', borderRadius: '10px 10px 0 0', boxShadow: '0 -2px 0 #A24CD9 inset' },
@@ -16,6 +15,26 @@ const styles = {
   normalPrice: { color: '#FFFFFF', fontSize: '14px' },
   loadMoreButton: { display: 'block', width: '220px', margin: '20px auto', padding: '10px 15px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: '#048ABF', color: '#FFFFFF', border: 'none', borderRadius: '999px', boxShadow: '0 4px 12px rgba(0,0,0,0.7)' }
 };
+
+// ★ [신규] 로딩 중에 보여줄 뼈대 컴포넌트
+function GameListItemSkeleton() {
+  return (
+    <div style={{...styles.listItem, pointerEvents: 'none'}}>
+      {/* 이미지 자리 */}
+      <Skeleton width="150px" height="69px" borderRadius="4px" style={{marginRight: '15px'}} />
+      {/* 텍스트 자리 */}
+      <div style={{ flex: 1 }}>
+        <Skeleton width="60%" height="20px" />
+        <Skeleton width="40%" height="14px" />
+      </div>
+      {/* 가격 자리 */}
+      <div style={{ width: '100px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+        <Skeleton width="50px" height="20px" />
+        <Skeleton width="80px" height="14px" />
+      </div>
+    </div>
+  );
+}
 
 function GameListItem({ game }) {
   const detailPageUrl = `/game/${game.slug}`;
@@ -119,11 +138,26 @@ function MainPage() {
           <button key={tag} onClick={() => handleTagClick(tag)} style={selectedTags.includes(tag) ? styles.tagButtonActive : styles.tagButton}>{tag}</button>
         ))}
       </div>
+      
       <div style={{ padding: '10px' }}>
-        {games.map(game => (<GameListItem key={game.slug} game={game} />))}
-        {loading && <p style={{color:'white'}}>로딩 중...</p>}
+        {/* ★ 게임 목록 렌더링 */}
+        {games.map(game => (
+            <GameListItem key={game.slug} game={game} />
+        ))}
+        
+        {/* ★ [수정] 로딩 중이면 스켈레톤 5개 보여주기 */}
+        {loading && (
+           <>
+             <GameListItemSkeleton />
+             <GameListItemSkeleton />
+             <GameListItemSkeleton />
+             <GameListItemSkeleton />
+             <GameListItemSkeleton />
+           </>
+        )}
+        
         {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(prev => prev + 1)}>더 보기 (Load More)</button>}
-        {!loading && games.length === 0 && <p style={{color:'white'}}>게임이 없습니다.</p>}
+        {!loading && games.length === 0 && <p style={{color:'white', textAlign:'center', marginTop:'20px'}}>게임이 없습니다.</p>}
       </div>
     </div>
   );

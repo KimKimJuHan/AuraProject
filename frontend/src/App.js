@@ -1,11 +1,10 @@
-// /frontend/src/App.js
-
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
+import SearchResultsPage from './SearchResultsPage'; // ★ 이거 import 되어 있는지 확인!
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#021E73', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', boxShadow: '0 2px 8px rgba(0,0,0,0.6)' },
@@ -19,11 +18,9 @@ const styles = {
   suggestionItemHistory: { padding: '10px 15px', cursor: 'pointer', color: '#D494D9', fontStyle: 'italic' },
   clearHistoryButton: { padding: '10px 15px', cursor: 'pointer', color: '#D94F4C', fontStyle: 'italic', textAlign: 'center', backgroundColor: '#011526' },
   
-  // ★ 우측 메뉴 그룹 (지역 선택 + 찜)
-  rightGroup: { display: 'flex', alignItems: 'center', gap: '15px' },
+  rightGroup: { display: 'flex', alignItems: 'center', gap: '15px' }, 
   compareLink: { color: '#A24CD9', textDecoration: 'none', fontSize: '16px', fontWeight: 'bold', border: '1px solid #A24CD9', padding: '5px 10px', borderRadius: '999px' },
   
-  // ★ 지역 선택 셀렉트 박스 스타일
   regionSelect: {
     backgroundColor: '#011526',
     color: '#FFFFFF',
@@ -92,26 +89,41 @@ function NavigationBar({ region, setRegion }) {
     }
   };
 
+  // ★ [수정] 검색 로직 대폭 개선
   const handleSubmit = async (e) => {
     if(e) e.preventDefault(); 
     const query = searchTerm.trim();
     if (!query) return;
+
     const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
     setHistory(newHistory);
     localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
-    let targetGame = suggestions.find(g => g.title.toLowerCase().includes(query.toLowerCase()));
+    // 1. 현재 자동완성 목록에서 정확히 일치하는 게 있는지 확인
+    let targetGame = suggestions.find(g => g.title.toLowerCase() === query.toLowerCase());
+
+    // 2. 없으면 API에 한 번 더 물어봄 (혹시 목록에 없는데 정확한 게임이 있는지)
     if (!targetGame) {
         try {
             const response = await fetch(`http://localhost:8000/api/search/autocomplete?q=${query}`);
             const data = await response.json();
-            if (data.length > 0) targetGame = data[0]; 
+            // 정확히 일치하는게 있으면 그걸로 설정
+            targetGame = data.find(g => g.title.toLowerCase() === query.toLowerCase());
         } catch (err) { console.error(err); }
     }
+
     if (targetGame) {
-      setSearchTerm(targetGame.title); setIsFocused(false); setSuggestions([]); navigate(`/game/${targetGame.slug}`);
+      // A. 정확한 게임을 찾았다면 -> 상세 페이지로 바로 이동
+      setSearchTerm(targetGame.title); 
+      setIsFocused(false); 
+      setSuggestions([]); 
+      navigate(`/game/${targetGame.slug}`);
     } else {
-      alert(`'${query}'에 대한 게임을 찾을 수 없습니다.`); setIsFocused(false);
+      // B. 정확한 게임이 없다면 -> '검색 결과 페이지'로 이동 (alert 제거)
+      // "po", "potal" 등을 검색하면 여기로 와서 리스트를 보여줌
+      setIsFocused(false);
+      setSuggestions([]);
+      navigate(`/search?q=${query}`);
     }
   };
 
@@ -157,13 +169,8 @@ function NavigationBar({ region, setRegion }) {
         )}
       </div>
 
-      {/* ★ 우측 메뉴: 지역 선택 + 찜 링크 */}
       <div style={styles.rightGroup}>
-          <select 
-            style={styles.regionSelect} 
-            value={region} 
-            onChange={(e) => setRegion(e.target.value)}
-          >
+          <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="KR">🇰🇷 KRW</option>
             <option value="US">🇺🇸 USD</option>
             <option value="JP">🇯🇵 JPY</option>
@@ -175,12 +182,10 @@ function NavigationBar({ region, setRegion }) {
 }
 
 function App() {
-  // ★ 전역 지역 상태 관리 (기본값 KR)
   const [region, setRegion] = useState(localStorage.getItem('userRegion') || 'KR');
 
   useEffect(() => {
     localStorage.setItem('userRegion', region);
-    // 나중에 여기서 region이 바뀔 때마다 언어 설정(i18n) 등을 변경하는 로직 추가 가능
   }, [region]);
 
   return (
@@ -189,9 +194,10 @@ function App() {
         <NavigationBar region={region} setRegion={setRegion} />
         <Routes>
           <Route path="/" element={<MainPage region={region} />} />
-          {/* ★ ShopPage에 region 전달 */}
           <Route path="/game/:id" element={<ShopPage region={region} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} />} />
+          {/* ★ 검색 결과 페이지 라우트가 꼭 있어야 함! */}
+          <Route path="/search" element={<SearchResultsPage />} />
         </Routes>
       </div>
     </Router>
