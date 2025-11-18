@@ -173,7 +173,24 @@ app.post('/api/games/:id/vote', async (req, res) => {
                 return res.json({ message: "Canceled", likes: game.likes_count, dislikes: game.dislikes_count, userVote: null });
             }
             if(existingVote.type === 'like') game.likes_count = Math.max(0, game.likes_count - 1);
-            else game.dislikes_count = Math.max(0, game.dislikes_count - 1);
+            else game.dislikes_count // ... 기존 코드 상단 ...
+
+// IP 주소 가져오는 API (새로 추가)
+app.get('/api/user/ip', (req, res) => {
+    const userIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    res.json({ ip: userIp });
+});
+
+// 6. 투표 (기존 코드 수정)
+app.post('/api/games/:id/vote', async (req, res) => {
+    // ★ [수정] x-forwarded-for 헤더를 우선적으로 사용
+    const userIp = req.headers['x-forwarded-for']?.split(',').shift().trim() || req.connection.remoteAddress;
+    const { type } = req.body;
+    
+    // ... 나머지 투표 로직은 동일 ...
+});
+
+// ... 기존 코드 하단 ...= Math.max(0, game.dislikes_count - 1);
         }
         
         game.votes.push({ identifier: userIp, type, weight: 1 });
