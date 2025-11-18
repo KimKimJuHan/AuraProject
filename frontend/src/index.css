@@ -1,5 +1,4 @@
 /* /frontend/src/index.css */
-
 /* 기본 스타일 초기화 */
 body, h1, h2, h3, h4, h5, h6, p, button {
   margin: 0;
@@ -9,17 +8,17 @@ body, h1, h2, h3, h4, h5, h6, p, button {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  box-sizing: border-box; /* 패딩/테두리 계산을 쉽게 함 */
+  box-sizing: border-box;
 }
 
-/* ★[신규] 전체 페이지 배경색 및 글자색 적용 */
+/* 전체 페이지 배경 + 기본 글자색 */
 body {
-  background-color: #172026; /* (테마) 매우 어두운 파란색 */
-  color: #FFFFFF; /* (테마) 기본 흰색 글자 */
+  background-color: #011526;  /* 아주 어두운 남색 */
+  color: #FFFFFF;             /* 기본 흰색 텍스트 */
   min-height: 100vh;
 }
 
-/* (React가 주입할 메인 컨테이너) */
+/* React root */
 #root {
   min-height: 100vh;
 }
