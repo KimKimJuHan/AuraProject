@@ -12,8 +12,16 @@ const TAG_CATEGORIES = {
 
 const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
-  tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', transition: 'color 0.2s' },
-  tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px' },
+  tabButton: { 
+    background: 'none', color: '#b3b3b3', 
+    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid transparent', 
+    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', transition: 'color 0.2s' 
+  },
+  tabButtonActive: { 
+    background: 'none', color: '#fff', 
+    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid #E50914', 
+    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px' 
+  },
   
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '10px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px' },
   
@@ -25,6 +33,7 @@ const styles = {
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
+
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5, transition: 'transform 0.2s' }
 };
 
@@ -70,51 +79,29 @@ function GameListItem({ game }) {
   const currentPrice = price?.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
   const regularPrice = price?.regular_price ? `₩${price.regular_price.toLocaleString()}` : null;
   const discount = price?.discount_percent > 0 ? `-${price.discount_percent}%` : null;
-  
-  // ★ [수정] 기간 한정 조건 확인 (할인 중 AND 날짜 있음)
   const isLimitedTime = discount && price.expiry;
 
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
         <div className="net-card-thumb">
-            <img 
-                src={game.main_image} 
-                alt={game.title} 
-                onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} 
-            />
+            <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
-            <button style={styles.heartBtn} onClick={toggleWishlist} title="찜하기">
+            <button style={styles.heartBtn} onClick={toggleWishlist}>
                 {isWishlisted ? '❤️' : '🤍'}
             </button>
         </div>
-        
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
-                    
-                    {/* ★ [수정] 조건 만족 시에만 '기간 한정' 표시 */}
-                    {isLimitedTime && (
-                        <span style={{fontSize:'11px', color:'#E50914', fontWeight:'bold', marginBottom:'2px'}}>
-                            ⏳ 기간 한정 할인
-                        </span>
-                    )}
-
-                    {discount && regularPrice && (
-                        <span style={{fontSize:'11px', color:'#777', textDecoration:'line-through', marginBottom:'-2px'}}>
-                            {regularPrice}
-                        </span>
-                    )}
+                    {isLimitedTime && <span style={{fontSize:'11px', color:'#E50914', fontWeight:'bold', marginBottom:'2px'}}>⏳ 기간 한정 할인</span>}
+                    {discount && regularPrice && <span style={{fontSize:'11px', color:'#777', textDecoration:'line-through', marginBottom:'-2px'}}>{regularPrice}</span>}
                     <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
                         {isFree ? "무료" : currentPrice}
                     </span>
                 </div>
-                {game.smart_tags?.[0] && (
-                    <span style={{fontSize:'10px', border:'1px solid #444', padding:'2px 4px', borderRadius:'2px', color:'#999', height:'fit-content', marginTop:'auto'}}>
-                        {game.smart_tags[0]}
-                    </span>
-                )}
+                {game.smart_tags?.[0] && <span style={{fontSize:'10px', border:'1px solid #444', padding:'2px 4px', borderRadius:'2px', color:'#999', height:'fit-content', marginTop:'auto'}}>{game.smart_tags[0]}</span>}
             </div>
         </div>
     </Link>
@@ -137,19 +124,30 @@ function MainPage() {
 
   useEffect(() => {
     if (!hasMore) return; 
-    setLoading(true);
-    fetch('http://localhost:8000/api/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
-    }).then(r => r.json()).then(data => {
-        const newGames = data.games.filter(g => !gameSlugs.current.has(g.slug));
-        newGames.forEach(g => gameSlugs.current.add(g.slug));
-        setGames(prev => [...prev, ...newGames]);
-        setHasMore(page < data.totalPages); 
+    
+    const fetchGames = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('http://localhost:8000/api/recommend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
+            });
+            const data = await response.json();
+            
+            const newGames = data.games.filter(g => !gameSlugs.current.has(g.slug));
+            newGames.forEach(g => gameSlugs.current.add(g.slug));
+            setGames(prev => [...prev, ...newGames]);
+            setHasMore(page < data.totalPages); 
+        } catch (err) {
+            console.error(err);
+        }
         setLoading(false);
-    }).catch(err => console.error(err));
-  }, [selectedTags, activeTab, page]);
+    };
+    
+    fetchGames();
+    // ★ [수정] 의존성 배열에 hasMore 추가 (경고 해결)
+  }, [selectedTags, activeTab, page, hasMore]); 
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -180,14 +178,8 @@ function MainPage() {
         {games.map(game => <GameListItem key={game.slug} game={game} />)}
         {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
       </div>
-      
-      {!loading && hasMore && (
-          <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>
-      )}
-      
-      {!loading && games.length === 0 && (
-        <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>
-      )}
+      {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
+      {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
     </div>
   );
 }

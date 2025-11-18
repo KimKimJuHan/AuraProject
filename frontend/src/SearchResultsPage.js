@@ -39,7 +39,7 @@ function SearchResultsPage() {
                     <div className="net-card-body">
                         <div className="net-card-title">{game.title_ko || game.title}</div>
                         <div className="net-card-footer">
-                           {game.price_info?.isFree ? <span style={{color:'#46d369'}}>무료</span> : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : "정보 없음")}
+                           {game.price_info?.isFree ? <span style={{color:'#46d369'}}>무료</span> : (game.price_info?.current_price ? `₩${(Math.round(game.price_info.current_price/10)*10).toLocaleString()}` : "정보 없음")}
                         </div>
                     </div>
                 </Link>

@@ -5,7 +5,6 @@ const Game = require('./models/Game');
 const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
-// 태그 매핑 사전
 const TAG_MAP = {
   'rpg': 'RPG', 'role-playing': 'RPG', 'action': '액션',
   'fps': 'FPS', 'shooter': 'FPS', 'first-person shooter': 'FPS',
@@ -45,21 +44,21 @@ function chunkArray(array, size) {
 }
 
 async function collectGamesData() {
-  // ★ [원복] 다시 Secrets(환경변수)를 사용하도록 수정
   const ITAD_API_KEY = process.env.ITAD_API_KEY;
-
-  // 키 로드 확인 (보안을 위해 앞 4자리만 출력)
   if (!ITAD_API_KEY) {
-    console.error("❌ [오류] ITAD_API_KEY 환경 변수가 없습니다. GitHub Secrets 설정을 확인하세요.");
+    console.error("❌ [오류] API KEY 없음");
     return;
   }
-  console.log(`✅ API Key 로드됨: ${ITAD_API_KEY.substring(0, 4)}...`);
-  console.log('[시작] 데이터 수집 시작 (Secrets 사용 / 안정성 강화 v4.4)...');
+  console.log(`✅ API Key 확인됨: ${ITAD_API_KEY.substring(0, 4)}...`);
+  console.log('[시작] 데이터 수집 (Lite 모드 v4.6 - 150개 목표)...');
 
   let collectedIds = new Set();
-  let processedCount = 0;
-  const TARGET_GAME_COUNT = 500; 
-  const API_BATCH_LIMIT = 100; // ★ [수정] 요청 단위를 100개로 줄여서 500 에러 방지
+  let collectedCount = 0;
+  
+  // ★ [수정] 목표 개수 150개로 축소
+  const TARGET_GAME_COUNT = 150; 
+  // ★ [수정] 배치 사이즈 50개로 축소 (안전)
+  const API_BATCH_LIMIT = 50; 
 
   try {
     // 1. ID 수집
@@ -73,11 +72,11 @@ async function collectGamesData() {
         const batch = response.data;
         if (!batch || batch.length === 0) break;
         batch.forEach(game => collectedIds.add(game.id));
-        console.log(`   >> 인기 게임 누적: ${collectedIds.size}`);
+        console.log(`   >> 인기 게임 누적: ${collectedIds.size}개`);
         offset += API_BATCH_LIMIT;
-        await randomDelay(2000, 3000); // 딜레이 증가
+        await randomDelay(2000, 3000);
       } catch (err) {
-        console.error(`   ⚠️ ID 수집 부분 실패 (Status: ${err.response?.status}):`, err.message);
+        console.error(`   ⚠️ ID 수집 에러:`, err.message);
         break; 
       }
     }
@@ -88,12 +87,12 @@ async function collectGamesData() {
           params: { key: ITAD_API_KEY, limit: 30, sort: '-cut' } 
         });
         dealsResponse.data.list.forEach(deal => collectedIds.add(deal.id));
-        console.log(`   >> 할인 게임 추가 완료 (총: ${collectedIds.size})`);
-    } catch (err) { console.error("   ⚠️ 할인 목록 수집 실패:", err.message); }
+        console.log(`   >> 할인 게임 추가 (총: ${collectedIds.size}개)`);
+    } catch (err) { }
 
     const allGameIds = Array.from(collectedIds);
 
-    // 2. 가격 정보 조회 (청크 단위 실행)
+    // 2. 가격 정보 조회
     console.log(`[2단계] 가격 정보 조회...`);
     const priceMap = new Map();
     const idChunks = chunkArray(allGameIds, API_BATCH_LIMIT);
@@ -106,14 +105,14 @@ async function collectGamesData() {
             );
             priceResponse.data.forEach(p => priceMap.set(p.id, p));
             console.log(`   >> 가격 데이터 ${chunk.length}개 확보`);
-            await randomDelay(2000, 3000); 
+            await randomDelay(2000, 3000);
         } catch (err) {
-            console.error(`   ⚠️ 가격 조회 실패 (Steam 가격 폴백 예정):`, err.message);
+            console.error(`   ⚠️ 가격 조회 실패 (Steam 대체 예정):`, err.message);
         }
     }
 
     // 3. 상세 수집
-    console.log(`[3단계] 상세 정보 및 DB 저장...`);
+    console.log(`[3단계] 상세 정보 저장...`);
     for (const itad_id of allGameIds) {
       try {
         const infoResponse = await axios.get('https://api.isthereanydeal.com/games/info/v2', {
@@ -126,7 +125,6 @@ async function collectGamesData() {
 
         await randomDelay(3000, 4500); 
         
-        // Steam API
         const steamUrl = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&l=korean&cc=kr`;
         let steamData = null;
         try {
@@ -141,10 +139,13 @@ async function collectGamesData() {
         if (steamData.genres) steamRawTags.push(...steamData.genres.map(g => g.description));
         const smartTags = translateSmartTags(infoData.tags, steamRawTags);
 
-        // 가격 정보
         const priceData = priceMap.get(itad_id);
         const steamStoreUrl = `https://store.steampowered.com/app/${steamAppId}`;
         
+        // Steam 가격 (100으로 나누기)
+        const steamRegular = steamData.price_overview ? steamData.price_overview.initial / 100 : null;
+        const steamCurrent = steamData.price_overview ? steamData.price_overview.final / 100 : null;
+
         let priceInfo = { 
           regular_price: null, current_price: null, discount_percent: 0, 
           store_url: steamStoreUrl, store_name: 'Steam', 
@@ -158,29 +159,34 @@ async function collectGamesData() {
             const bestDeal = priceData.deals[0];
             const historicalLow = (priceData.historyLow?.all?.amountInt) || null;
             
-            priceInfo.current_price = bestDeal.price.amountInt;
-            priceInfo.regular_price = bestDeal.regular.amountInt;
+            // 10원 단위 반올림
+            const clean = (p) => Math.round(p / 10) * 10;
+
+            // 정가는 스팀 우선, 없으면 ITAD
+            priceInfo.regular_price = steamRegular || clean(bestDeal.regular.amountInt);
+            // 할인가
+            priceInfo.current_price = clean(bestDeal.price.amountInt);
             priceInfo.discount_percent = bestDeal.cut;
             priceInfo.store_url = bestDeal.url;
             priceInfo.store_name = bestDeal.shop.name;
-            priceInfo.historical_low = historicalLow;
+            priceInfo.historical_low = clean(historicalLow);
             priceInfo.expiry = bestDeal.expiry;
             
             priceInfo.deals = priceData.deals.map(deal => ({
                 shopName: deal.shop.name,
-                price: deal.price.amountInt,
-                regularPrice: deal.regular.amountInt,
+                price: clean(deal.price.amountInt),
+                regularPrice: steamRegular || clean(deal.regular.amountInt),
                 discount: deal.cut,
                 url: deal.url
             }));
         }
         else if (steamData.price_overview) {
-            priceInfo.current_price = steamData.price_overview.final / 100;
-            priceInfo.regular_price = steamData.price_overview.initial / 100;
+            priceInfo.current_price = steamCurrent;
+            priceInfo.regular_price = steamRegular;
             priceInfo.discount_percent = steamData.price_overview.discount_percent;
             priceInfo.store_url = steamStoreUrl;
             priceInfo.store_name = 'Steam';
-            priceInfo.deals = [{ shopName: 'Steam', price: steamData.price_overview.final/100, regularPrice: steamData.price_overview.initial/100, discount: steamData.price_overview.discount_percent, url: steamStoreUrl }];
+            priceInfo.deals = [{ shopName: 'Steam', price: steamCurrent, regularPrice: steamRegular, discount: steamData.price_overview.discount_percent, url: steamStoreUrl }];
         }
 
         const screenshots = steamData.screenshots?.map(s => s.path_full) || [];
@@ -222,8 +228,8 @@ async function collectGamesData() {
         };
 
         await Game.updateOne({ slug: itad_id }, gameDataToSave, { upsert: true });
-        processedCount++;
-        console.log(`[${processedCount}/${allGameIds.length}] 저장: ${titleKo}`);
+        collectedCount++;
+        console.log(`[${collectedCount}] 저장: ${titleKo}`);
 
       } catch (err) {
         console.error(`   ⚠️ 개별 실패 (${itad_id}): ${err.message}`);
@@ -232,7 +238,7 @@ async function collectGamesData() {
   } catch (error) {
     console.error(`❌ 치명적 실패:`, error.message);
   }
-  console.log(`✅ [완료] 총 ${processedCount}개의 게임 데이터 저장 완료.`);
+  console.log(`✅ [완료] 총 ${collectedCount}개의 게임 데이터 저장 완료.`);
 }
 
 async function runCollector() {
