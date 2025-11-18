@@ -5,20 +5,66 @@ const Game = require('./models/Game');
 const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
+// ★ [수정] 팀원분의 디자인에 맞춘 태그 매핑 시스템
 function translateSmartTags(itadTags, steamTags) {
-  const smartTags = [];
-  const allTags = [...(itadTags || []), ...(steamTags || [])];
-  if (allTags.includes('Co-op') || allTags.includes('Online Co-Op')) smartTags.push('4인 협동');
-  if (allTags.includes('RPG') || allTags.includes('Action RPG')) smartTags.push('RPG');
-  if (allTags.includes('Open World')) smartTags.push('오픈월드');
-  return [...new Set(smartTags)];
+  const allTags = [...(itadTags || []), ...(steamTags || [])].map(t => t.toLowerCase());
+  const smartTags = new Set();
+
+  // 1. 장르 (Genre)
+  if (allTags.includes('rpg') || allTags.includes('role-playing')) smartTags.add('RPG');
+  if (allTags.includes('simulation') || allTags.includes('sim')) smartTags.add('시뮬레이션');
+  if (allTags.includes('strategy') || allTags.includes('rts') || allTags.includes('turn-based strategy')) smartTags.add('전략');
+  if (allTags.includes('sports')) smartTags.add('스포츠');
+  if (allTags.includes('racing')) smartTags.add('레이싱');
+  if (allTags.includes('puzzle')) smartTags.add('퍼즐');
+  if (allTags.includes('survival') || allTags.includes('survival horror')) smartTags.add('생존');
+  if (allTags.includes('horror') || allTags.includes('psychological horror')) smartTags.add('공포');
+  if (allTags.includes('rhythm') || allTags.includes('music')) smartTags.add('리듬');
+  if (allTags.includes('fps') || allTags.includes('shooter') || allTags.includes('first-person shooter')) smartTags.add('FPS'); // ★ 요청하신 FPS 추가
+
+  // 2. 시점 (View)
+  if (allTags.includes('first-person') || allTags.includes('fps')) smartTags.add('1인칭');
+  if (allTags.includes('third-person') || allTags.includes('third person')) smartTags.add('3인칭');
+
+  // 3. 그래픽 스타일 (Visuals)
+  if (allTags.includes('pixel graphics') || allTags.includes('pixel art')) smartTags.add('픽셀 그래픽');
+  if (allTags.includes('2d')) smartTags.add('2D');
+  if (allTags.includes('3d')) smartTags.add('3D');
+  if (allTags.includes('cartoon') || allTags.includes('anime') || allTags.includes('cel-shaded')) smartTags.add('만화 같은');
+  if (allTags.includes('realistic')) smartTags.add('현실적');
+  if (allTags.includes('cute')) smartTags.add('귀여운');
+
+  // 4. 테마 (Theme)
+  if (allTags.includes('fantasy')) smartTags.add('판타지');
+  if (allTags.includes('sci-fi') || allTags.includes('science fiction')) smartTags.add('공상과학');
+  if (allTags.includes('medieval')) smartTags.add('중세');
+  if (allTags.includes('modern')) smartTags.add('현대');
+  if (allTags.includes('space')) smartTags.add('우주');
+  if (allTags.includes('zombies') || allTags.includes('zombie')) smartTags.add('좀비');
+  if (allTags.includes('cyberpunk')) smartTags.add('사이버펑크');
+  if (allTags.includes('magic')) smartTags.add('마법');
+  if (allTags.includes('war') || allTags.includes('military') || allTags.includes('world war ii')) smartTags.add('전쟁');
+  if (allTags.includes('post-apocalyptic')) smartTags.add('포스트아포칼립스');
+
+  // 5. 특징 (Features)
+  if (allTags.includes('open world')) smartTags.add('오픈 월드');
+  if (allTags.includes('resource management') || allTags.includes('crafting')) smartTags.add('자원관리');
+  if (allTags.includes('story rich') || allTags.includes('narrative')) smartTags.add('스토리 중심');
+  if (allTags.includes('choices matter')) smartTags.add('선택의 중요성');
+  if (allTags.includes('character customization')) smartTags.add('캐릭터 커스터마이즈');
+  if (allTags.includes('co-op') || allTags.includes('co-op campaign') || allTags.includes('online co-op')) smartTags.add('협동 캠페인');
+  if (allTags.includes('competitive') || allTags.includes('esports')) smartTags.add('경쟁');
+  if (allTags.includes('pvp')) smartTags.add('PvP');
+  if (allTags.includes('pve')) smartTags.add('PvE');
+
+  return Array.from(smartTags);
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function collectGamesData() {
   const ITAD_API_KEY = process.env.ITAD_API_KEY;
-  console.log('[시작] 데이터 수집 시작 (HLTB 강화 / 에러 상세 출력)...');
+  console.log('[시작] 데이터 수집 시작 (태그 매핑 강화)...');
 
   let collectedCount = 0;
   const POPULAR_LIMIT = 120; 
@@ -58,7 +104,6 @@ async function collectGamesData() {
         if (!steamAppId) continue; 
 
         await delay(3000);
-        // Steam API
         const steamUrl = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&l=korean&cc=kr`;
         const steamResponse = await axios.get(steamUrl);
         
@@ -66,6 +111,7 @@ async function collectGamesData() {
         const steamData = steamResponse.data[steamAppId].data;
 
         const steamTags = steamData.categories ? steamData.categories.map(cat => cat.description) : [];
+        // ★ [수정] 새로운 태그 번역 함수 적용
         const smartTags = translateSmartTags(infoData.tags, steamTags);
 
         // 가격 정보
@@ -84,16 +130,15 @@ async function collectGamesData() {
         else if (priceData && priceData.deals && priceData.deals.length > 0) { 
             const bestDeal = priceData.deals[0];
             const historicalLow = (priceData.historyLow && priceData.historyLow.all) ? priceData.historyLow.all.amountInt : 0;
-            priceInfo = {
-                current_price: bestDeal.price.amountInt,
-                regular_price: bestDeal.regular.amountInt,
-                discount_percent: bestDeal.cut,
-                store_url: bestDeal.url,
-                store_name: bestDeal.shop.name, 
-                historical_low: historicalLow,
-                expiry: bestDeal.expiry,
-                isFree: false
-            };
+            
+            priceInfo.current_price = bestDeal.price.amountInt;
+            priceInfo.regular_price = bestDeal.regular.amountInt;
+            priceInfo.discount_percent = bestDeal.cut;
+            priceInfo.store_url = bestDeal.url;
+            priceInfo.store_name = bestDeal.shop.name;
+            priceInfo.historical_low = historicalLow;
+            priceInfo.expiry = bestDeal.expiry;
+            
             priceInfo.deals = priceData.deals.map(deal => ({
                 shopName: deal.shop.name,
                 price: deal.price.amountInt,
@@ -103,17 +148,18 @@ async function collectGamesData() {
             }));
         }
         else if (steamData.price_overview) {
-            priceInfo = {
-                current_price: steamData.price_overview.final / 100, 
-                regular_price: steamData.price_overview.initial / 100,
-                discount_percent: steamData.price_overview.discount_percent,
-                store_url: steamStoreUrl,
-                store_name: 'Steam',
-                historical_low: 0,
-                expiry: null,
-                isFree: false,
-                deals: [{ shopName: 'Steam', price: steamData.price_overview.final/100, regularPrice: steamData.price_overview.initial/100, discount: steamData.price_overview.discount_percent, url: steamStoreUrl }]
-            };
+            priceInfo.current_price = steamData.price_overview.final / 100;
+            priceInfo.regular_price = steamData.price_overview.initial / 100;
+            priceInfo.discount_percent = steamData.price_overview.discount_percent;
+            priceInfo.store_url = steamStoreUrl;
+            priceInfo.store_name = 'Steam';
+            priceInfo.deals = [{
+                shopName: 'Steam',
+                price: steamData.price_overview.final / 100,
+                regularPrice: steamData.price_overview.initial / 100,
+                discount: steamData.price_overview.discount_percent,
+                url: steamStoreUrl
+            }];
         }
 
         const screenshots = steamData.screenshots ? steamData.screenshots.map(s => s.path_full) : [];
@@ -121,23 +167,13 @@ async function collectGamesData() {
             .filter(m => m.webm && (m.webm['1080'] || m.webm.max)) 
             .map(m => m.webm['1080'] || m.webm.max) : [];
 
-        // ★ [수정] HLTB 검색 로직 개선
         let playTime = "정보 없음";
         try {
-            // 특수문자 제거 후 검색하여 정확도 높임
             const cleanTitle = infoData.title.replace(/[^a-zA-Z0-9 ]/g, ""); 
             const hltbResults = await hltbService.search(cleanTitle);
-            // 유사도 기준 완화 (0.7)
             const bestMatch = hltbResults.find(h => h.similarity > 0.7); 
-            
-            if (bestMatch) {
-                playTime = `${bestMatch.gameplayMain} 시간`;
-            } else {
-                 console.log(`   -> HLTB 검색 실패: ${infoData.title} (결과 없음)`);
-            }
-        } catch (hltbErr) {
-            console.log(`   -> HLTB 에러: ${infoData.title}`);
-        }
+            if (bestMatch) playTime = `${bestMatch.gameplayMain} 시간`;
+        } catch (e) { /* 무시 */ }
 
         const metacriticScore = steamData.metacritic ? steamData.metacritic.score : 0;
 
@@ -166,7 +202,6 @@ async function collectGamesData() {
         collectedCount++;
 
       } catch (err) {
-        // ★ [수정] 에러 원인 상세 출력
         const status = err.response ? err.response.status : "알 수 없음";
         console.error(`[실패] ${itad_id}: Status ${status} - ${err.message}`);
       }
