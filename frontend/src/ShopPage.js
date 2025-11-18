@@ -1,3 +1,5 @@
+// /frontend/src/ShopPage.js
+
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -7,7 +9,11 @@ const styles = {
   specBox: { backgroundColor: '#021E73', padding: '15px', lineHeight: '1.6', borderRadius: '8px', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(0,0,0,0.6)' },
   wishlistButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#A24CD9', color: '#011526', border: 'none', borderRadius: '999px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#D94F4C', color: '#FFFFFF', border: 'none', borderRadius: '999px', fontWeight: 'bold' },
-  thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #3D46F2', borderRadius: '999px', background: '#021E73', color: '#FFFFFF' },
+  
+  thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #3D46F2', borderRadius: '999px', background: '#021E73', color: '#FFFFFF', transition: '0.2s' },
+  // ★ [신규] 활성 상태 버튼 (눌렀을 때 색상 변경)
+  thumbButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #3D46F2', borderRadius: '999px', background: '#3D46F2', color: '#FFFFFF' },
+
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '10px 0', backgroundColor: '#011526' },
   mediaItem: { height: '100px', marginRight: '10px', borderRadius: '8px', border: '1px solid #3D46F2', cursor: 'pointer' },
   mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', marginBottom: '10px', borderRadius: '8px', border: '1px solid #3D46F2', backgroundColor: '#000', display: 'flex', justifyContent: 'center' },
@@ -37,12 +43,18 @@ function useCountdown(expiryTimestamp) {
   return timeLeft;
 }
 
-function ShopPage() {
+// ★ [신규] region prop 받음
+function ShopPage({ region }) { 
   const { id } = useParams(); 
   const [gameData, setGameData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  
+  const [likes, setLikes] = useState(0);
+  const [dislikes, setDislikes] = useState(0);
+  // ★ 내 투표 상태 (null, 'like', 'dislike')
+  const [myVote, setMyVote] = useState(null); 
 
   useEffect(() => {
     fetch(`http://localhost:8000/api/games/${id}`)
@@ -52,11 +64,25 @@ function ShopPage() {
         setGameData(data);
         setLoading(false);
         if (data.main_image) setSelectedMedia({ type: 'image', url: data.main_image });
+        
         const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
         setIsWishlisted(wishlist.includes(data.slug));
+
+        setLikes(data.likes_count || 0);
+        setDislikes(data.dislikes_count || 0);
       })
       .catch(err => console.error(err));
   }, [id]); 
+
+  // ★ 지역별 화폐 단위/환율 처리 함수 (구조만 구현)
+  const getPriceDisplay = (price) => {
+    if (price === null || price === undefined) return "가격 정보 없음";
+    
+    // 현재는 KR 데이터만 있으므로 단순 기호 변경만 적용 (나중에 실제 환율/데이터 적용 필요)
+    if (region === 'US') return `$${(price / 1400).toFixed(2)}`; // 임시 환율 1400원
+    if (region === 'JP') return `¥${(price / 9).toFixed(0)}`;    // 임시 환율 9원
+    return `${price.toLocaleString()}원`; // 기본 KR
+  };
 
   const toggleWishlist = () => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
@@ -66,10 +92,31 @@ function ShopPage() {
         alert("찜 목록에서 삭제되었습니다.");
     } else {
         newWishlist = [...wishlist, gameData.slug];
-        alert("찜 목록에 추가되었습니다! '찜/비교' 탭에서 확인하세요.");
+        alert("찜 목록에 추가되었습니다!");
     }
     localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
+  };
+
+  // ★ 투표 핸들러 (토글 기능 포함)
+  const handleVote = async (type) => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/games/${id}/vote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type })
+        });
+        const data = await response.json();
+        
+        // 서버 응답(data.userVote)이 null이면 취소된 것
+        setLikes(data.likes);
+        setDislikes(data.dislikes);
+        setMyVote(data.userVote); 
+        
+      } catch (error) {
+          console.error("투표 실패:", error);
+          alert("투표 중 오류가 발생했습니다.");
+      }
   };
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
@@ -77,12 +124,7 @@ function ShopPage() {
   if (loading) return <div style={{padding:'20px', color:'white'}}>로딩 중...</div>;
   if (!gameData) return <div style={{padding:'20px', color:'white'}}>데이터 없음!</div>;
 
-  // ★ [수정] 이미지 로딩 에러 시 아예 숨기거나 기본 이미지로 대체
-  const handleImageError = (e) => { 
-      // 1. 이미지를 숨기려면: e.target.style.display = 'none';
-      // 2. 대체 이미지를 보여주려면:
-      e.target.src = "https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"; 
-  };
+  const handleImageError = (e) => { e.target.src = "https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"; };
 
   const renderMediaGallery = () => {
     const allMedia = [];
@@ -98,12 +140,7 @@ function ShopPage() {
           {selectedMedia?.type === 'video' ? (
             <video controls autoPlay src={selectedMedia.url} style={{maxWidth:'100%', maxHeight:'500px'}} />
           ) : (
-            <img 
-                src={selectedMedia?.url} 
-                onError={handleImageError} // 에러 핸들링
-                alt="Main" 
-                style={{maxWidth:'100%', maxHeight:'500px'}} 
-            />
+            <img src={selectedMedia?.url} onError={handleImageError} alt="Main" style={{maxWidth:'100%', maxHeight:'500px'}} />
           )}
         </div>
         <div style={styles.mediaContainer}>
@@ -111,7 +148,7 @@ function ShopPage() {
             <img 
               key={idx} 
               src={media.type === 'video' ? gameData.main_image : media.url}
-              onError={(e) => e.target.style.display = 'none'} // 썸네일 에러나면 숨김
+              onError={(e) => e.target.style.display = 'none'}
               alt="thumb"
               style={{ ...styles.mediaItem, border: selectedMedia?.url === media.url ? '2px solid #5FCDD9' : '1px solid #027373' }}
               onClick={() => setSelectedMedia(media)}
@@ -128,7 +165,8 @@ function ShopPage() {
         return (
             <div style={styles.storeRow}>
                 <span style={styles.storeName}>{gameData.price_info.store_name}</span>
-                <span style={styles.storePrice}>{gameData.price_info.current_price?.toLocaleString()}원</span>
+                {/* ★ [수정] getPriceDisplay 사용 */}
+                <span style={styles.storePrice}>{getPriceDisplay(gameData.price_info.current_price)}</span>
                 <a href={gameData.price_info.store_url} target="_blank" rel="noreferrer" style={styles.storeLink}>구매</a>
             </div>
         );
@@ -140,8 +178,9 @@ function ShopPage() {
                 {deal.discount > 0 && <span style={{marginLeft:'10px', color:'#D94F4C', fontSize:'12px'}}>-{deal.discount}%</span>}
             </div>
             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                {deal.regularPrice > deal.price && <span style={{textDecoration:'line-through', color:'#888', fontSize:'12px'}}>{deal.regularPrice?.toLocaleString()}원</span>}
-                <span style={styles.storePrice}>{deal.price?.toLocaleString()}원</span>
+                {deal.regularPrice > deal.price && <span style={{textDecoration:'line-through', color:'#888', fontSize:'12px'}}>{getPriceDisplay(deal.regularPrice)}</span>}
+                {/* ★ [수정] getPriceDisplay 사용 */}
+                <span style={styles.storePrice}>{getPriceDisplay(deal.price)}</span>
                 <a href={deal.url} target="_blank" rel="noreferrer" style={styles.storeLink}>이동</a>
             </div>
         </div>
@@ -172,12 +211,13 @@ function ShopPage() {
 
     return (
       <>
+        {/* ★ [수정] getPriceDisplay 함수로 가격 표시 (지역별 자동 변환) */}
         <h2 style={{ color: '#3D46F2' }}>
-          {pi.current_price.toLocaleString()}원
+          {getPriceDisplay(pi.current_price)}
           {pi.discount_percent > 0 && <span> ({pi.discount_percent}% 할인)</span>}
         </h2>
         {pi.discount_percent > 0 && countdown && <p style={{ color: '#D94F4C' }}>남은 시간: {countdown}</p>}
-        <p style={{ color: '#A24CD9' }}>역대 최저가: {pi.historical_low.toLocaleString()}원</p>
+        <p style={{ color: '#A24CD9' }}>역대 최저가: {getPriceDisplay(pi.historical_low)}</p>
         <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>{storeName}에서 구매하기</a>
         
         <div style={{marginTop:'20px', border:'1px solid #3D46F2', borderRadius:'8px', overflow:'hidden'}}>
@@ -220,13 +260,26 @@ function ShopPage() {
         <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements?.recommended }} />
       </div>
       <hr style={{ borderColor: '#021E73' }} />
+      
       <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
         <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>
             {isWishlisted ? '💔 찜 취소' : '❤️ 찜하기'}
         </button>
+
+        {/* ★ [수정] 토글 가능한 투표 버튼 UI */}
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button style={styles.thumbButton} onClick={() => alert('좋아요!')}>👍</button>
-          <button style={styles.thumbButton} onClick={() => alert('싫어요!')}>👎</button>
+          <button 
+            style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} 
+            onClick={() => handleVote('like')}
+          >
+            👍 {likes}
+          </button>
+          <button 
+            style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} 
+            onClick={() => handleVote('dislike')}
+          >
+            👎 {dislikes}
+          </button>
         </div>
       </div>
     </div>
