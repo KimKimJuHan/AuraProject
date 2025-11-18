@@ -1,5 +1,3 @@
-// /frontend/src/ShopPage.js
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -9,11 +7,8 @@ const styles = {
   specBox: { backgroundColor: '#021E73', padding: '15px', lineHeight: '1.6', borderRadius: '8px', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(0,0,0,0.6)' },
   wishlistButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#A24CD9', color: '#011526', border: 'none', borderRadius: '999px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#D94F4C', color: '#FFFFFF', border: 'none', borderRadius: '999px', fontWeight: 'bold' },
-  
   thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #3D46F2', borderRadius: '999px', background: '#021E73', color: '#FFFFFF', transition: '0.2s' },
-  // ★ [신규] 활성 상태 버튼 (눌렀을 때 색상 변경)
   thumbButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', border: '1px solid #3D46F2', borderRadius: '999px', background: '#3D46F2', color: '#FFFFFF' },
-
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '10px 0', backgroundColor: '#011526' },
   mediaItem: { height: '100px', marginRight: '10px', borderRadius: '8px', border: '1px solid #3D46F2', cursor: 'pointer' },
   mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', marginBottom: '10px', borderRadius: '8px', border: '1px solid #3D46F2', backgroundColor: '#000', display: 'flex', justifyContent: 'center' },
@@ -21,7 +16,38 @@ const styles = {
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   storePrice: { color: '#A24CD9', fontWeight: 'bold' },
   storeLink: { color: '#D494D9', textDecoration: 'none', border: '1px solid #D494D9', padding: '2px 8px', borderRadius: '4px' },
-  infoBadge: { display: 'inline-block', padding: '5px 10px', borderRadius: '5px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#3D46F2', color: 'white', fontSize: '14px' }
+  
+  // ★ [수정] 정보 뱃지 스타일 강화 (크기 증가)
+  infoBadge: { 
+      display: 'inline-flex', alignItems: 'center', 
+      padding: '8px 15px', borderRadius: '8px', marginRight: '10px', 
+      fontWeight: 'bold', color: 'black', fontSize: '16px',
+      position: 'relative', cursor: 'help' // 마우스 커서 물음표
+  },
+  // ★ 툴팁 스타일
+  tooltip: {
+      visibility: 'hidden', width: '200px', backgroundColor: '#333', color: '#fff', textAlign: 'center',
+      borderRadius: '6px', padding: '5px', position: 'absolute', zIndex: '1',
+      bottom: '125%', left: '50%', marginLeft: '-100px', opacity: '0', transition: 'opacity 0.3s',
+      fontSize: '12px', fontWeight: 'normal'
+  }
+};
+
+// 툴팁 컴포넌트
+const InfoWithTooltip = ({ text, color, tooltipText, icon }) => {
+    const [hover, setHover] = useState(false);
+    return (
+        <span 
+            style={{...styles.infoBadge, backgroundColor: color}}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+        >
+            {icon} {text}
+            <span style={{...styles.tooltip, visibility: hover ? 'visible' : 'hidden', opacity: hover ? 1 : 0}}>
+                {tooltipText}
+            </span>
+        </span>
+    );
 };
 
 function useCountdown(expiryTimestamp) {
@@ -43,17 +69,14 @@ function useCountdown(expiryTimestamp) {
   return timeLeft;
 }
 
-// ★ [신규] region prop 받음
 function ShopPage({ region }) { 
   const { id } = useParams(); 
   const [gameData, setGameData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
-  
   const [likes, setLikes] = useState(0);
   const [dislikes, setDislikes] = useState(0);
-  // ★ 내 투표 상태 (null, 'like', 'dislike')
   const [myVote, setMyVote] = useState(null); 
 
   useEffect(() => {
@@ -74,31 +97,26 @@ function ShopPage({ region }) {
       .catch(err => console.error(err));
   }, [id]); 
 
-  // ★ 지역별 화폐 단위/환율 처리 함수 (구조만 구현)
   const getPriceDisplay = (price) => {
     if (price === null || price === undefined) return "가격 정보 없음";
-    
-    // 현재는 KR 데이터만 있으므로 단순 기호 변경만 적용 (나중에 실제 환율/데이터 적용 필요)
-    if (region === 'US') return `$${(price / 1400).toFixed(2)}`; // 임시 환율 1400원
-    if (region === 'JP') return `¥${(price / 9).toFixed(0)}`;    // 임시 환율 9원
-    return `${price.toLocaleString()}원`; // 기본 KR
+    if (region === 'US') return `$${(price / 1400).toFixed(2)}`; 
+    if (region === 'JP') return `¥${(price / 9).toFixed(0)}`;    
+    return `${price.toLocaleString()}원`; 
   };
 
+  // ★ [수정] 알림창 제거
   const toggleWishlist = () => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     let newWishlist;
     if (isWishlisted) {
         newWishlist = wishlist.filter(slug => slug !== gameData.slug);
-        alert("찜 목록에서 삭제되었습니다.");
     } else {
         newWishlist = [...wishlist, gameData.slug];
-        alert("찜 목록에 추가되었습니다!");
     }
     localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
   };
 
-  // ★ 투표 핸들러 (토글 기능 포함)
   const handleVote = async (type) => {
       try {
         const response = await fetch(`http://localhost:8000/api/games/${id}/vote`, {
@@ -107,15 +125,11 @@ function ShopPage({ region }) {
             body: JSON.stringify({ type })
         });
         const data = await response.json();
-        
-        // 서버 응답(data.userVote)이 null이면 취소된 것
         setLikes(data.likes);
         setDislikes(data.dislikes);
         setMyVote(data.userVote); 
-        
       } catch (error) {
           console.error("투표 실패:", error);
-          alert("투표 중 오류가 발생했습니다.");
       }
   };
 
@@ -165,7 +179,6 @@ function ShopPage({ region }) {
         return (
             <div style={styles.storeRow}>
                 <span style={styles.storeName}>{gameData.price_info.store_name}</span>
-                {/* ★ [수정] getPriceDisplay 사용 */}
                 <span style={styles.storePrice}>{getPriceDisplay(gameData.price_info.current_price)}</span>
                 <a href={gameData.price_info.store_url} target="_blank" rel="noreferrer" style={styles.storeLink}>구매</a>
             </div>
@@ -179,7 +192,6 @@ function ShopPage({ region }) {
             </div>
             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                 {deal.regularPrice > deal.price && <span style={{textDecoration:'line-through', color:'#888', fontSize:'12px'}}>{getPriceDisplay(deal.regularPrice)}</span>}
-                {/* ★ [수정] getPriceDisplay 사용 */}
                 <span style={styles.storePrice}>{getPriceDisplay(deal.price)}</span>
                 <a href={deal.url} target="_blank" rel="noreferrer" style={styles.storeLink}>이동</a>
             </div>
@@ -211,7 +223,6 @@ function ShopPage({ region }) {
 
     return (
       <>
-        {/* ★ [수정] getPriceDisplay 함수로 가격 표시 (지역별 자동 변환) */}
         <h2 style={{ color: '#3D46F2' }}>
           {getPriceDisplay(pi.current_price)}
           {pi.discount_percent > 0 && <span> ({pi.discount_percent}% 할인)</span>}
@@ -234,15 +245,22 @@ function ShopPage({ region }) {
       {renderMediaGallery()}
       <hr style={{ borderColor: '#021E73' }} />
       
-      <div style={{marginBottom: '15px'}}>
+      {/* ★ [수정] 평점 및 플레이타임 UI 개선 (툴팁 포함) */}
+      <div style={{marginBottom: '15px', display: 'flex', gap: '10px'}}>
         {gameData.metacritic_score > 0 && (
-            <span style={{...styles.infoBadge, backgroundColor: '#F2B705', color: 'black'}}>
-                Metacritic: {gameData.metacritic_score}
-            </span>
+            <InfoWithTooltip 
+                text={`메타크리틱: ${gameData.metacritic_score}`} 
+                color="#F2B705" 
+                tooltipText="전문가 리뷰 기반의 종합 평점입니다."
+                icon="Ⓜ️"
+            />
         )}
-        <span style={{...styles.infoBadge, backgroundColor: '#2A475E'}}>
-            ⏳ HLTB: {gameData.play_time}
-        </span>
+        <InfoWithTooltip 
+            text={`플레이 타임: ${gameData.play_time}`} 
+            color="#2A475E" 
+            tooltipText="메인 스토리를 클리어하는 데 걸리는 평균 시간입니다 (출처: HowLongToBeat)."
+            icon="⏳"
+        />
       </div>
 
       {renderPriceSection()}
@@ -253,20 +271,27 @@ function ShopPage({ region }) {
       <h3>설명</h3>
       <p style={{ color: '#eee' }}>{gameData.description}</p>
       <hr style={{ borderColor: '#021E73' }} />
+      
+      {/* ★ [수정] 사양 정보 문구 개선 */}
       <h3>사양</h3>
       <div style={styles.specBox}>
-        <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements?.minimum }} />
+        <div>
+            <strong>최소 사양</strong>
+            <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements?.minimum || "최소 사양 정보 없음" }} />
+        </div>
         <br/>
-        <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements?.recommended }} />
+        <div>
+            <strong>권장 사양</strong>
+            <div dangerouslySetInnerHTML={{ __html: gameData.pc_requirements?.recommended || "권장 사양 정보 없음" }} />
+        </div>
       </div>
-      <hr style={{ borderColor: '#021E73' }} />
       
+      <hr style={{ borderColor: '#021E73' }} />
       <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
         <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>
             {isWishlisted ? '💔 찜 취소' : '❤️ 찜하기'}
         </button>
 
-        {/* ★ [수정] 토글 가능한 투표 버튼 UI */}
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
             style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} 
