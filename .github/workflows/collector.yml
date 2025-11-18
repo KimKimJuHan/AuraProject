@@ -28,6 +28,6 @@ jobs:
           cd backend
           node collector.js
         env:
-          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }} # Steam API Key 시크릿 추가 확인 필요
+          ITAD_API_KEY: "${{ secrets.ITAD_API_KEY }}"
+          MONGODB_URI: "${{ secrets.MONGODB_URI }}"
+          STEAM_API_KEY: "${{ secrets.STEAM_API_KEY }}"
