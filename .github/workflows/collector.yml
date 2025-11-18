@@ -4,7 +4,7 @@ on:
   # 1. 매일 아침 9시(UTC 0시)에 자동으로 실행
   schedule:
     - cron: '0 0 * * *'
-
+  
   # 2. GitHub [Actions] 탭에서 수동으로 실행 가능하게 함
   workflow_dispatch:
 
@@ -17,11 +17,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Node.js 18 버전 설치
+      # 2. Node.js 버전 설정 (★ 18 -> 20으로 변경)
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18' 
+          node-version: '20' 
 
       # 3. backend 폴더로 이동해서 npm install 실행
       - name: Install dependencies
