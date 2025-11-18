@@ -1,3 +1,5 @@
+// /backend/collector.js
+
 require('dotenv').config();
 const mongoose = require('mongoose');
 const axios = require('axios');
@@ -18,9 +20,11 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function collectGamesData() {
   const ITAD_API_KEY = process.env.ITAD_API_KEY;
-  console.log('[시작] 데이터 수집 시작 (한글 제목 포함)...');
+  console.log('[시작] 데이터 수집 시작 (하이브리드 모드)...');
 
+  // ★ [수정] 변수 선언 위치 확인 (이게 없으면 에러 남)
   let collectedCount = 0;
+  
   const POPULAR_LIMIT = 120; 
   const DEALS_LIMIT = 30;
 
@@ -58,7 +62,7 @@ async function collectGamesData() {
         if (!steamAppId) continue; 
 
         await delay(3000);
-        // ★ Steam API (한국어 강제) -> 여기서 'name'이 한글로 옴
+        // Steam API (한국 가격)
         const steamUrl = `https://store.steampowered.com/api/appdetails?appids=${steamAppId}&l=korean&cc=kr`;
         const steamResponse = await axios.get(steamUrl);
         
@@ -68,22 +72,22 @@ async function collectGamesData() {
         const steamTags = steamData.categories ? steamData.categories.map(cat => cat.description) : [];
         const smartTags = translateSmartTags(infoData.tags, steamTags);
 
-        // 가격 정보
+        // 가격 정보 로직
         const priceData = priceMap.get(itad_id);
         const steamStoreUrl = `https://store.steampowered.com/app/${steamAppId}`;
         
         let priceInfo = { 
           regular_price: null, current_price: null, discount_percent: 0, 
           store_url: steamStoreUrl, store_name: 'Steam', 
-          historical_low: null, expiry: null, isFree: false, deals: [] 
+          historical_low: 0, expiry: null, isFree: false, deals: [] 
         };
 
         if (steamData.is_free === true) { 
-            priceInfo = { ...priceInfo, regular_price: 0, current_price: 0, isFree: true, historical_low: 0 };
+            priceInfo = { ...priceInfo, regular_price: 0, current_price: 0, isFree: true };
         } 
         else if (priceData && priceData.deals && priceData.deals.length > 0) { 
             const bestDeal = priceData.deals[0];
-            const historicalLow = (priceData.historyLow && priceData.historyLow.all) ? priceData.historyLow.all.amountInt : null;
+            const historicalLow = (priceData.historyLow && priceData.historyLow.all) ? priceData.historyLow.all.amountInt : 0;
             
             priceInfo.current_price = bestDeal.price.amountInt;
             priceInfo.regular_price = bestDeal.regular.amountInt;
@@ -121,30 +125,30 @@ async function collectGamesData() {
             .filter(m => m.webm && (m.webm['1080'] || m.webm.max)) 
             .map(m => m.webm['1080'] || m.webm.max) : [];
 
+        // HLTB 데이터 수집
         let playTime = "정보 없음";
         try {
-            const cleanTitle = infoData.title.replace(/[^a-zA-Z0-9 ]/g, ""); 
-            const hltbResults = await hltbService.search(cleanTitle);
-            const bestMatch = hltbResults.find(h => h.similarity > 0.6); 
+            const hltbResults = await hltbService.search(infoData.title);
+            const bestMatch = hltbResults.find(h => h.similarity > 0.8); 
             if (bestMatch) playTime = `${bestMatch.gameplayMain} 시간`;
-        } catch (e) { }
+        } catch (hltbErr) {
+            // HLTB 에러는 무시 (로그만 출력)
+            // console.log(`[정보] HLTB 데이터 없음: ${infoData.title}`);
+        }
 
+        // Metacritic 점수
         const metacriticScore = steamData.metacritic ? steamData.metacritic.score : 0;
-
-        // ★ [신규] 한글 제목 저장 (steamData.name이 한글이면 저장)
-        const titleKo = steamData.name || infoData.title;
 
         const gameDataToSave = {
           slug: itad_id, 
-          title: infoData.title, // 영어 제목
-          title_ko: titleKo,     // ★ 한글 제목
+          title: infoData.title,
           steam_appid: steamAppId,
           main_image: infoData.assets.banner600 || steamData.header_image, 
           description: steamData.short_description || "설명 없음",
           smart_tags: smartTags,
           pc_requirements: {
              minimum: steamData.pc_requirements?.minimum || "정보 없음",
-             recommended: steamData.pc_requirements?.recommended || "권장 사양 정보 없음"
+             recommended: steamData.pc_requirements?.recommended || "정보 없음"
           },
           popularity: (infoData.stats.waitlisted || 0) + (infoData.stats.collected || 0),
           price_info: priceInfo, 
@@ -156,12 +160,13 @@ async function collectGamesData() {
         };
 
         await Game.updateOne({ slug: itad_id }, gameDataToSave, { upsert: true });
-        console.log(`[성공] ${infoData.title} / ${titleKo}`);
+        console.log(`[성공] ${infoData.title}`);
+        
+        // ★ [수정] 카운트 증가 (이제 에러 안 남)
         collectedCount++;
 
       } catch (err) {
-        const status = err.response ? err.response.status : "Unknown";
-        if (status !== 404 && status !== 429) console.error(`[실패] ${itad_id}: ${err.message}`);
+        console.error(`[실패] ${itad_id}:`, err.message);
       }
     }
   } catch (error) {

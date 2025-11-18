@@ -1,19 +1,11 @@
 // /frontend/src/Skeleton.js
-import React from 'react';
+import React from "react";
 
-const Skeleton = ({ width, height, borderRadius, style }) => {
+export default function Skeleton({ height = "200px", style }) {
   return (
     <div
-      className="skeleton"
-      style={{
-        width: width || '100%',
-        height: height || '20px',
-        borderRadius: borderRadius || '4px',
-        marginBottom: '10px',
-        ...style
-      }}
+      className="net-card net-card--skel"
+      style={{ height, borderRadius: "4px", ...style }}
     />
   );
-};
-
-export default Skeleton;
+}
