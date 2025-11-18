@@ -1,27 +1,22 @@
 const mongoose = require('mongoose');
 
 const gameSchema = new mongoose.Schema({
-  // 1. ITAD의 고유 ID
   slug: { type: String, required: true, unique: true },
-  
-  // 2. 기본 정보
   steam_appid: { type: Number, required: true },
   title: { type: String, required: true },
   main_image: { type: String },
   description: { type: String },
   
-  // 3. 커스텀 태그 및 사양
   smart_tags: [String], 
   pc_requirements: {
     minimum: String,
     recommended: String
   },
 
-  // 4. 정렬 및 필터링용 데이터
+  // ★ [수정] 단순 숫자 대신 계산된 인기도 저장 (수집기용)
   popularity: { type: Number, default: 0 },
   releaseDate: { type: Date },
 
-  // 5. 가격 정보
   price_info: {
     regular_price: Number,
     current_price: Number,
@@ -40,13 +35,21 @@ const gameSchema = new mongoose.Schema({
     }]
   },
 
-  // 6. 미디어 정보
   screenshots: [String], 
   trailers: [String],
+  play_time: { type: String, default: "정보 없음" },
+  metacritic_score: { type: Number, default: 0 },
 
-  // 7. 추가 정보 (HLTB & 평점)
-  play_time: { type: String, default: "정보 없음" }, // HowLongToBeat
-  metacritic_score: { type: Number, default: 0 }    // ★ [신규] 메타크리틱 점수
+  // ★ [신규] 투표 시스템 (IP 중복 방지 및 가중치)
+  votes: [{
+    identifier: String, // IP 주소 또는 User ID
+    type: { type: String, enum: ['like', 'dislike'] }, // 좋아요/싫어요
+    weight: { type: Number, default: 1 }, // 비회원 1, 회원 3
+    date: { type: Date, default: Date.now }
+  }],
+  // (빠른 조회를 위해 계산된 합계도 저장)
+  likes_count: { type: Number, default: 0 },
+  dislikes_count: { type: Number, default: 0 }
 });
 
 module.exports = mongoose.model('Game', gameSchema);
