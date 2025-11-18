@@ -32,7 +32,7 @@ app.get('/api/games/:id', async (req, res) => {
   }
 });
 
-// 2. 메인 페이지 API
+// 2. 메인 페이지 API (★ 필터링 로직 강화)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1 } = req.body; 
   const limit = 15; 
@@ -40,14 +40,32 @@ app.post('/api/recommend', async (req, res) => {
 
   try {
     let filter = {};
+    
+    // 태그 필터
     if (tags && tags.length > 0) {
       filter.smart_tags = { $all: tags };
     }
     
     let sortRule = { popularity: -1 }; 
-    if (sortBy === 'discount') sortRule = { "price_info.discount_percent": -1 };
-    else if (sortBy === 'new') sortRule = { releaseDate: -1 }; 
-    else if (sortBy === 'price') sortRule = { "price_info.current_price": 1 }; 
+
+    // ★ [수정] 탭별 필터링 강화 (이상한 데이터 제외)
+    if (sortBy === 'discount') {
+      // 할인 탭: 할인율이 0보다 크고, 가격 정보가 있는 것만
+      sortRule = { "price_info.discount_percent": -1 };
+      filter["price_info.discount_percent"] = { $gt: 0 }; 
+      filter["price_info.current_price"] = { $ne: null };
+    } 
+    else if (sortBy === 'new') {
+      // 신규 탭: 출시일 최신순
+      sortRule = { releaseDate: -1 }; 
+      filter["releaseDate"] = { $ne: null };
+    } 
+    else if (sortBy === 'price') {
+      // 가격 탭: 가격 정보가 있는 것만 (오름차순)
+      sortRule = { "price_info.current_price": 1 }; 
+      filter["price_info.current_price"] = { $ne: null };
+    }
+    // (인기 탭은 모든 데이터 표시)
 
     const totalGames = await Game.countDocuments(filter);
     const games = await Game.find(filter)
@@ -60,6 +78,7 @@ app.post('/api/recommend', async (req, res) => {
       totalPages: Math.ceil(totalGames / limit)
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: "서버 오류" });
   }
 });
@@ -72,10 +91,12 @@ app.get('/api/search/autocomplete', async (req, res) => {
   function escapeRegex(string) {
     return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
   }
-  const escapedQuery = escapeRegex(query.trim());
-
+  // 공백 무시 검색 (portal 2 -> portal2)
+  const cleanQuery = escapeRegex(query.trim().replace(/\s+/g, ''));
+  
   try {
-    const regex = new RegExp(`^${escapedQuery}`, 'i'); 
+    // 글자 사이에 아무 문자(.*)나 들어가도 됨
+    const regex = new RegExp(cleanQuery.split('').join('.*'), 'i'); 
     const suggestions = await Game.find({ title: regex }).select('title slug').limit(10); 
     res.json(suggestions);
   } catch (error) {
@@ -108,9 +129,9 @@ app.get('/api/user/library/:steamId', async (req, res) => {
   }
 });
 
-// ★ [신규] 5. 찜 목록(비교) 데이터 일괄 조회 API
+// 5. 찜 목록(비교) 데이터 일괄 조회 API
 app.post('/api/wishlist', async (req, res) => {
-  const { slugs } = req.body; // 프론트에서 보낸 slug 배열
+  const { slugs } = req.body; 
   if (!slugs || !Array.isArray(slugs)) return res.status(400).json({ error: "잘못된 요청" });
 
   try {
