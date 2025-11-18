@@ -1,47 +1,285 @@
 /* /frontend/src/index.css */
 
-/* 기본 스타일 초기화 */
-body, h1, h2, h3, h4, h5, h6, p, button {
+:root {
+  --bg-color: #141414;       /* 리얼 블랙 */
+  --panel-bg: #181818;       /* 패널 배경 */
+  --text-main: #ffffff;
+  --text-sub: #b3b3b3;       /* 넷플릭스 특유의 회색 텍스트 */
+  --accent: #E50914;         /* 넷플릭스 레드 */
+  --accent-hover: #f40612;
+  --border-color: #404040;
+  --card-bg: #2f2f2f;
+}
+
+body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   box-sizing: border-box;
 }
 
-/* 전체 페이지 배경 + 기본 글자색 */
-body {
-  background-color: #011526;  
-  color: #FFFFFF;             
+/* Layout */
+.net-app {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-#root {
-  min-height: 100vh;
+.net-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: rgba(20, 20, 20, 0.95); /* 반투명 블랙 */
+  padding: 15px 4%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #333;
 }
 
-/* ★ [신규] 스켈레톤 애니메이션 (Shimmer Effect) */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
+.net-logo {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Panels */
+.net-panel {
+  padding: 40px 4%;
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.net-section-title {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #fff;
+  border-left: 4px solid var(--accent);
+  padding-left: 12px;
+}
+
+/* Cards */
+.net-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+@media (min-width: 1200px) {
+  .net-cards {
+    grid-template-columns: repeat(5, 1fr) !important;
   }
-  100% {
-    background-position: 200% 0;
-  }
 }
 
-.skeleton {
-  background: #0f283d; /* 기본 어두운 색 */
-  background-image: linear-gradient(
-    90deg,
-    #0f283d 25%,
-    #1e3b55 50%, /* 지나가는 밝은 빛 */
-    #0f283d 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+.net-card {
+  background-color: var(--card-bg);
   border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.2s;
+  text-decoration: none;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.net-card:hover {
+  transform: scale(1.05);
+  z-index: 10;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+}
+
+.net-card-thumb {
+  position: relative;
+  padding-top: 56.25%;
+  width: 100%;
+}
+
+.net-card-thumb img {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.net-card-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-grow: 1;
+  background-color: #2f2f2f;
+}
+
+.net-card-title {
+  font-size: 15px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.net-card-footer {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+/* Filters */
+.filter-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 15px;
+  margin-bottom: 40px;
+}
+
+@media (min-width: 1200px) {
+  .filter-container {
+    grid-template-columns: repeat(5, 1fr) !important;
+  }
+}
+
+.filter-box {
+  background-color: #181818;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.filter-title {
+  font-size: 14px;
+  color: #808080;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.filter-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-tag {
+  background-color: #333;
+  border: 1px solid #555;
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-tag:hover {
+  border-color: #fff;
+}
+
+.filter-tag.active {
+  background-color: var(--accent); /* 레드 */
+  border-color: var(--accent);
+  color: white;
+  font-weight: bold;
+}
+
+/* Inputs & Buttons */
+.net-search-input {
+  background: #000;
+  border: 1px solid #fff;
+  color: white;
+  padding: 8px 12px;
+  font-size: 14px;
+  width: 300px;
+  transition: width 0.3s;
+}
+.net-search-input:focus {
+  width: 350px;
+  outline: none;
+  border-color: var(--accent);
+}
+
+.net-btn {
+  padding: 8px 20px;
+  border-radius: 4px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.net-btn-primary {
+  background-color: var(--accent);
+  color: white;
+}
+.net-btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.net-btn-secondary {
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+}
+.net-btn-secondary:hover {
+  background-color: rgba(255,255,255,0.3);
+}
+
+/* Skeleton */
+.skeleton {
+  background: #2f2f2f;
+  animation: pulse 1.5s infinite;
+  border-radius: 4px;
+}
+@keyframes pulse {
+  0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; }
+}
+
+/* Tooltip */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+.tooltip-text {
+  visibility: hidden;
+  width: 200px;
+  background-color: rgba(0,0,0,0.9);
+  color: #fff;
+  text-align: center;
+  border-radius: 4px;
+  padding: 8px;
+  position: absolute;
+  z-index: 100;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -100px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 12px;
+  font-weight: normal;
+  border: 1px solid #444;
+}
+.tooltip-container:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
 }

@@ -1,70 +1,126 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import Skeleton from './Skeleton'; // ★ 스켈레톤 가져오기
+import Skeleton from './Skeleton';
 
-const styles = {
-  tabButtonActive: { background: '#3D46F2', color: '#FFFFFF', border: 'none', padding: '10px 15px', cursor: 'pointer', fontSize: '16px', marginRight: '5px', fontWeight: 'bold', borderRadius: '10px 10px 0 0', boxShadow: '0 -2px 0 #A24CD9 inset' },
-  tabButton: { background: 'transparent', color: '#D494D9', border: 'none', padding: '10px 15px', cursor: 'pointer', fontSize: '16px', marginRight: '5px', borderRadius: '10px 10px 0 0' },
-  tagButtonActive: { margin: '5px', backgroundColor: '#A24CD9', color: '#011526', border: '1px solid #A24CD9', padding: '0 10px', cursor: 'pointer', width: '120px', height: '35px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', borderRadius: '999px', fontWeight: 'bold' },
-  tagButton: { margin: '5px', backgroundColor: '#021E73', color: '#FFFFFF', border: '1px solid #3D46F2', padding: '0 10px', cursor: 'pointer', width: '120px', height: '35px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', borderRadius: '999px' },
-  listItem: { display: 'flex', alignItems: 'center', backgroundColor: '#021E73', color: 'white', textDecoration: 'none', marginBottom: '6px', padding: '10px', minHeight: '80px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.6)' },
-  priceBox: { marginRight: '15px', width: '120px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' },
-  discountBadge: { backgroundColor: '#D94F4C', color: '#FFFFFF', padding: '4px 8px', borderRadius: '4px', fontSize: '18px', fontWeight: 'bold' },
-  regularPrice: { textDecoration: 'line-through', color: '#BBBBBB', fontSize: '12px', marginTop: '4px' },
-  currentPrice: { color: '#A24CD9', fontSize: '14px' },
-  normalPrice: { color: '#FFFFFF', fontSize: '14px' },
-  loadMoreButton: { display: 'block', width: '220px', margin: '20px auto', padding: '10px 15px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', backgroundColor: '#048ABF', color: '#FFFFFF', border: 'none', borderRadius: '999px', boxShadow: '0 4px 12px rgba(0,0,0,0.7)' }
+const TAG_CATEGORIES = {
+  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션'],
+  '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
+  '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
+  '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
+  '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '경쟁/PvP', '소울라이크']
 };
 
-// ★ [신규] 로딩 중에 보여줄 뼈대 컴포넌트
-function GameListItemSkeleton() {
-  return (
-    <div style={{...styles.listItem, pointerEvents: 'none'}}>
-      {/* 이미지 자리 */}
-      <Skeleton width="150px" height="69px" borderRadius="4px" style={{marginRight: '15px'}} />
-      {/* 텍스트 자리 */}
-      <div style={{ flex: 1 }}>
-        <Skeleton width="60%" height="20px" />
-        <Skeleton width="40%" height="14px" />
-      </div>
-      {/* 가격 자리 */}
-      <div style={{ width: '100px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-        <Skeleton width="50px" height="20px" />
-        <Skeleton width="80px" height="14px" />
-      </div>
-    </div>
-  );
-}
+const styles = {
+  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
+  // ★ [수정] border 속성 충돌 방지 (border:none 대신 구체적 속성 사용)
+  tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', transition: 'color 0.2s' },
+  tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px' },
+  
+  toggleBtn: { width: '100%', padding: '15px', backgroundColor: '#181818', border: '1px solid #333', color: '#fff', fontWeight:'bold', cursor:'pointer', display:'flex', justifyContent:'space-between', marginBottom:'20px', borderRadius: '8px' },
+  loadMoreButton: { display: 'block', margin: '40px auto', padding: '10px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px' },
+  
+  // 필터 스타일
+  filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' },
+  filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
+  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: '#222', borderBottom: '1px solid #333' },
+  filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
+  filterArrow: { color: '#666', fontSize: '12px' },
+  filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px' },
+  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
+  tagBtnActive: { backgroundColor: '#E50914', border: '1px solid #E50914', color: 'white', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' },
+
+  // ★ [신규] 찜 버튼 스타일
+  heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5, transition: 'transform 0.2s' }
+};
+
+const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
+    const [isOpen, setIsOpen] = useState(false); 
+    return (
+        <div style={styles.filterBox}>
+            <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
+                <span style={styles.filterTitle}>{title}</span>
+                <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
+            </div>
+            {isOpen && (
+                <div style={styles.filterContent}>
+                    {tags.map(tag => (
+                        <button key={tag} style={selectedTags.includes(tag) ? styles.tagBtnActive : styles.tagBtn} onClick={() => onToggleTag(tag)}>{tag}</button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 function GameListItem({ game }) {
-  const detailPageUrl = `/game/${game.slug}`;
+  // ★ [신규] 찜 기능 (로컬 스토리지)
+  const [isWishlisted, setIsWishlisted] = useState(false);
 
-  const renderPrice = () => {
-    if (!game.price_info) return <div style={styles.priceBox}><span style={styles.normalPrice}>-</span></div>;
-    if (game.price_info.isFree) return <div style={styles.priceBox}><div style={styles.normalPrice}>무료</div></div>;
-    if (game.price_info.regular_price === null) return <div style={styles.priceBox}><div style={styles.normalPrice}>정보 없음</div></div>;
-    
-    const { current_price, regular_price, discount_percent } = game.price_info;
+  useEffect(() => {
+    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    setIsWishlisted(wishlist.includes(game.slug));
+  }, [game.slug]);
 
-    if (discount_percent > 0) {
-      return (
-        <div style={styles.priceBox}>
-          <div style={styles.discountBadge}>-{discount_percent}%</div>
-          <div style={styles.regularPrice}>₩{regular_price.toLocaleString()}</div>
-          <div style={styles.currentPrice}>₩{current_price.toLocaleString()}</div>
-        </div>
-      );
+  const toggleWishlist = (e) => {
+    e.preventDefault(); // 링크 이동 방지
+    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    let newWishlist;
+    if (isWishlisted) {
+        newWishlist = wishlist.filter(slug => slug !== game.slug);
+    } else {
+        newWishlist = [...wishlist, game.slug];
     }
-    return <div style={styles.priceBox}><div style={styles.normalPrice}>₩{regular_price.toLocaleString()}</div></div>;
+    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+    setIsWishlisted(!isWishlisted);
   };
 
+  const price = game.price_info;
+  const isFree = price?.isFree;
+  // 가격 표시 로직
+  const currentPrice = price?.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
+  const regularPrice = price?.regular_price ? `₩${price.regular_price.toLocaleString()}` : null;
+  const discount = price?.discount_percent > 0 ? `-${price.discount_percent}%` : null;
+
   return (
-    <Link to={detailPageUrl} style={styles.listItem}>
-      <img src={game.main_image} alt={game.title} style={{ width: '150px', height: '69px', borderRadius: '4px' }} />
-      <div style={{ flex: 1, marginLeft: '15px' }}>
-        <h4 style={{ margin: 0, fontSize: '16px' }}>{game.title}</h4>
-      </div>
-      {renderPrice()}
+    <Link to={`/game/${game.slug}`} className="net-card">
+        <div className="net-card-thumb">
+            <img 
+                src={game.main_image} 
+                alt={game.title} 
+                onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} 
+            />
+            <div className="net-card-gradient"></div>
+            {/* 할인 뱃지 */}
+            {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
+            {/* ★ [신규] 찜 버튼 */}
+            <button style={styles.heartBtn} onClick={toggleWishlist}>
+                {isWishlisted ? '❤️' : '🤍'}
+            </button>
+        </div>
+        
+        <div className="net-card-body">
+            <div className="net-card-title">{game.title_ko || game.title}</div>
+            
+            {/* ★ [신규] 가격 정보 상세 표시 */}
+            <div className="net-card-footer">
+                <div style={{display:'flex', flexDirection:'column'}}>
+                    {/* 할인 전 가격 (취소선) */}
+                    {discount && regularPrice && (
+                        <span style={{fontSize:'11px', color:'#777', textDecoration:'line-through'}}>{regularPrice}</span>
+                    )}
+                    {/* 현재 가격 */}
+                    <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
+                        {isFree ? "무료" : currentPrice}
+                    </span>
+                </div>
+                {/* 태그 1개만 표시 */}
+                {game.smart_tags?.[0] && (
+                    <span style={{fontSize:'10px', border:'1px solid #444', padding:'2px 4px', borderRadius:'2px', color:'#999', height:'fit-content'}}>
+                        {game.smart_tags[0]}
+                    </span>
+                )}
+            </div>
+        </div>
     </Link>
   );
 }
@@ -72,93 +128,78 @@ function GameListItem({ game }) {
 function MainPage() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('popular'); 
+  
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'popular');
   const [selectedTags, setSelectedTags] = useState([]);
-  const allSmartTags = ['4인 협동', 'RPG', '오픈월드'];
-
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const gameSlugs = useRef(new Set());
 
   useEffect(() => {
-    setGames([]);
-    setPage(1);
-    setHasMore(true);
-    gameSlugs.current.clear();
+    localStorage.setItem('activeTab', activeTab);
+    setGames([]); setPage(1); setHasMore(true); gameSlugs.current.clear();
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
     if (!hasMore) return; 
-
-    async function fetchGames() {
-      setLoading(true);
-      try {
-        const response = await fetch('http://localhost:8000/api/recommend', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page: page })
-        });
-        const data = await response.json();
-        
-        const newGames = data.games.filter(game => {
-          if (gameSlugs.current.has(game.slug)) return false;
-          gameSlugs.current.add(game.slug);
-          return true;
-        });
-
-        setGames(prevGames => [...prevGames, ...newGames]);
+    setLoading(true);
+    fetch('http://localhost:8000/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
+    }).then(r => r.json()).then(data => {
+        const newGames = data.games.filter(g => !gameSlugs.current.has(g.slug));
+        newGames.forEach(g => gameSlugs.current.add(g.slug));
+        setGames(prev => [...prev, ...newGames]);
         setHasMore(page < data.totalPages); 
-      } catch (err) {
-        console.error(err);
-      }
-      setLoading(false);
-    }
-    fetchGames();
-  }, [selectedTags, activeTab, page, hasMore]); 
+        setLoading(false);
+    }).catch(err => console.error(err));
+  }, [selectedTags, activeTab, page]);
 
-  const handleTagClick = (tag) => {
-    setSelectedTags(prevTags => prevTags.includes(tag) ? prevTags.filter(t => t !== tag) : [...prevTags, tag]);
+  const toggleTag = (tag) => {
+      setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#011526', paddingBottom: '20px' }}>
-      <div style={{ display: 'flex', padding: '10px 10px 0 10px' }}>
-        {[
-          { key: 'popular', name: '최고 인기' }, 
-          { key: 'new', name: '신규 및 인기' },
-          { key: 'discount', name: '특별 할인' },
-          { key: 'price', name: '가격 (낮은 순)'}
-        ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={activeTab === tab.key ? styles.tabButtonActive : styles.tabButton}>{tab.name}</button>
+    <div className="net-panel">
+      <div style={styles.tabContainer}>
+        {[{ k:'popular', n:'🔥 인기' }, { k:'new', n:'✨ 신규' }, { k:'discount', n:'💸 할인' }, { k:'price', n:'💰 낮은 가격' }].map(t => (
+            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
       </div>
-      <div style={{ padding: '10px', backgroundColor: '#021E73' }}>
-        <strong>태그:</strong>
-        {allSmartTags.map(tag => (
-          <button key={tag} onClick={() => handleTagClick(tag)} style={selectedTags.includes(tag) ? styles.tagButtonActive : styles.tagButton}>{tag}</button>
-        ))}
+
+      <button style={styles.toggleBtn} onClick={() => setIsFilterOpen(!isFilterOpen)}>
+          <span>🔍 취향 태그 선택 {selectedTags.length > 0 && <span style={{color:'#E50914'}}>({selectedTags.length})</span>}</span>
+          <span>{isFilterOpen ? '▲ 접기' : '▼ 펼치기'}</span>
+      </button>
+
+      {isFilterOpen && (
+          <div style={styles.filterContainer}>
+              {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
+                  <FilterCategoryBox 
+                      key={category} 
+                      title={category} 
+                      tags={tags} 
+                      selectedTags={selectedTags} 
+                      onToggleTag={toggleTag} 
+                  />
+              ))}
+          </div>
+      )}
+
+      <div className="net-cards">
+        {games.map(game => <GameListItem key={game.slug} game={game} />)}
+        {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
       </div>
       
-      <div style={{ padding: '10px' }}>
-        {/* ★ 게임 목록 렌더링 */}
-        {games.map(game => (
-            <GameListItem key={game.slug} game={game} />
-        ))}
-        
-        {/* ★ [수정] 로딩 중이면 스켈레톤 5개 보여주기 */}
-        {loading && (
-           <>
-             <GameListItemSkeleton />
-             <GameListItemSkeleton />
-             <GameListItemSkeleton />
-             <GameListItemSkeleton />
-             <GameListItemSkeleton />
-           </>
-        )}
-        
-        {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(prev => prev + 1)}>더 보기 (Load More)</button>}
-        {!loading && games.length === 0 && <p style={{color:'white', textAlign:'center', marginTop:'20px'}}>게임이 없습니다.</p>}
-      </div>
+      {!loading && hasMore && (
+          <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>
+      )}
+      
+      {!loading && games.length === 0 && (
+        <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>
+      )}
     </div>
   );
 }
