@@ -1,31 +1,38 @@
 /* /frontend/src/index.css */
 
 :root {
-  --bg-color: #141414;       /* 리얼 블랙 */
-  --panel-bg: #181818;       /* 패널 배경 */
-  --text-main: #ffffff;
-  --text-sub: #b3b3b3;       /* 넷플릭스 스타일 회색 */
+  --bg-color: #141414;       /* 넷플릭스 배경: 리얼 블랙 */
+  --panel-bg: #181818;       /* 패널 배경: 다크 그레이 */
+  --text-main: #ffffff;      /* 메인 텍스트 */
+  --text-sub: #b3b3b3;       /* 서브 텍스트 */
   --accent: #E50914;         /* 넷플릭스 레드 */
-  --accent-hover: #f40612;
-  --border-color: #404040;
-  --card-bg: #2f2f2f;
+  --accent-hover: #f40612;   /* 호버 레드 */
+  --border-color: #404040;   /* 테두리 */
+  --card-bg: #2f2f2f;        /* 카드 배경 */
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color);
+  background-color: var(--bg-color) !important;
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   box-sizing: border-box;
 }
 
-/* Layout */
-.net-app {
+#root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* --- Layout --- */
+.net-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--bg-color);
 }
 
 .net-header {
@@ -49,17 +56,18 @@ body {
   text-transform: uppercase;
 }
 
-/* Panels */
+/* --- Panels --- */
 .net-panel {
   padding: 40px 4%;
   max-width: 1600px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
+  flex: 1;
 }
 
 .net-section-title {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
   color: #fff;
@@ -67,7 +75,7 @@ body {
   padding-left: 12px;
 }
 
-/* Cards */
+/* --- Cards Grid (가로 정렬 보장) --- */
 .net-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -79,33 +87,36 @@ body {
 
 @media (min-width: 1200px) {
   .net-cards {
-    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-columns: repeat(5, 1fr); /* PC에서는 5개 고정 */
   }
 }
 
 .net-card {
   background-color: var(--card-bg);
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
-  transition: transform 0.2s;
+  transition: transform 0.2s ease;
   text-decoration: none;
   color: white;
   display: flex;
   flex-direction: column;
   height: 100%;
+  border: 1px solid #333;
 }
 
 .net-card:hover {
-  transform: scale(1.05);
+  transform: scale(1.03);
   z-index: 10;
   box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+  border-color: #fff;
 }
 
 .net-card-thumb {
   position: relative;
-  padding-top: 56.25%;
+  padding-top: 56.25%; /* 16:9 비율 */
   width: 100%;
+  background: #000;
 }
 
 .net-card-thumb img {
@@ -120,7 +131,7 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
   flex-grow: 1;
   background-color: #2f2f2f;
 }
@@ -137,27 +148,83 @@ body {
   margin-top: auto;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: end;
   font-size: 13px;
 }
 
-/* Inputs & Buttons */
+/* --- Inputs & Buttons --- */
 .net-search-input {
   background: #000;
   border: 1px solid #555;
   color: white;
-  padding: 8px 12px;
+  padding: 10px 15px;
   font-size: 14px;
   width: 300px;
   transition: width 0.3s;
+  outline: none;
+  border-radius: 4px;
 }
 .net-search-input:focus {
-  width: 350px;
-  outline: none;
+  width: 400px;
   border-color: var(--accent);
 }
 
-/* Skeleton Animation */
+/* --- Login/Signup Style (Center Card) --- */
+.auth-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 450px;
+  padding: 60px;
+  background-color: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  box-sizing: border-box;
+  border: 1px solid #333;
+}
+
+.auth-title {
+  color: #fff;
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 28px;
+}
+
+.auth-input {
+  background: #333;
+  border-radius: 4px;
+  border: 0;
+  color: #fff;
+  height: 50px;
+  line-height: 50px;
+  padding: 0 20px;
+  width: 100%;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.auth-btn {
+  background-color: var(--accent);
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 24px;
+  padding: 16px;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s;
+}
+.auth-btn:hover { background-color: var(--accent-hover); }
+
+/* --- Skeleton --- */
 .skeleton {
   background: #2f2f2f;
   animation: pulse 1.5s infinite;
