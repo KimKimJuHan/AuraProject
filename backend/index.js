@@ -4,55 +4,64 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const axios = require('axios');
 
-// Models & Routes
+// 모델
 const Game = require('./models/Game'); 
+// 라우터
 const authRoutes = require('./routes/auth');
 const recommendRoutes = require('./routes/recommend');
 
 const app = express();
 const PORT = 8000;
 
-app.use(cors()); 
+// CORS 설정 (프론트엔드 3000번 포트 허용)
+app.use(cors({ origin: 'http://localhost:3000', credentials: true })); 
 app.use(express.json());
 app.set('trust proxy', true);
 
-// MongoDB Connection
 const dbUri = process.env.MONGODB_URI;
 if (!dbUri) {
-  console.error("❌ Error: MONGODB_URI is missing in .env");
+  console.error("❌ 오류: MONGODB_URI 환경 변수 없음");
   process.exit(1); 
 }
-mongoose.connect(dbUri)
-  .then((conn) => console.log(`✅ MongoDB Connected: ${conn.connection.name}`))
-  .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// Routes
+mongoose.connect(dbUri)
+  .then((conn) => {
+    console.log(`✅ 몽고DB (Atlas) 연결 성공: ${conn.connection.name}`);
+  })
+  .catch(err => console.error("❌ 몽고DB 연결 실패:", err));
+
+// 라우터 연결
 app.use('/api/auth', authRoutes);
 app.use('/api/ai-recommend', recommendRoutes);
 
-// 1. Game Details API
+// 1. 상세 페이지 API
 app.get('/api/games/:id', async (req, res) => {
   try {
     const gameInfo = await Game.findOne({ slug: req.params.id });
-    if (!gameInfo) return res.status(404).json({ error: "Game not found" });
+    if (!gameInfo) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
     res.status(200).json(gameInfo);
   } catch (error) {
-    res.status(500).json({ error: "Server Error" });
+    res.status(500).json({ error: "서버 내부 오류" });
   }
 });
 
-// 2. Main/Search API (Enhanced Logic)
+// 2. 메인/검색 페이지 API (★ 안전장치 포함)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body; 
   const limit = 15; 
   const skip = (page - 1) * limit; 
   
-  console.log(`🔍 [Request] Query: "${searchQuery || ''}", Tags: [${tags || ''}], Sort: ${sortBy}`);
+  console.log(`🔍 [API 요청] Page: ${page}, Sort: ${sortBy}, Query: "${searchQuery || ''}", Tags: ${tags?.length || 0}개`);
 
   try {
     let filter = {};
     
-    // Search Filter (Case-insensitive partial match)
+    // 태그 필터 (하나라도 포함되면 검색)
+    if (tags && tags.length > 0) {
+      filter.smart_tags = { $in: tags }; 
+    }
+    
+    // 검색어 필터 (단순 포함 검색)
     if (searchQuery && searchQuery.trim() !== "") {
         const query = searchQuery.trim();
         const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -62,63 +71,88 @@ app.post('/api/recommend', async (req, res) => {
         ];
     }
 
-    // Tag Filter
-    if (tags && tags.length > 0) {
-      filter.smart_tags = { $in: tags }; 
-    }
-
-    // Sort Logic
+    // 정렬 로직
     let sortRule = { popularity: -1, _id: -1 }; 
+    
     if (sortBy === 'discount') {
         sortRule = { "price_info.discount_percent": -1, popularity: -1 };
         filter["price_info.discount_percent"] = { $gt: 0 };
-    } else if (sortBy === 'new') {
+    } 
+    else if (sortBy === 'new') {
         sortRule = { releaseDate: -1 }; 
-    } else if (sortBy === 'price') {
+    } 
+    else if (sortBy === 'price') {
         sortRule = { "price_info.current_price": 1 }; 
+        // 가격 필터는 데이터가 있을 때만 적용 (0원 이상)
         filter["price_info.current_price"] = { $gte: 0 };
     }
 
-    // Execute Query
-    const totalGames = await Game.countDocuments(filter);
-    let games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit);
+    // 1차 검색 시도
+    let totalGames = await Game.countDocuments(filter);
+    let games = await Game.find(filter)
+      .sort(sortRule)
+      .skip(skip)   
+      .limit(limit); 
+      
+    console.log(`👉 1차 검색 결과: ${totalGames}개 발견 (이번 요청 반환: ${games.length}개)`);
 
-    console.log(`👉 Found ${totalGames} games (Returning ${games.length})`);
-
-    // [Safety Fallback] If nothing found and no search query, return popular games
+    // ★ [안전장치] 만약 검색 결과가 0개이고, 검색어나 태그가 없는 초기 로딩 상태라면?
+    // 강제로 전체 게임 중 인기순 15개를 가져옴 (빈 화면 방지)
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
-        console.log("⚠️ No results found. Returning fallback popular games.");
-        games = await Game.find({}).sort({ popularity: -1 }).limit(limit);
+        console.log("⚠️ 초기 로딩 결과 없음 -> 전체 게임 강제 로딩 (Fallback)");
+        filter = {}; 
+        sortRule = { popularity: -1, _id: -1 };
+        totalGames = await Game.countDocuments(filter);
+        games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit);
     }
-
+    
     res.status(200).json({
       games: games,
       totalPages: Math.ceil(totalGames / limit) || 1
     });
 
   } catch (error) {
-    console.error("❌ API Error:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("❌ API 에러:", error);
+    res.status(500).json({ error: "데이터 로딩 중 오류 발생" });
   }
 });
 
-// 3. Autocomplete API
+// 3. 검색 자동완성 API
 app.get('/api/search/autocomplete', async (req, res) => {
   const query = req.query.q; 
-  if (!query) return res.json([]);
+  if (typeof query !== 'string' || !query) return res.json([]);
+
   const escapedQuery = query.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  
   try {
     const suggestions = await Game.find({
         $or: [ 
             { title: { $regex: escapedQuery, $options: 'i' } }, 
             { title_ko: { $regex: escapedQuery, $options: 'i' } } 
         ]
-    }).select('title title_ko slug').limit(10); 
+    })
+    .select('title title_ko slug')
+    .limit(10); 
+    
     res.json(suggestions);
-  } catch (error) { res.status(500).json({ error: "Search Error" }); }
+  } catch (error) {
+    res.status(500).json({ error: "검색 오류" });
+  }
 });
 
-// 4. Wishlist API
+// 4. Steam 라이브러리 조회
+app.get('/api/user/library/:steamId', async (req, res) => {
+  const apiKey = process.env.STEAM_API_KEY; 
+  if (!apiKey) return res.status(500).json({ error: "API Key Error" });
+  try {
+    const response = await axios.get(
+      `http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=${apiKey}&steamid=${req.params.steamId}&include_appinfo=true&format=json`
+    );
+    res.json(response.data.response.games || []);
+  } catch (error) { res.status(500).json({ error: "Steam Profile Error" }); }
+});
+
+// 5. 찜 목록
 app.post('/api/wishlist', async (req, res) => {
   if (!req.body.slugs) return res.status(400).json({ error: "Bad Request" });
   try {
@@ -127,13 +161,13 @@ app.post('/api/wishlist', async (req, res) => {
   } catch (error) { res.status(500).json({ error: "DB Error" }); }
 });
 
-// 5. User IP API
+// 6. 유저 IP 조회
 app.get('/api/user/ip', (req, res) => {
     const userIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     res.json({ ip: userIp });
 });
 
-// 6. Vote API
+// 7. 투표
 app.post('/api/games/:id/vote', async (req, res) => {
     const userIp = req.headers['x-forwarded-for']?.split(',').shift().trim() || req.connection.remoteAddress;
     const { type } = req.body;
@@ -159,6 +193,21 @@ app.post('/api/games/:id/vote', async (req, res) => {
         await game.save();
         res.json({ message: "Voted", likes: game.likes_count, dislikes: game.dislikes_count, userVote: type });
     } catch (error) { res.status(500).json({ error: "Vote Error" }); }
+});
+
+// 8. 디버그용
+app.get('/api/debug', async (req, res) => {
+    try {
+        const count = await Game.countDocuments();
+        res.json({ 
+            status: "OK",
+            totalGames: count, 
+            dbName: mongoose.connection.name,
+            collectionName: Game.collection.name
+        });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.listen(PORT, () => {

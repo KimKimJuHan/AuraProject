@@ -5,17 +5,14 @@ import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 
 const styles = {
-  buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold' },
+  buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
   wishlistButton: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#fff', color: '#000', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '20px 0', gap:'10px' },
   mediaItem: { height: '100px', borderRadius: '4px', borderWidth:'2px', borderStyle:'solid', borderColor:'transparent', cursor: 'pointer', transition:'border-color 0.2s' },
   mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', maxHeight:'500px', marginBottom: '10px', borderRadius: '4px', backgroundColor: '#000', display: 'flex', justifyContent: 'center', objectFit:'contain' },
-  
-  // ★ 링크 스타일 (전체 클릭, 흰색 텍스트, 보라색 방지)
   storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: '#fff', transition: 'background 0.2s', cursor: 'pointer', width: '100%', boxSizing: 'border-box' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
-  
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' }
 };
@@ -56,6 +53,9 @@ function ShopPage({ region }) {
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [likes, setLikes] = useState(0);
+  const [dislikes, setDislikes] = useState(0);
+  const [myVote, setMyVote] = useState(null); 
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -67,6 +67,13 @@ function ShopPage({ region }) {
             else if (res.data.main_image) setSelectedMedia({ type: 'image', url: res.data.main_image });
             const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
             setIsWishlisted(wishlist.includes(res.data.slug));
+            setLikes(res.data.likes_count || 0);
+            setDislikes(res.data.dislikes_count || 0);
+            try {
+                const ipRes = await axios.get('http://localhost:8000/api/user/ip');
+                const myVoteData = res.data.votes?.find(v => v.identifier === ipRes.data.ip);
+                if(myVoteData) setMyVote(myVoteData.type);
+            } catch(e) {}
         } catch (err) { setLoading(false); }
     };
     fetchDetails();
@@ -84,6 +91,16 @@ function ShopPage({ region }) {
     else newWishlist = [...wishlist, gameData.slug];
     localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
+  };
+
+  const handleVote = async (type) => {
+      try {
+        const response = await axios.post(`http://localhost:8000/api/games/${id}/vote`, { type });
+        const data = response.data;
+        setLikes(data.likes);
+        setDislikes(data.dislikes);
+        setMyVote(data.userVote); 
+      } catch (error) { alert("투표 실패"); }
   };
 
   const cleanHTML = (html) => DOMPurify.sanitize(html, { USE_PROFILES: { html: false } });
@@ -116,7 +133,7 @@ function ShopPage({ region }) {
         return (
             <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
                 <span style={styles.storeName}>{storeName}</span>
-                <span style={{color:'#46d369', fontSize:'14px'}}>구매하러 가기 &gt;</span>
+                <span style={{color:'#46d369'}}>구매하러 가기 &gt;</span>
             </a>
         );
     }
@@ -153,6 +170,8 @@ function ShopPage({ region }) {
                     </a>
                  )}
                  <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
+                 <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('like')}>👍 {likes}</button>
+                 <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
             </div>
             {pi?.discount_percent > 0 && countdown && (
                 <div style={{color:'#E50914', fontWeight:'bold', fontSize:'15px', marginTop:'10px', display:'flex', alignItems:'center', gap:'5px'}}>
@@ -169,7 +188,7 @@ function ShopPage({ region }) {
           {selectedMedia?.type === 'video' ? (
             <iframe title="Game Trailer" src={selectedMedia.url} style={{width:'100%', height:'100%', border:'none'}} allow="autoplay; encrypted-media" allowFullScreen />
           ) : (
-            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300?text=No+Image"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
+            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
           )}
         </div>
         <div style={styles.mediaContainer}>
