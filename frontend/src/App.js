@@ -71,11 +71,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const handleSuggestionClick = (game) => {
     setSearchTerm(game.title); 
     setIsFocused(false);
-    
     const newHistory = [game.title, ...history.filter(h => h !== game.title).slice(0, 4)];
     setHistory(newHistory);
     localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
-    
     navigate(`/game/${game.slug}`); 
   };
 
@@ -128,7 +126,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     setHistory([]);
     localStorage.removeItem('gameSearchHistory');
     setIsFocused(false);
-    navigate('/search');
+    navigate('/search'); // ★ 여기서 navigate 사용
   };
 
   const handleClear = () => {

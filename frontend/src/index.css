@@ -1,7 +1,7 @@
 /* /frontend/src/index.css */
 
 :root {
-  --bg-color: #141414;       /* 리얼 블랙 */
+  --bg-color: #141414;       /* 넷플릭스 리얼 블랙 */
   --panel-bg: #181818;       /* 패널 배경 */
   --text-main: #ffffff;      /* 메인 텍스트 */
   --text-sub: #b3b3b3;       /* 서브 텍스트 */
@@ -11,15 +11,17 @@
   --card-bg: #2f2f2f;
 }
 
+/* 기본 초기화 및 배경색 강제 적용 */
 body, html, #root {
   margin: 0;
   padding: 0;
   width: 100%;
   min-height: 100vh;
-  background-color: var(--bg-color) !important;
+  background-color: var(--bg-color) !important; 
   color: var(--text-main) !important;
   font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
 }
 
 /* 레이아웃 */
@@ -50,7 +52,7 @@ body, html, #root {
   text-transform: uppercase;
 }
 
-/* 메인 영역 */
+/* 패널 */
 .net-panel {
   padding: 40px 4%;
   max-width: 1600px;
@@ -110,6 +112,7 @@ body, html, #root {
   width: 100%;
   background: #000;
 }
+
 .net-card-thumb img {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -124,13 +127,16 @@ body, html, #root {
   flex-grow: 1;
   background-color: #2f2f2f;
 }
+
 .net-card-title {
   font-size: 15px;
   font-weight: bold;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #fff;
 }
+
 .net-card-footer {
   margin-top: auto;
   display: flex;
@@ -168,7 +174,7 @@ body, html, #root {
 .auth-container {
   width: 100%;
   max-width: 450px;
-  padding: 60px;
+  padding: 60px 68px 40px;
   background-color: rgba(0, 0, 0, 0.75);
   border-radius: 4px;
   box-sizing: border-box;
@@ -180,6 +186,12 @@ body, html, #root {
   font-size: 32px;
   font-weight: 700;
   margin-bottom: 28px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .auth-input {
@@ -194,7 +206,6 @@ body, html, #root {
   font-size: 16px;
   outline: none;
   box-sizing: border-box;
-  margin-bottom: 16px;
 }
 .auth-input:focus { background: #454545; }
 
@@ -217,6 +228,7 @@ body, html, #root {
   color: #737373;
   font-size: 16px;
   margin-top: 16px;
+  font-weight: 400;
 }
 .auth-link { color: #fff; text-decoration: none; margin-left: 5px; }
 .auth-link:hover { text-decoration: underline; }
@@ -227,4 +239,6 @@ body, html, #root {
   animation: pulse 1.5s infinite;
   border-radius: 4px;
 }
-@keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+@keyframes pulse {
+  0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; }
+}

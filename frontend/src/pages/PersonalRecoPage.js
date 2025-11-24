@@ -3,7 +3,6 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import Skeleton from '../Skeleton';
 
-// Reuse tags for consistency (Ideally, this should be imported from a shared constant file)
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략'],
   '특징': ['오픈 월드', '협동', '스토리 중심']
@@ -29,7 +28,7 @@ function PersonalRecoPage() {
       try {
         const res = await axios.post('http://localhost:8000/api/ai-recommend/personal', { 
             userId: user.id,
-            tags: selectedTags // Send tags to backend for refinement
+            tags: selectedTags 
         });
         setGames(res.data);
         setError(null);

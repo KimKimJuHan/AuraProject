@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 
@@ -12,8 +12,16 @@ const TAG_CATEGORIES = {
 
 const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
-  tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
-  tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
+  tabButton: { 
+    background: 'none', color: '#b3b3b3', 
+    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid transparent', 
+    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' 
+  },
+  tabButtonActive: { 
+    background: 'none', color: '#fff', 
+    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid #E50914', 
+    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' 
+  },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
   filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
   filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
@@ -45,6 +53,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
 
 function GameListItem({ game }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
+
   useEffect(() => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     setIsWishlisted(wishlist.includes(game.slug));
@@ -98,16 +107,14 @@ function MainPage() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
+  const gameSlugsRef = useRef(new Set());
 
-  // 탭/필터 변경 시 초기화
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
-    setGames([]); 
-    setPage(1); 
-    setHasMore(true);
+    setGames([]); setPage(1); setHasMore(true); 
+    gameSlugsRef.current.clear();
   }, [selectedTags, activeTab]);
 
-  // 데이터 로드
   useEffect(() => {
     if (!hasMore) return; 
     
@@ -121,18 +128,16 @@ function MainPage() {
             });
             const data = await response.json();
             
-            // ★ [핵심 수정] 중복 제거 방식을 '현재 상태(prev)' 기준으로 변경하여 데이터 유실 방지
             setGames(prev => {
-                const existingIds = new Set(prev.map(g => g.slug));
-                const newGames = data.games.filter(g => !existingIds.has(g.slug));
+                // 중복 제거
+                const newGames = data.games.filter(g => !gameSlugsRef.current.has(g.slug));
+                newGames.forEach(g => gameSlugsRef.current.add(g.slug));
                 return [...prev, ...newGames];
             });
-            
             setHasMore(page < data.totalPages); 
         } catch (err) { console.error(err); }
         setLoading(false);
     };
-    
     fetchGames();
   }, [page, selectedTags, activeTab, hasMore]); 
 
@@ -154,7 +159,6 @@ function MainPage() {
           ))}
       </div>
       
-      {/* 선택된 태그 표시 */}
       {selectedTags.length > 0 && (
         <div style={{marginBottom:'20px', color:'#b3b3b3', fontSize:'14px', textAlign:'right'}}>
             선택된 태그: <span style={{color:'white'}}>{selectedTags.join(', ')}</span>
@@ -162,14 +166,13 @@ function MainPage() {
         </div>
       )}
 
-      {/* 게임 리스트 */}
       <div className="net-cards">
         {games.map(game => <GameListItem key={game.slug} game={game} />)}
         {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
       </div>
       
       {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
-      {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다. (DB 확인 필요)</div>}
+      {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다. (서버를 확인해주세요)</div>}
     </div>
   );
 }
