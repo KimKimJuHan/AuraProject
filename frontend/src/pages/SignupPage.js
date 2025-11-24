@@ -32,7 +32,6 @@ function SignupPage() {
     <div className="net-app auth-wrapper">
       <div className="auth-container">
         <h1 className="auth-title">회원가입</h1>
-        
         {step === 1 ? (
           <form className="auth-form" onSubmit={requestOtp}>
             <input className="auth-input" name="username" placeholder="닉네임" value={formData.username} onChange={handleChange} required />
@@ -42,20 +41,14 @@ function SignupPage() {
           </form>
         ) : (
           <form className="auth-form" onSubmit={verifyAndRegister}>
-            <p style={{color: '#b3b3b3', fontSize: '14px', marginBottom:'10px'}}>
-                {formData.email}로 발송된<br/>인증코드를 입력하세요.
-            </p>
+            <p style={{color:'#bbb', fontSize:'14px'}}>이메일로 전송된 인증코드를 입력하세요.</p>
             <input className="auth-input" placeholder="인증코드 6자리" value={otp} onChange={(e)=>setOtp(e.target.value)} required />
             <button className="auth-btn" type="submit">가입 완료</button>
-            <button type="button" onClick={()=>setStep(1)} style={{background:'transparent', border:'none', color:'#b3b3b3', cursor:'pointer', marginTop:'10px', textDecoration:'underline'}}>
-                다시 입력하기
-            </button>
+            <button type="button" onClick={()=>setStep(1)} style={{background:'transparent', border:'none', color:'#bbb', cursor:'pointer', textDecoration:'underline', marginTop:'10px'}}>다시 입력하기</button>
           </form>
         )}
-        
         <div className="auth-subtext">
-          이미 계정이 있으신가요? 
-          <Link to="/login" className="auth-link">로그인하기</Link>
+          이미 계정이 있으신가요? <Link to="/login" className="auth-link">로그인하기</Link>
         </div>
       </div>
     </div>

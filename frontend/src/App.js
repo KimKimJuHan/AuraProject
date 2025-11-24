@@ -32,7 +32,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const [isFocused, setIsFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   
-  // ★ [수정] 여기서 Hook 사용 (App이 아닌 NavigationBar에서)
   const navigate = useNavigate(); 
   const debounceTimer = useRef(null); 
   const searchContainerRef = useRef(null); 
@@ -69,43 +68,73 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     debounceTimer.current = setTimeout(() => { fetchSuggestions(query); }, 300);
   };
 
-  const handleKeyDown = (e) => {
-    const list = searchTerm.length > 0 ? suggestions : history;
-    if (!list || list.length === 0) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(prev => (prev < list.length - 1 ? prev + 1 : prev)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(prev => (prev > -1 ? prev - 1 : -1)); }
-    else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (selectedIndex >= 0) {
-            const item = list[selectedIndex];
-            if (item.slug) handleSuggestionClick(item);
-            else { setSearchTerm(item); fetchSuggestions(item); }
-        } else { handleSubmit(e); }
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    if(e) e.preventDefault(); 
-    const query = searchTerm.trim();
-    if (!query) return;
-    const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
-    setHistory(newHistory);
-    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
-    
-    navigate(`/search?q=${query}`);
-    setIsFocused(false); setSuggestions([]);
-  };
-
   const handleSuggestionClick = (game) => {
-    setSearchTerm(game.title); setIsFocused(false);
+    setSearchTerm(game.title); 
+    setIsFocused(false);
     const newHistory = [game.title, ...history.filter(h => h !== game.title).slice(0, 4)];
     setHistory(newHistory);
     localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     navigate(`/game/${game.slug}`); 
   };
+
+  const handleSubmit = (e) => {
+    if(e) e.preventDefault(); 
+    const query = searchTerm.trim();
+    if (!query) return;
+
+    const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
+    setHistory(newHistory);
+    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    
+    const targetGame = suggestions.find(g => g.title.toLowerCase() === query.toLowerCase());
+    setIsFocused(false); 
+    setSuggestions([]); 
+    
+    if (targetGame) {
+      setSearchTerm(targetGame.title); 
+      navigate(`/game/${targetGame.slug}`);
+    } else {
+      navigate(`/search?q=${query}`);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    const list = searchTerm.length > 0 ? suggestions : history;
+    if (!list || list.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev < list.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => (prev > -1 ? prev - 1 : -1));
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0) {
+            const item = list[selectedIndex];
+            if (item.slug) handleSuggestionClick(item);
+            else { 
+                setSearchTerm(item); 
+                navigate(`/search?q=${item}`);
+                setIsFocused(false);
+            }
+        } else { handleSubmit(e); }
+    }
+  };
   
-  const handleClearHistory = () => { setHistory([]); localStorage.removeItem('gameSearchHistory'); setIsFocused(false); };
-  const handleClear = () => { setSearchTerm(""); setSuggestions([]); setSelectedIndex(-1); setIsFocused(true); };
+  const handleClearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem('gameSearchHistory');
+    setIsFocused(false);
+    navigate('/search');
+  };
+
+  const handleClear = () => {
+    setSearchTerm("");
+    setSuggestions([]);
+    setSelectedIndex(-1);
+    setIsFocused(true); 
+  };
 
   return (
     <header className="net-header">
@@ -116,12 +145,25 @@ function NavigationBar({ user, setUser, region, setRegion }) {
             <input type="text" className="net-search-input" placeholder="게임 검색..." value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsFocused(true)} />
         </form>
         {searchTerm.length > 0 && <button onClick={handleClear} style={styles.clearButton}>✕</button>}
-        {isFocused && (searchTerm.length > 0 || history.length > 0) && (
+        
+        {isFocused && (
             <ul style={styles.suggestionsList}>
                 {(searchTerm.length > 0 ? suggestions : history).map((item, idx) => (
                     <li key={idx} style={idx === selectedIndex ? styles.suggestionItemSelected : styles.suggestionItem}
-                    onMouseDown={() => { if(item.slug) handleSuggestionClick(item); else { setSearchTerm(item); fetchSuggestions(item); } }}>
-                        {item.slug ? ( <div style={{display:'flex', justifyContent:'space-between'}}><span>{item.title}</span>{item.title_ko && <span style={{color:'#888', fontSize:'12px', marginLeft:'10px'}}>{item.title_ko}</span>}</div> ) : item}
+                    onMouseDown={() => { 
+                        if(item.slug) handleSuggestionClick(item); 
+                        else { 
+                            setSearchTerm(item); 
+                            navigate(`/search?q=${item}`);
+                            setIsFocused(false);
+                        } 
+                    }}>
+                        {item.slug ? (
+                            <div style={{display:'flex', justifyContent:'space-between'}}>
+                                <span>{item.title}</span>
+                                {item.title_ko && <span style={{color:'#888', fontSize:'12px', marginLeft:'10px'}}>{item.title_ko}</span>}
+                            </div>
+                        ) : item}
                     </li>
                 ))}
                 {searchTerm.length === 0 && history.length > 0 && ( <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>기록 삭제</li> )}
@@ -134,6 +176,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
           <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="KR">🇰🇷 KRW</option>
             <option value="US">🇺🇸 USD</option>
+            <option value="JP">🇯🇵 JPY</option>
           </select>
           <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
           {user ? (
