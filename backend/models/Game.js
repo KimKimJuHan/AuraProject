@@ -37,4 +37,4 @@ const gameSchema = new mongoose.Schema({
   dislikes_count: { type: Number, default: 0 }
 });
 
-module.exports = mongoose.model('Game', gameSchema);
+module.exports = mongoose.model('Game', gameSchema, 'games');

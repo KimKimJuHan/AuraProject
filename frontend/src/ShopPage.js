@@ -5,16 +5,14 @@ import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 
 const styles = {
-  buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
+  buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold' },
   wishlistButton: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#fff', color: '#000', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
-  thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#555', borderRadius: '4px', background: 'transparent', color: '#fff' },
-  thumbButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#E50914', borderRadius: '4px', background: '#E50914', color: '#fff' },
-  
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '20px 0', gap:'10px' },
   mediaItem: { height: '100px', borderRadius: '4px', borderWidth:'2px', borderStyle:'solid', borderColor:'transparent', cursor: 'pointer', transition:'border-color 0.2s' },
   mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', maxHeight:'500px', marginBottom: '10px', borderRadius: '4px', backgroundColor: '#000', display: 'flex', justifyContent: 'center', objectFit:'contain' },
   
+  // ★ 링크 스타일 (전체 클릭, 흰색 텍스트, 보라색 방지)
   storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: '#fff', transition: 'background 0.2s', cursor: 'pointer', width: '100%', boxSizing: 'border-box' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   
@@ -58,32 +56,20 @@ function ShopPage({ region }) {
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
-  const [likes, setLikes] = useState(0);
-  const [dislikes, setDislikes] = useState(0);
-  const [myVote, setMyVote] = useState(null); 
 
   useEffect(() => {
-    const fetchGameDetails = async () => {
+    const fetchDetails = async () => {
         try {
-            const response = await axios.get(`http://localhost:8000/api/games/${id}`);
-            const data = response.data;
-            setGameData(data);
+            const res = await axios.get(`http://localhost:8000/api/games/${id}`);
+            setGameData(res.data);
             setLoading(false);
-            
-            if (data.main_image) setSelectedMedia({ type: 'image', url: data.main_image });
-            
+            if (res.data.trailers?.length > 0) setSelectedMedia({ type: 'video', url: res.data.trailers[0] });
+            else if (res.data.main_image) setSelectedMedia({ type: 'image', url: res.data.main_image });
             const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-            setIsWishlisted(wishlist.includes(data.slug));
-            setLikes(data.likes_count || 0);
-            setDislikes(data.dislikes_count || 0);
-            try {
-                const ipRes = await axios.get('http://localhost:8000/api/user/ip');
-                const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
-                if(myVoteData) setMyVote(myVoteData.type);
-            } catch(e) {}
+            setIsWishlisted(wishlist.includes(res.data.slug));
         } catch (err) { setLoading(false); }
     };
-    fetchGameDetails();
+    fetchDetails();
   }, [id]); 
 
   const getPriceDisplay = (price) => {
@@ -100,17 +86,7 @@ function ShopPage({ region }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  const handleVote = async (type) => {
-      try {
-        const response = await axios.post(`http://localhost:8000/api/games/${id}/vote`, { type });
-        const data = response.data;
-        setLikes(data.likes);
-        setDislikes(data.dislikes);
-        setMyVote(data.userVote); 
-      } catch (error) { alert("투표 실패"); }
-  };
-
-  const cleanHTML = (html) => { return DOMPurify.sanitize(html, { USE_PROFILES: { html: false } }); };
+  const cleanHTML = (html) => DOMPurify.sanitize(html, { USE_PROFILES: { html: false } });
   const formatDate = (dateString) => {
       if (!dateString) return "정보 없음";
       const d = new Date(dateString);
@@ -124,15 +100,13 @@ function ShopPage({ region }) {
 
   const mediaList = [];
   gameData.trailers?.forEach(url => {
-      let embedUrl = url;
-      if(url.includes('youtube.com/watch?v=')) {
-          const vid = url.split('v=')[1].split('&')[0];
-          embedUrl = `https://www.youtube.com/embed/${vid}`;
-      }
-      mediaList.push({type:'video', url: embedUrl});
+      let embedUrl = url.includes('watch?v=') ? url.replace('watch?v=', 'embed/') : url;
+      mediaList.push({ type: 'video', url: embedUrl });
   });
-  gameData.screenshots?.forEach(url => { if(url !== gameData.main_image) mediaList.push({type:'image', url}); });
-  
+  gameData.screenshots?.forEach(url => {
+      if (url !== gameData.main_image) mediaList.push({ type: 'image', url });
+  });
+
   const pi = gameData.price_info;
   const storeName = pi?.store_name || "스토어";
 
@@ -142,12 +116,12 @@ function ShopPage({ region }) {
         return (
             <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
                 <span style={styles.storeName}>{storeName}</span>
-                <span style={{color:'#46d369'}}>구매하러 가기 &gt;</span>
+                <span style={{color:'#46d369', fontSize:'14px'}}>구매하러 가기 &gt;</span>
             </a>
         );
     }
     return deals.map((deal, idx) => (
-        <a key={idx} href={deal.url} target="_blank" rel="noreferrer" style={styles.storeRowLink} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#222'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181818'}>
+        <a key={idx} href={deal.url} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
             <div style={{display:'flex', alignItems:'center'}}>
                 <span style={styles.storeName}>{deal.shopName}</span>
                 {deal.discount > 0 && <span style={{marginLeft:'10px', color:'#E50914', fontSize:'12px', fontWeight:'bold'}}>-{deal.discount}%</span>}
@@ -163,7 +137,7 @@ function ShopPage({ region }) {
 
   return (
     <div>
-      <div style={{position:'relative', height:'75vh', width:'100%', backgroundImage:`url(${gameData.screenshots?.[0] || gameData.main_image})`, backgroundSize:'cover', backgroundPosition:'center'}}>
+      <div style={{position:'relative', height:'70vh', width:'100%', backgroundImage:`url(${gameData.screenshots?.[0] || gameData.main_image})`, backgroundSize:'cover', backgroundPosition:'center'}}>
          <div style={{position:'absolute', inset:0, background:'linear-gradient(to top, #141414, transparent 80%)'}}></div>
          <div style={{position:'absolute', bottom:'50px', left:'4%', maxWidth:'800px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)'}}>
             <h1 style={{fontSize:'50px', marginBottom:'15px', lineHeight:'1.1'}}>{gameData.title_ko || gameData.title}</h1>
@@ -172,24 +146,20 @@ function ShopPage({ region }) {
                 {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점" icon="Ⓜ️" />}
                 <InfoWithTooltip text={gameData.play_time !== "정보 없음" ? `⏳ ${gameData.play_time}` : "⏳ 플레이 타임 정보 없음"} tooltipText="메인 스토리 클리어 평균 시간 (HLTB)" icon="" />
             </div>
-            <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
-                    {pi && (
-                        <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
-                            {pi.isFree ? "무료 플레이" : (pi.regular_price !== null ? `구매하기 ${getPriceDisplay(pi.current_price)}` : `${storeName} 확인`)}
-                        </a>
-                    )}
-                    <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
-                    <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('like')}>👍 {likes}</button>
-                    <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
-                </div>
-                {pi?.discount_percent > 0 && countdown && (
-                    <div style={{color:'#E50914', fontWeight:'bold', fontSize:'15px', display:'flex', alignItems:'center', gap:'5px', background:'rgba(0,0,0,0.6)', padding:'5px 10px', borderRadius:'4px', width:'fit-content'}}>
-                        <span>🔥 특가 할인 중!</span>
-                        <span>(⏰ 남은 시간: {countdown})</span>
-                    </div>
-                )}
+            <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
+                 {pi && (
+                    <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
+                        {pi.isFree ? "무료 플레이" : (pi.current_price ? `구매하기 ${getPriceDisplay(pi.current_price)}` : "가격 정보 확인")}
+                    </a>
+                 )}
+                 <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
             </div>
+            {pi?.discount_percent > 0 && countdown && (
+                <div style={{color:'#E50914', fontWeight:'bold', fontSize:'15px', marginTop:'10px', display:'flex', alignItems:'center', gap:'5px'}}>
+                    <span>🔥 특가 할인 중!</span>
+                    <span>(⏰ 남은 시간: {countdown})</span>
+                </div>
+            )}
          </div>
       </div>
 
@@ -197,22 +167,14 @@ function ShopPage({ region }) {
         <h3 className="net-section-title">스크린샷 & 트레일러</h3>
         <div style={styles.mainMediaDisplay}>
           {selectedMedia?.type === 'video' ? (
-            <iframe 
-              title="Game Trailer"
-              src={selectedMedia.url} 
-              style={{width:'100%', height:'100%', border:'none'}} 
-              allow="autoplay; encrypted-media" 
-              allowFullScreen 
-            />
+            <iframe title="Game Trailer" src={selectedMedia.url} style={{width:'100%', height:'100%', border:'none'}} allow="autoplay; encrypted-media" allowFullScreen />
           ) : (
-            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
+            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300?text=No+Image"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
           )}
         </div>
         <div style={styles.mediaContainer}>
           {mediaList.map((m, i) => (
-            <img key={i} src={m.type==='video' ? gameData.main_image : m.url} onError={(e) => e.target.style.display = 'none'} alt="thumb" 
-                 style={{...styles.mediaItem, borderColor: selectedMedia?.url === m.url ? '#E50914' : 'transparent'}} 
-                 onClick={() => setSelectedMedia(m)} />
+            <img key={i} src={m.type==='video' ? gameData.main_image : m.url} style={{...styles.mediaItem, borderColor: selectedMedia?.url === m.url ? '#E50914' : 'transparent'}} onClick={() => setSelectedMedia(m)} alt="thumb" />
           ))}
         </div>
 
