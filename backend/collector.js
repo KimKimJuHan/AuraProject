@@ -10,7 +10,6 @@ const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// 태그 매핑
 const TAG_MAP = {
   'rpg': 'RPG', 'role-playing': 'RPG', 'jrpg': 'RPG', 'crpg': 'RPG', 'arpg': 'RPG',
   'action': '액션', 'hack and slash': '액션', 'beat \'em up': '액션',
@@ -46,9 +45,7 @@ const TAG_MAP = {
   'roguelike': '로그라이크', 'roguelite': '로그라이크'
 };
 
-// ---------------------------------------------------------
 // [A] 트렌드 데이터
-// ---------------------------------------------------------
 let twitchToken = null;
 async function getTwitchToken() {
     if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET) return;
@@ -89,18 +86,18 @@ async function getChzzkStats(gameName) {
     } catch (e) { return 0; }
 }
 
-// ---------------------------------------------------------
 // [B] ITAD 로직
-// ---------------------------------------------------------
 async function fetchITADData(steamAppId) {
     if (!ITAD_API_KEY) return null;
     try {
+        // 1. Lookup
         const lookupRes = await axios.get('https://api.isthereanydeal.com/games/lookup/v1', {
             params: { key: ITAD_API_KEY, appid: steamAppId }, timeout: 5000
         });
         if (!lookupRes.data?.found || !lookupRes.data.game?.id) return null;
         const itadUuid = lookupRes.data.game.id;
 
+        // 2. Overview
         const overviewRes = await axios.post(
             `https://api.isthereanydeal.com/games/overview/v2?key=${ITAD_API_KEY}&country=KR`,
             [itadUuid], 
@@ -110,36 +107,44 @@ async function fetchITADData(steamAppId) {
         const priceData = overviewRes.data?.prices?.[0];
         if (!priceData) return null;
 
+        // ★ [안전] Optional Chaining으로 값 추출 (없으면 0)
         const currentPrice = priceData.price?.amount ?? 0;
         const regularPrice = priceData.regular?.amount ?? 0;
         const discountPercent = priceData.cut ?? 0;
         const storeName = priceData.shop?.name || "Unknown";
         const url = priceData.url || "";
 
-        return { current_price: currentPrice, regular_price: regularPrice, discount_percent: discountPercent, store_name: storeName, url: url, deals: [] };
+        // ★ [안전] deals 배열도 안전하게 추출
+        const deals = priceData.deals?.map(d => ({
+             shopName: d.shop?.name || "Store",
+             price: d.price?.amount ?? 0,
+             regularPrice: d.regular?.amount ?? 0,
+             discount: d.cut ?? 0,
+             url: d.url || ""
+        })) || [];
+
+        return { 
+            current_price: currentPrice, 
+            regular_price: regularPrice, 
+            discount_percent: discountPercent, 
+            store_name: storeName, 
+            url: url, 
+            deals: deals 
+        };
     } catch (e) { return null; }
 }
 
-// ---------------------------------------------------------
-// [C] 메인 수집 로직 (목록 확장)
-// ---------------------------------------------------------
+// [C] 메인 수집 로직
 async function getSteamTopGames() {
     const ids = new Set();
-
-    // 1. Steam 인기 차트 (동시 접속자 순) - 최대 150개 요청
-    console.log("📡 [1단계] Steam 인기 게임 목록(Top 150) 조회...");
+    console.log("📡 Steam 인기 게임 목록(Top 150) 조회...");
     try {
         const res = await axios.get('https://api.steampowered.com/ISteamChartsService/GetGamesByConcurrentPlayers/v1/');
         const ranks = res.data?.response?.ranks || [];
-        
-        // 상위 150개만 추출
         ranks.slice(0, 150).forEach(r => ids.add(r.appid));
         console.log(`✅ Steam 차트에서 ${ids.size}개 확보`);
-    } catch (e) { 
-        console.log("⚠️ Steam 차트 조회 실패 (백업 목록 사용)"); 
-    }
+    } catch (e) { console.log("⚠️ Steam 차트 조회 실패 (백업 목록 사용)"); }
 
-    // 2. 백업 리스트 (API 실패 시를 대비한 알짜배기 60개)
     const BACKUP_GAMES = [
         1091500, 2357570, 570, 730, 578080, 1172470, 1245620, 271590, 359550, 292030, 
         105600, 1086940, 413150, 1966720, 1623730, 230410, 252490, 221100, 440, 550, 
@@ -148,9 +153,7 @@ async function getSteamTopGames() {
         381210, 218620, 1272080, 1085660, 286160, 960090, 431960, 1222670, 646570, 
         1798010, 1238810, 1172620, 1174180, 261550, 281990, 236850
     ];
-    
     BACKUP_GAMES.forEach(id => ids.add(id));
-
     return Array.from(ids);
 }
 
@@ -173,8 +176,9 @@ async function collectGamesData() {
           const data = steamRes.data[appid].data;
           if (data.type !== 'game') continue;
 
-          const itadPrice = await fetchITADData(appid);
+          // 1. 기본 Steam 가격 정보
           const steamPrice = data.price_overview;
+          const isSteamFree = data.is_free === true;
           
           let priceInfo = {
               regular_price: steamPrice ? steamPrice.initial / 100 : 0,
@@ -182,17 +186,27 @@ async function collectGamesData() {
               discount_percent: steamPrice ? steamPrice.discount_percent : 0,
               store_url: `https://store.steampowered.com/app/${appid}`,
               store_name: 'Steam',
-              isFree: data.is_free === true,
+              isFree: isSteamFree,
               deals: []
           };
 
+          // 2. ITAD 가격 조회 및 검증 (★ 여기가 핵심 수정)
+          const itadPrice = await fetchITADData(appid);
+          
           if (itadPrice) {
-              priceInfo = { ...priceInfo, ...itadPrice };
-          } else if (data.is_free) {
-              priceInfo.current_price = 0;
-              priceInfo.isFree = true;
+              // ITAD가 0원을 줬는데, 실제로는 유료 게임인 경우 -> ITAD 무시!
+              if (itadPrice.current_price === 0 && !isSteamFree && priceInfo.current_price > 0) {
+                  console.log(`   ⚠️ [가격 보호] ${data.name}: ITAD 0원 오류 무시, Steam 가격(${priceInfo.current_price}원) 유지`);
+                  // deals 정보만 가져오고 가격은 덮어쓰지 않음
+                  priceInfo.deals = itadPrice.deals;
+              } else {
+                  // 정상이면 ITAD 가격 적용
+                  priceInfo = { ...priceInfo, ...itadPrice };
+                  console.log(`   💰 ITAD 가격 적용: ${data.name} (${itadPrice.current_price}원)`);
+              }
           }
 
+          // 3. 트렌드
           const cleanName = data.name.replace(/[^a-zA-Z0-9가-힣\s]/g, '');
           const [twitchView, chzzkView] = await Promise.all([
               getTwitchStats(cleanName),
@@ -200,6 +214,7 @@ async function collectGamesData() {
           ]);
           const trendScore = twitchView + (chzzkView * 2);
 
+          // 4. 태그 & 날짜
           const rawTags = [];
           if(data.genres) rawTags.push(...data.genres.map(g=>g.description));
           if(data.categories) rawTags.push(...data.categories.map(c=>c.description));
@@ -221,6 +236,7 @@ async function collectGamesData() {
              }
           }
 
+          // 5. HLTB
           let playTime = "정보 없음";
           try {
              const hltbRes = await hltbService.search(cleanName);
