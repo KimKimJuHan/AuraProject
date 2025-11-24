@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 
 const styles = {
   container: { padding: '40px 20px', minHeight: '100vh', backgroundColor: '#011526', color: '#FFFFFF' },
-  title: { textAlign: 'center', color: '#D494D9', marginBottom: '30px', fontSize: '2rem', fontWeight: 'bold', letterSpacing: '1px' },
+  titleWrapper: { textAlign: 'center', marginBottom: '30px' },
+  title: { fontSize: '2rem', fontWeight: 'bold', color: '#ffffff', borderLeft: '4px solid #E50914', paddingLeft: '12px', display: 'inline-block' },
   tableContainer: { maxWidth: '1200px', margin: '0 auto', overflowX: 'auto', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' },
-  table: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#021E73', borderRadius: '10px', overflow: 'hidden' },
-  th: { padding: '18px', backgroundColor: '#141414', color: '#FFFFFF', textAlign: 'left', fontWeight: 'bold', fontSize: '1.1rem', borderBottom: '2px solid #3D46F2' },
+  table: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#181818', borderRadius: '10px', overflow: 'hidden' },
+  th: { padding: '18px', backgroundColor: '#222', color: '#FFFFFF', textAlign: 'left', fontWeight: 'bold', fontSize: '1.1rem', borderBottom: '2px solid #E50914' },
   td: { padding: '20px', borderBottom: '1px solid #333', verticalAlign: 'middle' },
   img: { width: '100px', borderRadius: '6px', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' },
   gameTitle: { fontSize: '1.2rem', fontWeight: 'bold', color: '#FFFFFF', textDecoration: 'none', display: 'block', marginBottom: '5px' },
@@ -17,7 +18,8 @@ const styles = {
   playtime: { fontSize: '0.9rem', color: '#5FCDD9', marginTop: '5px' },
   removeBtn: { padding: '8px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', transition: 'background 0.2s' },
   emptyMsg: { textAlign: 'center', marginTop: '100px', fontSize: '1.5rem', color: '#888' },
-  homeLink: { display: 'inline-block', marginTop: '20px', color: '#3D46F2', textDecoration: 'none', fontSize: '1.2rem', fontWeight: 'bold', border: '1px solid #3D46F2', padding: '10px 20px', borderRadius: '999px' }
+  homeLink: { display: 'inline-block', marginTop: '20px', color: '#E50914', textDecoration: 'none', fontSize: '1.2rem', fontWeight: 'bold', border: '1px solid #E50914', padding: '10px 20px', borderRadius: '999px' },
+  tag: { fontSize: '11px', color: '#ddd', marginRight: '5px', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '999px' }
 };
 
 function ComparisonPage({ region }) {
@@ -44,7 +46,6 @@ function ComparisonPage({ region }) {
     setWishlistGames(prev => prev.filter(g => g.slug !== slug));
   };
 
-  // ★ [수정] 누락되었던 함수 추가
   const getPriceDisplay = (price) => {
     if (price === null) return "정보 없음";
     if (region === 'US') return `$${(price / 1400).toFixed(2)}`; 
@@ -52,7 +53,8 @@ function ComparisonPage({ region }) {
     return `₩${price.toLocaleString()}`; 
   };
 
-  if (loading) return <div style={{...styles.container, textAlign:'center', paddingTop:'100px'}}>로딩 중...</div>;
+  // ★ [수정] padding 단축 속성 대신 paddingTop 등 명시적 사용 (오류 해결)
+  if (loading) return <div className="net-panel" style={{textAlign:'center', paddingTop:'100px'}}>로딩 중...</div>;
 
   if (wishlistGames.length === 0) {
     return (
@@ -68,7 +70,9 @@ function ComparisonPage({ region }) {
 
   return (
     <div style={styles.container}>
-      <h2 style={styles.title}>찜한 게임 비교 ({wishlistGames.length})</h2>
+      <div style={styles.titleWrapper}>
+        <h2 style={styles.title}>찜한 게임 비교 ({wishlistGames.length})</h2>
+      </div>
       
       <div style={styles.tableContainer}>
         <table style={styles.table}>
@@ -86,16 +90,12 @@ function ComparisonPage({ region }) {
               <tr key={game.slug}>
                 <td style={styles.td}>
                   <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
-                    <img src={game.main_image} alt={game.title} style={styles.img} />
+                    <img src={game.main_image} alt={game.title} style={styles.img} onError={(e) => e.target.src = "https://via.placeholder.com/120x67?text=No+Image"} />
                     <div>
-                        <Link to={`/game/${game.slug}`} style={styles.gameTitle}>
-                            {game.title_ko || game.title}
-                        </Link>
+                        <Link to={`/game/${game.slug}`} style={styles.gameTitle}>{game.title_ko || game.title}</Link>
                         <div style={{marginTop: '8px'}}>
                             {game.smart_tags?.slice(0, 2).map(tag => (
-                            <span key={tag} style={{fontSize: '11px', color: '#ccc', marginRight: '5px', backgroundColor:'rgba(255,255,255,0.1)', padding:'2px 6px', borderRadius:'4px'}}>
-                                #{tag}
-                            </span>
+                            <span key={tag} style={styles.tag}>#{tag}</span>
                             ))}
                         </div>
                     </div>

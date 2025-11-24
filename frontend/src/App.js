@@ -5,6 +5,9 @@ import MainPage from './MainPage';
 import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
 import SearchResultsPage from './SearchResultsPage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import PersonalRecoPage from './pages/PersonalRecoPage';
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
@@ -14,18 +17,22 @@ const styles = {
   suggestionItem: { padding: '10px 15px', cursor: 'pointer', color: '#fff', borderBottom: '1px solid #222' },
   suggestionItemSelected: { padding: '10px 15px', cursor: 'pointer', color: '#fff', backgroundColor: '#333', fontWeight: 'bold', borderBottom: '1px solid #222' },
   clearHistoryButton: { padding: '10px', cursor: 'pointer', color: '#E50914', textAlign: 'center', fontSize: '13px' },
-  
   rightGroup: { display: 'flex', alignItems: 'center', gap: '15px' },
   compareLink: { color: '#fff', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', display:'flex', alignItems:'center', gap:'5px' },
-  regionSelect: { backgroundColor: '#000', color: '#fff', border: '1px solid #fff', padding: '5px', borderRadius: '4px', fontSize: '13px' }
+  regionSelect: { backgroundColor: '#000', color: '#fff', border: '1px solid #555', padding: '5px', borderRadius: '4px', fontSize: '13px' },
+  authBtn: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '7px 15px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'none', fontSize: '14px' },
+  userText: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
+  recoBtn: { color: '#E50914', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', border: '1px solid #E50914', padding: '6px 12px', borderRadius: '4px' }
 };
 
-function NavigationBar({ region, setRegion }) {
+function NavigationBar({ user, setUser, region, setRegion }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]); 
   const [history, setHistory] = useState([]); 
   const [isFocused, setIsFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  
+  // ★ [수정] 여기서 Hook 사용 (App이 아닌 NavigationBar에서)
   const navigate = useNavigate(); 
   const debounceTimer = useRef(null); 
   const searchContainerRef = useRef(null); 
@@ -37,7 +44,9 @@ function NavigationBar({ region, setRegion }) {
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) setIsFocused(false);
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setIsFocused(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -83,24 +92,8 @@ function NavigationBar({ region, setRegion }) {
     setHistory(newHistory);
     localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
-    let targetGame = suggestions.find(g => g.title.toLowerCase() === query.toLowerCase());
-    if (!targetGame) {
-        try {
-            const response = await fetch(`http://localhost:8000/api/search/autocomplete?q=${query}`);
-            const data = await response.json();
-            if (data.length > 0) targetGame = data[0]; 
-        } catch (err) { console.error(err); }
-    }
-    
-    setIsFocused(false); 
-    setSuggestions([]); 
-    
-    if (targetGame) {
-      setSearchTerm(targetGame.title); 
-      navigate(`/game/${targetGame.slug}`);
-    } else {
-      navigate(`/search?q=${query}`);
-    }
+    navigate(`/search?q=${query}`);
+    setIsFocused(false); setSuggestions([]);
   };
 
   const handleSuggestionClick = (game) => {
@@ -120,18 +113,9 @@ function NavigationBar({ region, setRegion }) {
 
       <div style={styles.searchContainer} ref={searchContainerRef}>
         <form onSubmit={handleSubmit}>
-            <input 
-                type="text" 
-                className="net-search-input"
-                placeholder="게임 검색..."
-                value={searchTerm}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-            />
+            <input type="text" className="net-search-input" placeholder="게임 검색..." value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsFocused(true)} />
         </form>
         {searchTerm.length > 0 && <button onClick={handleClear} style={styles.clearButton}>✕</button>}
-        
         {isFocused && (searchTerm.length > 0 || history.length > 0) && (
             <ul style={styles.suggestionsList}>
                 {(searchTerm.length > 0 ? suggestions : history).map((item, idx) => (
@@ -146,30 +130,46 @@ function NavigationBar({ region, setRegion }) {
       </div>
 
       <div style={styles.rightGroup}>
+          <Link to="/recommend" style={styles.recoBtn}>🤖 AI 추천</Link>
           <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="KR">🇰🇷 KRW</option>
             <option value="US">🇺🇸 USD</option>
-            <option value="JP">🇯🇵 JPY</option>
           </select>
           <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
+          {user ? (
+            <>
+                <span style={styles.userText}>{user.username}님</span>
+                <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); alert("로그아웃 되었습니다."); }} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
+            </>
+          ) : (
+            <Link to="/login" style={styles.authBtn}>로그인</Link>
+          )}
       </div>
     </header>
   );
 }
 
 function App() {
-  const [region, setRegion] = useState(localStorage.getItem('userRegion') || 'KR');
-  useEffect(() => { localStorage.setItem('userRegion', region); }, [region]);
+  const [user, setUser] = useState(null);
+  const [region, setRegion] = useState('KR');
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) setUser(JSON.parse(storedUser));
+  }, []);
 
   return (
     <Router>
-      <div className="app net-app">
-        <NavigationBar region={region} setRegion={setRegion} />
+      <div className="net-app">
+        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} />
         <Routes>
           <Route path="/" element={<MainPage region={region} />} />
           <Route path="/game/:id" element={<ShopPage region={region} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} />} />
           <Route path="/search" element={<SearchResultsPage />} />
+          <Route path="/login" element={<LoginPage setUser={setUser} />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/recommend" element={<PersonalRecoPage />} />
         </Routes>
       </div>
     </Router>

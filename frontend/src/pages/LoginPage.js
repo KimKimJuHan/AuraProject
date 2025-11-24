@@ -1,0 +1,47 @@
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
+
+function LoginPage({ setUser }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await axios.post('http://localhost:8000/api/auth/login', { email, password });
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      setUser(res.data.user);
+      alert("환영합니다! 로그인되었습니다.");
+      navigate('/');
+    } catch (err) {
+      alert(err.response?.data?.error || "로그인에 실패했습니다.");
+    }
+  };
+
+  return (
+    <div className="net-app auth-wrapper">
+      <div className="auth-container">
+        <h1 className="auth-title">로그인</h1>
+        <form className="auth-form" onSubmit={handleLogin}>
+          <input 
+            className="auth-input" type="email" placeholder="이메일" 
+            value={email} onChange={(e)=>setEmail(e.target.value)} required
+          />
+          <input 
+            className="auth-input" type="password" placeholder="비밀번호" 
+            value={password} onChange={(e)=>setPassword(e.target.value)} required
+          />
+          <button className="auth-btn" type="submit">로그인</button>
+        </form>
+        <div className="auth-subtext">
+          Play For You 회원이 아니신가요? 
+          <Link to="/signup" className="auth-link">지금 가입하세요.</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+export default LoginPage;
