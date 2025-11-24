@@ -6,7 +6,7 @@ const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
 // 1. 환경변수
-const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET, STEAM_API_KEY } = process.env;
+const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
 // 랜덤 지연
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -38,7 +38,7 @@ const TAG_MAP = {
   'modern': '현대',
   'post-apocalyptic': '포스트아포칼립스', 'survival': '포스트아포칼립스',
   'war': '전쟁', 'military': '전쟁', 'tanks': '전쟁',
-  'open world': '오픈월드', 'open-world': '오픈월드',
+  'open world': '오픈 월드', 'open-world': '오픈 월드',
   'story rich': '스토리 중심', 'narrative': '스토리 중심', 'visual novel': '스토리 중심',
   'choices matter': '선택의 중요성',
   'co-op': '협동', 'multiplayer': '협동', 'online co-op': '협동', 'local co-op': '협동',
@@ -91,58 +91,56 @@ async function getChzzkStats(gameName) {
 }
 
 // ---------------------------------------------------------
-// [B] ITAD 로직 (Lookup -> Overview)
+// [B] ITAD 로직 (Lookup -> Overview) - ★ 수정된 부분
 // ---------------------------------------------------------
 async function fetchITADData(steamAppId) {
     if (!ITAD_API_KEY) return null;
     
     try {
-        // 1. Lookup: Steam AppID로 ITAD UUID 찾기
-        // 문서: GET /games/lookup/v1?key={key}&appid={steamAppId}
+        // 1. Lookup
         const lookupRes = await axios.get('https://api.isthereanydeal.com/games/lookup/v1', {
             params: { key: ITAD_API_KEY, appid: steamAppId },
             timeout: 5000
         });
 
-        if (!lookupRes.data?.found || !lookupRes.data.game?.id) {
-            // console.log(`   ⚠️ ITAD: 게임을 찾을 수 없음 (SteamID: ${steamAppId})`);
-            return null;
-        }
-
+        if (!lookupRes.data?.found || !lookupRes.data.game?.id) return null;
         const itadUuid = lookupRes.data.game.id;
 
-        // 2. Overview: UUID로 가격 정보 조회
-        // 문서: POST /games/overview/v2?key={key}&country=KR
+        // 2. Overview
         const overviewRes = await axios.post(
             `https://api.isthereanydeal.com/games/overview/v2?key=${ITAD_API_KEY}&country=KR`,
-            [itadUuid], // Body에 배열로 UUID 전달
+            [itadUuid], 
             { headers: { 'Content-Type': 'application/json' }, timeout: 5000 }
         );
 
-        const priceData = overviewRes.data?.prices?.[0]; // 첫 번째 결과
+        const priceData = overviewRes.data?.prices?.[0];
         if (!priceData) return null;
 
-        // 데이터 포맷팅
+        // ★ [핵심 수정] 가격 정보 안전하게 접근 (Optional Chaining)
+        // priceData.price가 undefined일 경우 0으로 처리하여 에러 방지
+        const currentPrice = priceData.price?.amount ?? 0;
+        const regularPrice = priceData.regular?.amount ?? 0;
+        const discountPercent = priceData.cut ?? 0;
+        const storeName = priceData.shop?.name || "Unknown Store";
+        const url = priceData.url || "";
+
         return {
-            current_price: priceData.price.amount,
-            regular_price: priceData.regular.amount,
-            discount_percent: priceData.cut,
-            store_name: priceData.shop.name,
-            url: priceData.url,
-            deals: [] // Overview API는 단일 최저가 위주이므로 deals 배열은 비워두거나 별도 처리
+            current_price: currentPrice,
+            regular_price: regularPrice,
+            discount_percent: discountPercent,
+            store_name: storeName,
+            url: url,
+            deals: [] 
         };
 
     } catch (e) {
         console.error(`   ❌ ITAD 요청 실패 (SteamID: ${steamAppId}): ${e.message}`);
-        if (e.response?.status === 400) {
-            console.error("      -> Bad Request: 요청 형식이 잘못되었습니다.");
-        }
         return null;
     }
 }
 
 // ---------------------------------------------------------
-// [C] 메인 수집 로직 (Steam Top List -> Detail -> ITAD Price)
+// [C] 메인 수집 로직
 // ---------------------------------------------------------
 async function getSteamTopGames() {
     const ids = new Set();
@@ -159,11 +157,12 @@ async function getSteamTopGames() {
 }
 
 async function collectGamesData() {
-  await mongoose.connect(process.env.MONGODB_URI);
-  console.log("✅ DB 연결 성공. 수집 시작...");
+  if (!MONGODB_URI) return console.error("❌ MONGODB_URI 없음");
+  await mongoose.connect(MONGODB_URI);
+  console.log("✅ DB 연결 성공. 데이터 수집 시작...");
 
   const appIds = await getSteamTopGames();
-  const validAppIds = appIds.filter(id => id && !isNaN(id)); // 숫자 ID만 필터링
+  const validAppIds = appIds.filter(id => id && !isNaN(id)); 
   console.log(`🎯 수집 대상: ${validAppIds.length}개`);
 
   let count = 0;
@@ -177,7 +176,7 @@ async function collectGamesData() {
           const data = steamRes.data[appid].data;
           if (data.type !== 'game') continue;
 
-          // 2. ITAD 가격 정보 조회 (Lookup -> Overview 흐름 적용)
+          // 2. ITAD 가격 정보 조회
           const itadPrice = await fetchITADData(appid);
 
           // 가격 정보 결정 (ITAD 우선, 없으면 Steam)
@@ -193,15 +192,8 @@ async function collectGamesData() {
           };
 
           if (itadPrice) {
-              priceInfo = {
-                  ...priceInfo,
-                  current_price: itadPrice.current_price,
-                  regular_price: itadPrice.regular_price,
-                  discount_percent: itadPrice.discount_percent,
-                  store_name: itadPrice.store_name,
-                  store_url: itadPrice.url
-              };
-              console.log(`   💰 ITAD 가격 적용: ${data.name} (${itadPrice.store_name})`);
+              priceInfo = { ...priceInfo, ...itadPrice };
+              console.log(`   💰 ITAD 가격 적용: ${data.name}`);
           }
 
           // 3. 트렌드 (Twitch/Chzzk)
@@ -214,8 +206,8 @@ async function collectGamesData() {
 
           // 4. 태그 매핑
           const rawTags = [];
-          if(data.genres) rawTags.push(...data.genres.map(g=>g.description));
-          if(data.categories) rawTags.push(...data.categories.map(c=>c.description));
+          if (data.genres) rawTags.push(...data.genres.map(g=>g.description));
+          if (data.categories) rawTags.push(...data.categories.map(c=>c.description));
           const smartTags = new Set();
           rawTags.forEach(t => {
               const lower = t.toLowerCase();
