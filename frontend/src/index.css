@@ -1,40 +1,37 @@
 /* /frontend/src/index.css */
 
 :root {
-  --bg-color: #141414;       /* 넷플릭스 배경: 리얼 블랙 */
-  --panel-bg: #181818;       /* 패널 배경: 다크 그레이 */
-  --text-main: #ffffff;      /* 메인 텍스트 */
-  --text-sub: #b3b3b3;       /* 서브 텍스트 */
+  --bg-color: #141414;       /* 넷플릭스 리얼 블랙 */
+  --panel-bg: #181818;       /* 패널 배경 */
+  --text-main: #ffffff;      /* 메인 텍스트 (흰색) */
+  --text-sub: #b3b3b3;       /* 서브 텍스트 (회색) */
   --accent: #E50914;         /* 넷플릭스 레드 */
-  --accent-hover: #f40612;   /* 호버 레드 */
-  --border-color: #404040;   /* 테두리 */
-  --card-bg: #2f2f2f;        /* 카드 배경 */
+  --accent-hover: #f40612;
+  --border-color: #404040;
+  --card-bg: #2f2f2f;
 }
 
-body {
+/* 화면 전체 초기화 */
+body, html, #root {
   margin: 0;
   padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--bg-color) !important; /* 검은 배경 강제 */
+  color: var(--text-main) !important;           /* 흰색 글자 강제 */
   font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color) !important;
-  color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   box-sizing: border-box;
 }
 
-#root {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* --- Layout --- */
+/* 앱 컨테이너 */
 .net-app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-color: var(--bg-color);
 }
 
+/* 네비게이션 바 */
 .net-header {
   position: sticky;
   top: 0;
@@ -56,7 +53,7 @@ body {
   text-transform: uppercase;
 }
 
-/* --- Panels --- */
+/* 메인 패널 */
 .net-panel {
   padding: 40px 4%;
   max-width: 1600px;
@@ -75,7 +72,7 @@ body {
   padding-left: 12px;
 }
 
-/* --- Cards Grid (가로 정렬 보장) --- */
+/* 게임 카드 그리드 */
 .net-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -87,7 +84,7 @@ body {
 
 @media (min-width: 1200px) {
   .net-cards {
-    grid-template-columns: repeat(5, 1fr); /* PC에서는 5개 고정 */
+    grid-template-columns: repeat(5, 1fr); /* PC 화면 5개 */
   }
 }
 
@@ -142,6 +139,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #fff;
 }
 
 .net-card-footer {
@@ -152,7 +150,7 @@ body {
   font-size: 13px;
 }
 
-/* --- Inputs & Buttons --- */
+/* 검색창 & 버튼 */
 .net-search-input {
   background: #000;
   border: 1px solid #555;
@@ -165,22 +163,23 @@ body {
   border-radius: 4px;
 }
 .net-search-input:focus {
-  width: 400px;
+  width: 350px;
   border-color: var(--accent);
 }
 
-/* --- Login/Signup Style (Center Card) --- */
+/* ★ 로그인/회원가입 (중앙 카드 스타일 복구) */
 .auth-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 80vh;
+  min-height: 80vh; /* 화면 중앙 */
+  width: 100%;
 }
 
 .auth-container {
   width: 100%;
   max-width: 450px;
-  padding: 60px;
+  padding: 60px 68px 40px;
   background-color: rgba(0, 0, 0, 0.75);
   border-radius: 4px;
   box-sizing: border-box;
@@ -224,7 +223,16 @@ body {
 }
 .auth-btn:hover { background-color: var(--accent-hover); }
 
-/* --- Skeleton --- */
+.auth-subtext {
+  color: #737373;
+  font-size: 16px;
+  margin-top: 16px;
+  font-weight: 400;
+}
+.auth-link { color: #fff; text-decoration: none; margin-left: 5px; }
+.auth-link:hover { text-decoration: underline; }
+
+/* 로딩 애니메이션 */
 .skeleton {
   background: #2f2f2f;
   animation: pulse 1.5s infinite;
