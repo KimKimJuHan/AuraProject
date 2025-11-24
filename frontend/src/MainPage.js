@@ -12,20 +12,14 @@ const TAG_CATEGORIES = {
 
 const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
-  tabButton: { 
-    background: 'none', color: '#b3b3b3', 
-    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid transparent', 
-    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' 
-  },
-  tabButtonActive: { 
-    background: 'none', color: '#fff', 
-    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid #E50914', 
-    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' 
-  },
+  tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
+  tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
   filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
   filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
   filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: '#222', borderBottom: '1px solid #333', userSelect: 'none' },
+  filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
+  filterArrow: { color: '#666', fontSize: '12px' },
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
@@ -38,7 +32,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
         <div style={styles.filterBox}>
             <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
                 <span style={styles.filterTitle}>{title}</span>
-                <span style={{color:'#666', fontSize:'12px'}}>{isOpen ? '▲' : '▼'}</span>
+                <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
             </div>
             {isOpen && (
                 <div style={styles.filterContent}>
@@ -53,7 +47,6 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
 
 function GameListItem({ game }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
-
   useEffect(() => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     setIsWishlisted(wishlist.includes(game.slug));
@@ -69,11 +62,11 @@ function GameListItem({ game }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  const price = game.price_info;
-  const isFree = price?.isFree;
-  const currentPrice = price?.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
-  const regularPrice = price?.regular_price ? `₩${price.regular_price.toLocaleString()}` : null;
-  const discount = price?.discount_percent > 0 ? `-${price.discount_percent}%` : null;
+  const price = game.price_info || {};
+  const isFree = price.isFree;
+  const currentPrice = price.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
+  const regularPrice = price.regular_price ? `₩${price.regular_price.toLocaleString()}` : null;
+  const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
   const isLimitedTime = discount && price.expiry;
 
   return (
@@ -103,18 +96,19 @@ function GameListItem({ game }) {
 function MainPage() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'popular');
+  const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
-  const gameSlugsRef = useRef(new Set());
 
+  // 필터 변경 시 초기화
   useEffect(() => {
-    localStorage.setItem('activeTab', activeTab);
-    setGames([]); setPage(1); setHasMore(true); 
-    gameSlugsRef.current.clear();
+    setGames([]); 
+    setPage(1); 
+    setHasMore(true); 
   }, [selectedTags, activeTab]);
 
+  // 데이터 로드
   useEffect(() => {
     if (!hasMore) return; 
     
@@ -127,19 +121,26 @@ function MainPage() {
                 body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
             });
             const data = await response.json();
-            
+            console.log(`[프론트] 수신된 데이터: ${data.games.length}개`); // ★ 확인용
+
             setGames(prev => {
-                // 중복 제거
-                const newGames = data.games.filter(g => !gameSlugsRef.current.has(g.slug));
-                newGames.forEach(g => gameSlugsRef.current.add(g.slug));
+                // 페이지 1이면 덮어쓰기, 아니면 이어붙이기 (가장 안전한 방법)
+                if (page === 1) return data.games;
+                
+                // 이어붙일 때만 중복 제거
+                const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
                 return [...prev, ...newGames];
             });
+            
             setHasMore(page < data.totalPages); 
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error("Fetch Error:", err);
+        }
         setLoading(false);
     };
+    
     fetchGames();
-  }, [page, selectedTags, activeTab, hasMore]); 
+  }, [page, selectedTags, activeTab]); 
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -172,7 +173,7 @@ function MainPage() {
       </div>
       
       {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
-      {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다. (서버를 확인해주세요)</div>}
+      {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
     </div>
   );
 }
