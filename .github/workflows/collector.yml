@@ -16,6 +16,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
+          # ★ [수정] 24 -> 20 (안정적인 LTS 버전 사용 필수)
           node-version: '20'
 
       - name: Install dependencies
@@ -24,11 +25,11 @@ jobs:
           npm install
 
       - name: Run collector script
-        # ★ 여기가 제일 중요합니다! env: 부분이 run: 바로 아래에 있어야 합니다.
+        # ★ [수정] 따옴표('')를 붙여서 문법 오류 방지
         env:
-          ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+          ITAD_API_KEY: '${{ secrets.ITAD_API_KEY }}'
+          MONGODB_URI: '${{ secrets.MONGODB_URI }}'
+          STEAM_API_KEY: '${{ secrets.STEAM_API_KEY }}'
         run: |
           cd backend
           node collector.js

@@ -12,38 +12,31 @@ const TAG_CATEGORIES = {
 
 const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
-  tabButton: { 
-    background: 'none', color: '#b3b3b3', 
-    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid transparent', 
-    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px', transition: 'color 0.2s' 
-  },
-  tabButtonActive: { 
-    background: 'none', color: '#fff', 
-    borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '3px solid #E50914', 
-    fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'5px 10px' 
-  },
+  tabButton: { background: 'none', color: '#b3b3b3', border:'none', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
+  tabButtonActive: { background: 'none', color: '#fff', border:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   
-  loadMoreButton: { display: 'block', margin: '40px auto', padding: '10px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px' },
+  loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
   
-  filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px', alignItems: 'start' },
+  // 필터 박스 그리드 (5개 가로 정렬)
+  filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
+  
   filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s ease' },
   filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: '#222', borderBottom: '1px solid #333', userSelect: 'none' },
-  filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
-  filterArrow: { color: '#666', fontSize: '12px' },
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
-  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
-  tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
-
-  heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5, transition: 'transform 0.2s' }
+  
+  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
+  tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
+  heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 }
 };
 
+// 아코디언 필터 박스
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
     const [isOpen, setIsOpen] = useState(false); 
     return (
         <div style={styles.filterBox}>
             <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
-                <span style={styles.filterTitle}>{title}</span>
-                <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
+                <span style={{fontSize:'14px', color:'#ddd', fontWeight:'bold'}}>{title}</span>
+                <span style={{color:'#666', fontSize:'12px'}}>{isOpen ? '▲' : '▼'}</span>
             </div>
             {isOpen && (
                 <div style={styles.filterContent}>
@@ -57,23 +50,6 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
 };
 
 function GameListItem({ game }) {
-  const [isWishlisted, setIsWishlisted] = useState(false);
-
-  useEffect(() => {
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    setIsWishlisted(wishlist.includes(game.slug));
-  }, [game.slug]);
-
-  const toggleWishlist = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    let newWishlist;
-    if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
-    else newWishlist = [...wishlist, game.slug];
-    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
-    setIsWishlisted(!isWishlisted);
-  };
-
   const price = game.price_info;
   const isFree = price?.isFree;
   const currentPrice = price?.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
@@ -87,9 +63,6 @@ function GameListItem({ game }) {
             <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
-            <button style={styles.heartBtn} onClick={toggleWishlist}>
-                {isWishlisted ? '❤️' : '🤍'}
-            </button>
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
@@ -101,7 +74,6 @@ function GameListItem({ game }) {
                         {isFree ? "무료" : currentPrice}
                     </span>
                 </div>
-                {game.smart_tags?.[0] && <span style={{fontSize:'10px', border:'1px solid #444', padding:'2px 4px', borderRadius:'2px', color:'#999', height:'fit-content', marginTop:'auto'}}>{game.smart_tags[0]}</span>}
             </div>
         </div>
     </Link>
@@ -111,43 +83,43 @@ function GameListItem({ game }) {
 function MainPage() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'popular');
+  const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
-  const gameSlugs = useRef(new Set());
+  
+  // ★ 중복 제거용 Set
+  const gameSlugsRef = useRef(new Set());
 
   useEffect(() => {
-    localStorage.setItem('activeTab', activeTab);
-    setGames([]); setPage(1); setHasMore(true); gameSlugs.current.clear();
+    setGames([]); setPage(1); setHasMore(true); 
+    gameSlugsRef.current.clear(); // 탭 변경 시 초기화
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
     if (!hasMore) return; 
-    
     const fetchGames = async () => {
         setLoading(true);
         try {
             const response = await fetch('http://localhost:8000/api/recommend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
             });
             const data = await response.json();
             
-            const newGames = data.games.filter(g => !gameSlugs.current.has(g.slug));
-            newGames.forEach(g => gameSlugs.current.add(g.slug));
-            setGames(prev => [...prev, ...newGames]);
-            setHasMore(page < data.totalPages); 
-        } catch (err) {
-            console.error(err);
-        }
+            // ★ 중복 필터링 후 추가
+            setGames(prev => {
+                const newGames = data.games.filter(g => !gameSlugsRef.current.has(g.slug));
+                newGames.forEach(g => gameSlugsRef.current.add(g.slug));
+                return [...prev, ...newGames];
+            });
+            setHasMore(page < data.totalPages);
+        } catch (err) { console.error(err); }
         setLoading(false);
     };
-    
     fetchGames();
-    // ★ [수정] 의존성 배열에 hasMore 추가 (경고 해결)
-  }, [selectedTags, activeTab, page, hasMore]); 
+  }, [selectedTags, activeTab, page]); // hasMore 제외
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -167,17 +139,12 @@ function MainPage() {
           ))}
       </div>
       
-      {selectedTags.length > 0 && (
-        <div style={{marginBottom:'20px', color:'#b3b3b3', fontSize:'14px', textAlign:'right'}}>
-            선택된 태그: <span style={{color:'white'}}>{selectedTags.join(', ')}</span>
-            <button onClick={() => setSelectedTags([])} style={{marginLeft:'10px', background:'none', border:'none', color:'#E50914', cursor:'pointer', textDecoration:'underline'}}>초기화</button>
-        </div>
-      )}
-
+      {/* 게임 리스트 */}
       <div className="net-cards">
         {games.map(game => <GameListItem key={game.slug} game={game} />)}
         {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
       </div>
+      
       {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
       {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
     </div>
