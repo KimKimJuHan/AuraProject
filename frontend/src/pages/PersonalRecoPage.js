@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import Skeleton from '../Skeleton';
 
-// 태그 카테고리 (메인 페이지와 동일)
+// Reuse tags for consistency (Ideally, this should be imported from a shared constant file)
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략'],
   '특징': ['오픈 월드', '협동', '스토리 중심']
@@ -20,7 +20,6 @@ function PersonalRecoPage() {
       setLoading(true);
       const user = JSON.parse(localStorage.getItem('user'));
       
-      // 로그인이 안 되어 있으면 로그인 유도
       if (!user) {
         setError("로그인이 필요한 서비스입니다.");
         setLoading(false);
@@ -28,10 +27,9 @@ function PersonalRecoPage() {
       }
 
       try {
-        // 백엔드에 유저 ID와 선택된 태그를 함께 보내서 추천 받음
         const res = await axios.post('http://localhost:8000/api/ai-recommend/personal', { 
             userId: user.id,
-            tags: selectedTags 
+            tags: selectedTags // Send tags to backend for refinement
         });
         setGames(res.data);
         setError(null);
@@ -44,7 +42,7 @@ function PersonalRecoPage() {
     };
 
     fetchRecommendations();
-  }, [selectedTags]); // 태그가 바뀔 때마다 재요청
+  }, [selectedTags]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -66,7 +64,6 @@ function PersonalRecoPage() {
         </h2>
         <p style={{color:'#bbb', marginBottom:'30px'}}>회원님의 활동과 선택한 태그를 분석하여 선정한 게임입니다.</p>
 
-        {/* 태그 필터 (심플 버전) */}
         <div style={{marginBottom:'30px', display:'flex', gap:'10px', flexWrap:'wrap'}}>
             {Object.values(TAG_CATEGORIES).flat().map(tag => (
                 <button 
