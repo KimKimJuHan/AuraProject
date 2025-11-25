@@ -3,17 +3,19 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
-// JWT 인증 미들웨어 로드 (auth.js 등 다른 파일에서 정의되어 있어야 함)
+
+// 위에서 수정한 auth.js를 불러옵니다.
+// { } 중괄호를 사용하여 구조 분해 할당으로 가져옵니다.
 const { authenticateToken } = require('../middleware/auth'); 
 
 const STEAM_WEB_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
 
 /**
- * 사용자 소유 게임 목록을 Steam Web API에서 가져오는 엔드포인트입니다.
+ * 사용자 소유 게임 목록을 Steam Web API에서 가져오는 엔드포인트
  * GET /api/user/games
  */
 router.get('/games', authenticateToken, async (req, res) => {
-    // req.user는 authenticateToken 미들웨어에서 JWT를 해석하여 넣어준 사용자 정보입니다.
+    // req.user는 authenticateToken 미들웨어에서 넣어준 값입니다.
     const steamId = req.user.steamId; 
 
     if (!steamId) {
@@ -21,9 +23,11 @@ router.get('/games', authenticateToken, async (req, res) => {
     }
 
     if (!STEAM_WEB_API_KEY) {
+        console.error("Steam API Key Missing");
         return res.status(500).json({ message: "서버 설정 오류: Steam API Key 누락" });
     }
 
+    // Steam API URL
     const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/`;
 
     try {
@@ -45,9 +49,9 @@ router.get('/games', authenticateToken, async (req, res) => {
         
     } catch (error) {
         const statusCode = error.response?.status || 500;
-        console.error("Steam Web API GetOwnedGames Error:", error.message);
+        console.error("Steam Web API Error:", error.message);
         
-        // 프로필 비공개 등 실패 시 사용자에게 안내 메시지 전달
+        // 에러 발생 시 클라이언트에 메시지 전달
         return res.status(statusCode).json({ 
             message: "Steam API 호출 실패. Steam 프로필 공개 설정과 연동 상태를 확인해주세요." 
         });
