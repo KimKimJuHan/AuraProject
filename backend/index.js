@@ -8,16 +8,17 @@ const session = require('express-session');
 const passport = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
 const jwt = require('jsonwebtoken'); 
-const cookieParser = require('cookie-parser'); // ★ 1. cookie-parser 추가
+const cookieParser = require('cookie-parser');
 
 // 모델 로드
 const User = require('./models/User'); 
 const Game = require('./models/Game'); 
+const PriceHistory = require('./models/PriceHistory'); // ★ PriceHistory 모델 로드
 
 // 라우터 로드
 const authRoutes = require('./routes/auth');
 const recommendRoutes = require('./routes/recommend');
-const userRoutes = require('./routes/user'); 
+const userRoutes = require('./routes/user'); // ★ userRoutes 로드
 
 const app = express();
 const PORT = 8000;
@@ -26,11 +27,12 @@ const PORT = 8000;
 const STEAM_WEB_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY; 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // CORS 설정 (프론트엔드와 통신 허용)
 app.use(cors({ origin: FRONTEND_URL, credentials: true })); 
 app.use(express.json());
-app.use(cookieParser()); // ★ 2. cookieParser 미들웨어 등록
+app.use(cookieParser()); // ★ cookieParser 미들웨어 등록
 app.set('trust proxy', true);
 
 // 세션 설정 (스팀 로그인용)
@@ -86,11 +88,10 @@ passport.deserializeUser(async (id, done) => {
 
 
 // DB 연결
-const dbUri = process.env.MONGODB_URI;
-if (!dbUri) {
+if (!MONGODB_URI) {
   console.error("❌ 오류: MONGODB_URI 환경 변수 없음");
 } else {
-  mongoose.connect(dbUri)
+  mongoose.connect(MONGODB_URI)
     .then((conn) => console.log(`✅ 몽고DB 연결 성공: ${conn.connection.name}`))
     .catch(err => console.error("❌ 몽고DB 연결 실패:", err));
 }
@@ -105,13 +106,22 @@ app.get('/api/games/:id', async (req, res) => {
   try {
     const gameInfo = await Game.findOne({ slug: req.params.id }).lean();
     if (!gameInfo) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
-    res.status(200).json(gameInfo);
+    
+    // 상세 페이지에서도 가격 정보를 가져오기 위해 PriceHistory 조인
+    const latestPrice = await PriceHistory.findOne({ steam_appid: gameInfo.steam_appid }).sort({ recordedAt: -1 }).lean();
+    
+    const gameData = {
+        ...gameInfo,
+        price_info: latestPrice || { current_price: 0, regular_price: 0, discount_percent: 0, isFree: true }
+    };
+    
+    res.status(200).json(gameData);
   } catch (error) {
     res.status(500).json({ error: "서버 내부 오류" });
   }
 });
 
-// 2. 메인/검색 페이지 API (기존 로직 유지)
+// 2. 메인/검색 페이지 API (★ 가격 통합 로직 적용)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body; 
   const limit = 15; 
@@ -142,29 +152,70 @@ app.post('/api/recommend', async (req, res) => {
     if (sortBy === 'new') {
         sortRule = { releaseDate: -1 }; 
     } 
-    // discount, price 정렬은 Game 모델 구조에 따라 주석 처리 또는 수정 필요
+    // discount, price 정렬은 Aggregation Pipeline 내에서 처리
 
-    // 1차 검색
+    // 1차 검색 (총 개수)
     const totalGames = await Game.countDocuments(filter);
-    let games = await Game.find(filter)
-      .sort(sortRule)
-      .skip(skip)  
-      .limit(limit)
-      .lean();
+
+    // ★ Aggregation Pipeline을 사용하여 PriceHistory와 조인
+    let gamesWithPrice = await Game.aggregate([
+        { $match: filter }, 
+        { $sort: sortRule }, 
+        { $skip: skip },
+        { $limit: limit },
+        
+        // PriceHistory 컬렉션과 조인하여 최신 가격 정보를 가져옵니다.
+        {
+            $lookup: {
+                from: 'pricehistories', // Mongoose가 자동으로 복수형으로 만든 컬렉션 이름 (수정 필요할 수 있음)
+                localField: 'steam_appid',
+                foreignField: 'steam_appid',
+                as: 'latest_price_records',
+                pipeline: [
+                    { $sort: { recordedAt: -1 } }, // 가장 최신 기록을 먼저 정렬
+                    { $limit: 1 } // 최신 레코드 1개만 가져옴
+                ]
+            }
+        },
+        // 배열 형태의 latest_price_records를 단일 객체로 변환
+        {
+            $addFields: {
+                // latest_price_records 배열의 첫 번째 요소를 price_info 필드에 할당합니다.
+                price_info: { $arrayElemAt: ["$latest_price_records", 0] }
+            }
+        },
+        // 불필요한 임시 필드 제거
+        { $project: { latest_price_records: 0 } }
+    ]);
       
     console.log(`👉 검색 결과: ${totalGames}개`);
 
-    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 반환
+    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 반환 (Aggregation으로 재구현 필요)
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
         console.log("⚠️ 데이터 없음 -> 인기 게임 강제 로딩");
-        games = await Game.find({})
-            .sort({ popularity: -1 })
-            .limit(20)
-            .lean();
+        gamesWithPrice = await Game.aggregate([
+            { $sort: { popularity: -1 } },
+            { $limit: 20 },
+            // 가격 조인 로직 재적용
+             {
+                $lookup: {
+                    from: 'pricehistories', 
+                    localField: 'steam_appid',
+                    foreignField: 'steam_appid',
+                    as: 'latest_price_records',
+                    pipeline: [
+                        { $sort: { recordedAt: -1 } }, 
+                        { $limit: 1 }
+                    ]
+                }
+            },
+            { $addFields: { price_info: { $arrayElemAt: ["$latest_price_records", 0] } } },
+            { $project: { latest_price_records: 0 } }
+        ]);
     }
     
     res.status(200).json({
-      games: games,
+      games: gamesWithPrice,
       totalPages: Math.ceil(totalGames / limit) || 1
     });
 
@@ -192,7 +243,35 @@ app.post('/api/wishlist', async (req, res) => {
   if (!req.body.slugs) return res.status(400).json({ error: "Bad Request" });
   try {
     const games = await Game.find({ slug: { $in: req.body.slugs } }).lean();
-    res.json(games);
+    
+    // 찜 목록에서도 가격 정보를 가져오기 위해 Aggregation Pipeline 사용 (선택적으로 최신 가격 조회)
+    const slugsMap = games.reduce((acc, game) => {
+        acc[game.steam_appid] = game;
+        return acc;
+    }, {});
+    
+    const steamAppIds = games.map(g => g.steam_appid);
+    
+    const latestPrices = await PriceHistory.aggregate([
+        { $match: { steam_appid: { $in: steamAppIds } } },
+        { $sort: { recordedAt: -1 } },
+        {
+            $group: {
+                _id: '$steam_appid',
+                price_info: { $first: '$$ROOT' }
+            }
+        }
+    ]);
+    
+    const finalGames = games.map(game => {
+        const priceRecord = latestPrices.find(p => p._id === game.steam_appid);
+        return {
+            ...game,
+            price_info: priceRecord?.price_info || { current_price: 0, regular_price: 0, discount_percent: 0, isFree: true }
+        };
+    });
+
+    res.json(finalGames);
   } catch (error) { res.status(500).json({ error: "DB Error" }); }
 });
 
@@ -234,9 +313,11 @@ app.post('/api/games/:id/vote', async (req, res) => {
 app.get('/api/debug', async (req, res) => {
     try {
         const count = await Game.countDocuments();
+        const priceCount = await PriceHistory.countDocuments();
         res.json({ 
             status: "OK",
             totalGames: count, 
+            totalPriceHistory: priceCount, // PriceHistory 카운트 추가
             dbName: mongoose.connection.name,
             collectionName: Game.collection.name
         });
