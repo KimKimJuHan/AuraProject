@@ -20,8 +20,8 @@ const SaleHistory = require('./models/SaleHistory');
 // 라우터 로드
 const authRoutes = require('./routes/auth');
 const recommendRoutes = require('./routes/recommend');
-// ★ user.js 파일을 소문자로 require 합니다. (대소문자 오류 방지)
 const userRoutes = require('./routes/user'); 
+const steamRecoRouter = require('./routes/steamReco.route'); // 사용자님 코드 유지
 
 const app = express();
 const PORT = 8000;
@@ -32,13 +32,13 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 const MONGODB_URI = process.env.MONGODB_URI;
 
-// CORS 설정 (프론트엔드와 통신 허용)
+// CORS 설정
 app.use(cors({ origin: FRONTEND_URL, credentials: true })); 
 app.use(express.json());
 app.use(cookieParser()); 
 app.set('trust proxy', true);
 
-// 세션 설정 (스팀 로그인용)
+// 세션 설정 (스팀 인증 과정에서 필수)
 app.use(session({
     secret: 'your_secret_key',
     resave: true,
@@ -47,27 +47,45 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// 스팀 전략 등록 및 DB 연동
+// ★★★ 스팀 전략 설정 (저장 로직 강화 및 로그 추가됨) ★★★
 try {
     passport.use(new SteamStrategy({
         returnURL: `${BACKEND_URL}/api/auth/steam/return`, 
         realm: BACKEND_URL,
-        apiKey: STEAM_WEB_API_KEY
+        apiKey: STEAM_WEB_API_KEY,
+        passReqToCallback: true 
       },
-      async function(identifier, profile, done) { 
+      async function(req, identifier, profile, done) { 
         const steamId = identifier.split('/').pop();
         
-        try {
-            let user = await User.findOne({ steamId: steamId });
+        // [로그 추가] 스팀에서 응답이 왔는지 확인
+        console.log(`🔍 [Steam Strategy] 스팀 응답 수신! ID: ${steamId}`);
+        console.log(`🔍 [Steam Strategy] 연동 요청 여부(세션):`, req.session.linkUserId ? `YES (User ID: ${req.session.linkUserId})` : "NO (Login Mode)");
 
-            if (!user) {
-                return done(null, false, { message: 'Steam account not linked to any user.' });
+        try {
+            // 1. 연동 모드: 세션에 linkUserId가 있다면 (기존 계정에 스팀 연결)
+            if (req.session.linkUserId) {
+                const currentUser = await User.findById(req.session.linkUserId);
+                if (currentUser) {
+                    // [수정] 메모리에만 넣지 않고 여기서 '즉시 저장'합니다.
+                    currentUser.steamId = steamId;
+                    await currentUser.save(); 
+                    
+                    console.log(`✅ [DB 저장 성공] 유저(${currentUser.username}) DB에 SteamID(${steamId})가 저장되었습니다.`);
+                    return done(null, currentUser);
+                }
             }
 
+            // 2. 로그인 모드: 스팀 ID로 바로 로그인
+            let user = await User.findOne({ steamId: steamId });
+            if (!user) {
+                console.log(`⚠️ [Steam Strategy] DB에 등록되지 않은 스팀 계정입니다.`);
+                return done(null, false, { message: '등록되지 않은 스팀 계정입니다. 먼저 회원가입 후 연동해주세요.' });
+            }
             return done(null, user);
 
         } catch (err) {
-            console.error("Steam Passport DB Error:", err);
+            console.error("Steam Passport Error:", err);
             return done(err);
         }
       }
@@ -87,7 +105,6 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-
 // DB 연결
 if (!MONGODB_URI) {
   console.error("❌ 오류: MONGODB_URI 환경 변수 없음");
@@ -100,7 +117,13 @@ if (!MONGODB_URI) {
 // 라우터 등록
 app.use('/api/auth', authRoutes);
 app.use('/api/ai-recommend', recommendRoutes);
-app.use('/api/user', userRoutes); // ★ user 라우터 등록
+app.use('/api/user', userRoutes);
+app.use('/api/steam', steamRecoRouter); // 사용자님 코드 유지
+
+
+// =================================================================
+// 기존 API 유지
+// =================================================================
 
 // 1. 상세 페이지 API 
 app.get('/api/games/:id', async (req, res) => {
@@ -108,10 +131,8 @@ app.get('/api/games/:id', async (req, res) => {
     const gameInfo = await Game.findOne({ slug: req.params.id }).lean();
     if (!gameInfo) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
     
-    // Game.js 스키마가 복원되었으므로, price_info와 trend_score 필드가 존재합니다.
     const finalData = {
         ...gameInfo,
-        // 프론트엔드가 요구하는 필드들을 Game.js의 price_info에서 직접 매핑합니다.
         lowest_price_url: gameInfo.price_info?.store_url || `https://store.steampowered.com/app/${gameInfo.steam_appid}`,
         all_deals: gameInfo.price_info?.deals || []
     };
@@ -133,11 +154,7 @@ app.post('/api/recommend', async (req, res) => {
 
   try {
     let filter = {};
-    
-    if (tags && tags.length > 0) {
-      filter.smart_tags = { $in: tags }; 
-    }
-    
+    if (tags && tags.length > 0) filter.smart_tags = { $in: tags }; 
     if (searchQuery && searchQuery.trim() !== "") {
         const query = searchQuery.trim();
         const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -147,7 +164,6 @@ app.post('/api/recommend', async (req, res) => {
         ];
     }
 
-    // Game.js의 price_info 필드를 사용하여 정렬 및 필터링
     let sortRule = { popularity: -1, _id: -1 }; 
     if (sortBy === 'discount') {
         sortRule = { "price_info.discount_percent": -1, popularity: -1 };
@@ -160,26 +176,17 @@ app.post('/api/recommend', async (req, res) => {
     }
 
     const totalGames = await Game.countDocuments(filter);
-
-    let games = await Game.find(filter)
-      .sort(sortRule)
-      .skip(skip)  
-      .limit(limit)
-      .lean();
+    let games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit).lean();
       
     console.log(`👉 검색 결과: ${totalGames}개`);
 
-    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 로딩
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
         console.log("⚠️ 데이터 없음 -> 인기 게임 강제 로딩");
-        games = await Game.find({})
-            .sort({ popularity: -1 })
-            .limit(20)
-            .lean();
+        games = await Game.find({}).sort({ popularity: -1 }).limit(20).lean();
     }
     
     res.status(200).json({
-      games: games, // Game 객체 안에 price_info가 포함되어 있으므로 메인 페이지 가격이 정상 표시될 것입니다.
+      games: games,
       totalPages: Math.ceil(totalGames / limit) || 1
     });
 
@@ -189,7 +196,7 @@ app.post('/api/recommend', async (req, res) => {
   }
 });
 
-// 3. 검색 자동완성 API (기존 로직 유지)
+// 3. 검색 자동완성 API
 app.get('/api/search/autocomplete', async (req, res) => {
   const query = req.query.q; 
   if (typeof query !== 'string' || !query) return res.json([]);
@@ -202,7 +209,7 @@ app.get('/api/search/autocomplete', async (req, res) => {
   } catch (error) { res.status(500).json({ error: "검색 오류" }); }
 });
 
-// 4. 찜 목록 (기존 로직 유지)
+// 4. 찜 목록
 app.post('/api/wishlist', async (req, res) => {
   if (!req.body.slugs) return res.status(400).json({ error: "Bad Request" });
   try {
@@ -211,13 +218,13 @@ app.post('/api/wishlist', async (req, res) => {
   } catch (error) { res.status(500).json({ error: "DB Error" }); }
 });
 
-// 5. 유저 IP (기존 로직 유지)
+// 5. 유저 IP
 app.get('/api/user/ip', (req, res) => {
     const userIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     res.json({ ip: userIp });
 });
 
-// 6. 투표 (기존 로직 유지)
+// 6. 투표
 app.post('/api/games/:id/vote', async (req, res) => {
     const userIp = req.headers['x-forwarded-for']?.split(',').shift().trim() || req.connection.remoteAddress;
     const { type } = req.body;
@@ -245,7 +252,7 @@ app.post('/api/games/:id/vote', async (req, res) => {
     } catch (error) { res.status(500).json({ error: "Vote Error" }); }
 });
 
-// 7. 디버그용 (기존 로직 유지)
+// 7. 디버그용
 app.get('/api/debug', async (req, res) => {
     try {
         const count = await Game.countDocuments();

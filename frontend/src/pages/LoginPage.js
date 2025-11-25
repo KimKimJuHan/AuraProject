@@ -10,7 +10,13 @@ function LoginPage({ setUser }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:8000/api/auth/login', { email, password });
+      // ★★★ 수정된 부분: { withCredentials: true } 추가 ★★★
+      // 이 옵션이 있어야 백엔드가 주는 '쿠키(token)'를 브라우저가 저장합니다.
+      const res = await axios.post('http://localhost:8000/api/auth/login', 
+        { email, password },
+        { withCredentials: true } 
+      );
+
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setUser(res.data.user);
