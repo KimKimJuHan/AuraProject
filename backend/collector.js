@@ -6,11 +6,12 @@ const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
 // 1. 환경변수 검증 및 로드
-const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET } = process.env;
+const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
 console.log("📋 환경변수 점검:");
 console.log(`  - ITAD KEY: ${ITAD_API_KEY ? "✅ 로드됨" : "❌ 없음"}`);
 console.log(`  - TWITCH: ${TWITCH_CLIENT_ID ? "✅ 로드됨" : "⚠️ 없음"}`);
+console.log(`  - CHZZK: ${CHZZK_CLIENT_ID ? "✅ 로드됨" : "⚠️ 없음"}`);
 
 if (!ITAD_API_KEY) {
     console.error("🚨 ITAD_API_KEY가 없습니다. 수집을 중단합니다.");
@@ -28,6 +29,18 @@ const TAG_MAP = {
   'multiplayer': '멀티플레이', 'roguelike': '로그라이크', 'souls-like': '소울라이크',
   'story rich': '스토리 중심', 'pixel graphics': '픽셀 그래픽', '2d': '2D', '3d': '3D',
   'anime': '애니메이션', 'scifi': 'SF', 'sci-fi': 'SF', 'fantasy': '판타지'
+};
+
+// 게임 별칭 매핑 (검색 정확도 향상용)
+const GAME_ALIAS = {
+    "grand theft auto v": "GTA V",
+    "pubg: battlegrounds": "PUBG",
+    "counter-strike 2": "Counter-Strike",
+    "baldurs gate 3": "Baldur's Gate 3",
+    "the witcher 3: wild hunt": "The Witcher 3",
+    "tom clancys rainbow six siege": "Rainbow Six Siege",
+    "apex legends": "Apex Legends",
+    "league of legends": "League of Legends"
 };
 
 function translateTags(tags) {
@@ -58,8 +71,16 @@ async function getTwitchToken() {
 
 function cleanGameName(name) {
     if (!name) return "";
-    let cleaned = name.replace(/[™®©]/g, '');
-    const suffixes = ["Game of the Year", "GOTY", "Complete Edition", "Definitive", "Remastered", "Deluxe", "Ultimate"];
+    let cleaned = name.toLowerCase();
+    
+    // 1. 별칭 확인 (Alias)
+    for (const [key, value] of Object.entries(GAME_ALIAS)) {
+        if (cleaned.includes(key)) return value;
+    }
+
+    // 2. 특수문자 및 불필요한 접미사 제거
+    cleaned = name.replace(/[™®©]/g, '');
+    const suffixes = ["Game of the Year", "GOTY", "Complete Edition", "Definitive", "Remastered", "Deluxe", "Ultimate", "Legacy", "Edition"];
     suffixes.forEach(s => {
         const regex = new RegExp(`\\s*${s}.*$`, 'gi');
         cleaned = cleaned.replace(regex, '');
@@ -67,7 +88,7 @@ function cleanGameName(name) {
     return cleaned.replace(/\s*\(.*\)/g, '').trim();
 }
 
-// 트위치 시청자 수 조회
+// 트위치 시청자 수 조회 (로직 개선)
 async function getTwitchStats(gameName) {
     if (!TWITCH_CLIENT_ID || !twitchToken) {
         if (TWITCH_CLIENT_ID) await getTwitchToken();
@@ -76,54 +97,77 @@ async function getTwitchStats(gameName) {
     
     const searchName = cleanGameName(gameName);
     try {
+        // 1. 카테고리 검색 (정확도순)
         const searchRes = await axios.get('https://api.twitch.tv/helix/search/categories', {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
-            params: { query: searchName, first: 1 }
+            params: { query: searchName, first: 5 } // 상위 5개 후보 확인
         });
-        const foundGame = searchRes.data?.data?.[0];
-        if (!foundGame) return 0;
+        
+        // 검색 결과 중 가장 이름이 비슷한(또는 인기있는) 게임 선택
+        const candidates = searchRes.data?.data || [];
+        if (candidates.length === 0) return 0;
 
+        // 첫 번째 후보를 기본으로 하되, 정확히 일치하는 게 있으면 그걸 씀
+        let targetGame = candidates[0];
+        const exactMatch = candidates.find(c => c.name.toLowerCase() === searchName.toLowerCase());
+        if (exactMatch) targetGame = exactMatch;
+
+        // 2. 시청자 수 조회
         const streamRes = await axios.get('https://api.twitch.tv/helix/streams', {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
-            params: { game_id: foundGame.id, first: 100 }
+            params: { game_id: targetGame.id, first: 100 }
         });
         return streamRes.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
     } catch (e) { return 0; }
 }
 
-// ★ 치지직 실시간 시청자 수 조회 (비공식 API 활용)
-async function getChzzkStats(gameName) {
-    // 치지직은 한글 게임명을 좋아함. 영어면 검색이 잘 안 될 수 있음.
-    const searchName = cleanGameName(gameName); 
-    if (!searchName) return 0;
+// ★ 치지직 실시간 시청자 수 조회 (이중 검색 로직 추가)
+async function getChzzkStats(gameName, gameNameKo) {
+    const namesToTry = [cleanGameName(gameName)];
+    if (gameNameKo && gameNameKo !== gameName) namesToTry.push(gameNameKo); // 한글 이름 추가
 
-    try {
-        // 1. 전체 라이브 목록 검색 (인기순)
-        // 참고: 게임별 필터가 없어서 통합 검색을 해야 함.
-        // 하지만 여기서는 '게임 카테고리' 내의 방송을 찾는게 아니라, 방송 제목/카테고리에 게임명이 포함된걸 찾아야 함.
-        // 다행히 치지직 검색 API는 방송 검색을 지원함.
-        
-        const encodeName = encodeURIComponent(searchName);
-        const url = `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeName}&offset=0&size=20&sortType=POPULAR`;
-        
-        const res = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-        });
+    for (const query of namesToTry) {
+        if (!query) continue;
+        try {
+            // 1. API 호출 (공개 검색 API)
+            const encodeName = encodeURIComponent(query);
+            const url = `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeName}&offset=0&size=20&sortType=POPULAR`;
+            
+            const res = await axios.get(url, {
+                headers: { 
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                    // 클라이언트 ID가 있으면 헤더에 추가 (없어도 동작함)
+                    ...(CHZZK_CLIENT_ID && { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET })
+                }
+            });
 
-        const lives = res.data?.content?.data || [];
-        let totalViewers = 0;
+            const lives = res.data?.content?.data || [];
+            
+            // 검색 결과가 있으면 집계 시작
+            if (lives.length > 0) {
+                let totalViewers = 0;
+                let matchCount = 0;
 
-        lives.forEach(live => {
-            // 방송 카테고리가 검색어와 유사하거나 포함되면 집계
-            // (예: 'League of Legends' 검색 -> 카테고리 '리그 오브 레전드' 방송 집계)
-            const category = live.liveCategoryValue || "";
-            // 영어 이름 매칭이 어려우므로, 단순히 검색 결과 상위권의 시청자수를 합산 (약식)
-            // 정확도를 위해선 한글 게임명 매핑이 필요하지만, 여기선 검색 결과 신뢰
-            totalViewers += live.concurrentUserCount || 0;
-        });
+                lives.forEach(live => {
+                    // 방송 제목이나 카테고리에 검색어가 포함된 경우만 집계 (정확도 향상)
+                    const title = (live.liveTitle || "").toLowerCase();
+                    const category = (live.liveCategoryValue || "").toLowerCase();
+                    const q = query.toLowerCase();
 
-        return totalViewers;
-    } catch (e) { return 0; }
+                    if (category.includes(q) || title.includes(q)) {
+                        totalViewers += live.concurrentUserCount || 0;
+                        matchCount++;
+                    }
+                });
+
+                // 유의미한 결과가 나오면 바로 리턴 (한글 검색 성공 시 영어 검색 스킵)
+                if (matchCount > 0) return totalViewers;
+            }
+        } catch (e) { 
+            // console.error(`⚠️ 치지직 검색 에러 (${query}):`, e.message);
+        }
+    }
+    return 0; // 모두 실패하면 0
 }
 
 // ---------------------------------------------------------
@@ -144,22 +188,19 @@ async function fetchITADData(steamAppId) {
 
         const dealsRaw = gameData.deals || [];
         dealsRaw.sort((a, b) => (a.price.amount - b.price.amount));
-        const bestDeal = dealsRaw[0] || {};
-
+        
         return {
-            current_price: bestDeal.price?.amount ?? 0,
-            regular_price: bestDeal.regular?.amount ?? 0,
-            discount_percent: bestDeal.cut ?? 0,
-            store_name: bestDeal.shop?.name || "Steam",
-            url: bestDeal.url || "",
-            historical_low: gameData.historyLow?.price?.amount || 0,
+            current_price: dealsRaw[0]?.price?.amount ?? 0,
+            regular_price: dealsRaw[0]?.regular?.amount ?? 0,
+            discount_percent: dealsRaw[0]?.cut ?? 0,
             deals: dealsRaw.map(d => ({
                  shopName: d.shop?.name || "Store",
                  price: d.price?.amount ?? 0,
                  regularPrice: d.regular?.amount ?? 0,
                  discount: d.cut ?? 0,
                  url: d.url || ""
-            }))
+            })),
+            historical_low: gameData.historyLow?.price?.amount || 0
         };
     } catch (e) { return null; }
 }
@@ -216,13 +257,13 @@ async function collectGamesData() {
             }
         }
 
-        // 3. 트렌드 점수 (치지직 로직 변경됨)
-        // 스팀 이름(영어)보다는 한글 이름으로 검색해야 치지직에서 잘 나옴
+        // 3. 트렌드 점수 (개선됨)
         const searchName = cleanGameName(data.name); 
-        
+        const searchNameKo = data.name; // 스팀 한글 API 응답이면 한글 이름임
+
         const [twitchView, chzzkView] = await Promise.all([
             getTwitchStats(searchName),
-            getChzzkStats(searchName) // 이제 진짜 시청자 수 가져옴
+            getChzzkStats(searchName, searchNameKo) // 한글/영어 둘 다 시도
         ]);
         const trendScore = twitchView + chzzkView;
 
