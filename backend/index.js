@@ -1,4 +1,4 @@
-// backend/index.js
+// backend/index.js (Aggregation 제거 및 Game.js 복원 구조에 맞춤)
 
 require('dotenv').config(); 
 const express = require('express');
@@ -10,12 +10,10 @@ const SteamStrategy = require('passport-steam').Strategy;
 const jwt = require('jsonwebtoken'); 
 const cookieParser = require('cookie-parser');
 
-// ★★★ 모델 로드 (모든 History 모델 포함) ★★★
+// ★★★ 모델 로드 (모든 History 모델은 이제 사용되지 않지만, import는 유지) ★★★
 const User = require('./models/User'); 
 const Game = require('./models/Game'); 
-const PriceHistory = require('./models/PriceHistory'); 
-const TrendHistory = require('./models/TrendHistory');
-const SaleHistory = require('./models/SaleHistory');
+// History 모델은 collector에서만 사용하며, index.js에서 직접 조회하지 않으므로 제거하거나 주석 처리 가능
 
 // 라우터 로드
 const authRoutes = require('./routes/auth');
@@ -34,7 +32,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 // CORS 설정 (프론트엔드와 통신 허용)
 app.use(cors({ origin: FRONTEND_URL, credentials: true })); 
 app.use(express.json());
-app.use(cookieParser()); // cookieParser 미들웨어 등록
+app.use(cookieParser()); 
 app.set('trust proxy', true);
 
 // 세션 설정 (스팀 로그인용)
@@ -99,85 +97,31 @@ if (!MONGODB_URI) {
 // 라우터 등록
 app.use('/api/auth', authRoutes);
 app.use('/api/ai-recommend', recommendRoutes);
-app.use('/api/user', userRoutes); // 유저 라우터 등록
+app.use('/api/user', userRoutes); 
 
-// 1. 상세 페이지 API (가격, 트렌드, 딜 정보 통합)
+// 1. 상세 페이지 API (Game.js 복원 구조에서 직접 조회)
 app.get('/api/games/:id', async (req, res) => {
   try {
-    const game = await Game.findOne({ slug: req.params.id }).lean();
-    if (!game) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
+    // Game.js 스키마가 복원되었으므로, findOne으로 모든 정보(가격/트렌드)를 한 번에 가져옵니다.
+    const gameInfo = await Game.findOne({ slug: req.params.id }).lean();
+    if (!gameInfo) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
     
-    // ★★★ Aggregation Pipeline을 사용하여 모든 History 정보 조인 ★★★
-    const aggregatedData = await Game.aggregate([
-        { $match: { steam_appid: game.steam_appid } },
-        
-        // 1. PriceHistory (가격, 최저가) 조인
-        {
-            $lookup: {
-                from: 'pricehistories', // 컬렉션 이름 확인 필요 (price_history 또는 pricehistories)
-                localField: 'steam_appid',
-                foreignField: 'steam_appid',
-                as: 'price_records',
-                pipeline: [{ $sort: { recordedAt: -1 } }, { $limit: 1 }]
-            }
-        },
-        // 2. TrendHistory (트위치, 치지직) 조인
-        {
-            $lookup: {
-                from: 'trendhistories', // 컬렉션 이름 확인 필요
-                localField: 'steam_appid',
-                foreignField: 'steam_appid',
-                as: 'trend_records',
-                pipeline: [{ $sort: { recordedAt: -1 } }, { $limit: 1 }]
-            }
-        },
-        // 3. SaleHistory (딜 목록, 최저가 URL) 조인
-        {
-            $lookup: {
-                from: 'salehistories', // 컬렉션 이름 확인 필요
-                localField: 'steam_appid',
-                foreignField: 'steam_appid',
-                as: 'sale_records',
-                pipeline: [{ $sort: { startDate: -1 } }, { $limit: 1 }]
-            }
-        },
-        // 4. 필드 병합
-        {
-            $addFields: {
-                price_info: { $arrayElemAt: ["$price_records", 0] },
-                trend_info: { $arrayElemAt: ["$trend_records", 0] },
-                sale_info: { $arrayElemAt: ["$sale_records", 0] }
-            }
-        },
-        { $project: { price_records: 0, trend_records: 0, sale_records: 0 } }
-    ]);
-    
-    const finalData = aggregatedData[0] || game; 
-    
-    // 5. 프론트엔드가 사용하기 쉽도록 최종 응답 데이터 구조화
-    const responseData = {
-        ...finalData, 
-        price_info: finalData.price_info || { current_price: 0, regular_price: 0, discount_percent: 0, isFree: true },
-        
-        // 트위치/치지직 시청자 수 (프론트엔드가 필드 이름 그대로 사용할 수 있도록 추가)
-        twitch_viewers: finalData.trend_info?.twitch_viewers || 0,
-        chzzk_viewers: finalData.trend_info?.chzzk_viewers || 0,
-        
-        // ★ 최저가 페이지 이동 URL (SaleHistory의 store_url 우선)
-        lowest_price_url: finalData.sale_info?.store_url || finalData.price_info?.store_url || `https://store.steampowered.com/app/${game.steam_appid}`,
-        
-        // ★ 가격 비교 목록 (SaleHistory의 itad_deals)
-        all_deals: finalData.sale_info?.itad_deals || []
+    // 프론트엔드가 요구하는 최저가 URL, 딜 목록 필드 추가
+    const finalData = {
+        ...gameInfo,
+        // Game.js에 price_info가 있으므로, 거기서 URL과 deals를 가져옵니다.
+        lowest_price_url: gameInfo.price_info?.store_url || `https://store.steampowered.com/app/${gameInfo.steam_appid}`,
+        all_deals: gameInfo.price_info?.deals || []
     };
     
-    res.status(200).json(responseData);
+    res.status(200).json(finalData);
   } catch (error) {
     console.error("❌ 상세 페이지 API 오류:", error);
     res.status(500).json({ error: "서버 내부 오류" });
   }
 });
 
-// 2. 메인/검색 페이지 API (★ 가격 통합 로직 적용)
+// 2. 메인/검색 페이지 API (Game.js 복원 구조에서 직접 조회)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body; 
   const limit = 15; 
@@ -188,12 +132,10 @@ app.post('/api/recommend', async (req, res) => {
   try {
     let filter = {};
     
-    // 태그 필터
     if (tags && tags.length > 0) {
       filter.smart_tags = { $in: tags }; 
     }
     
-    // 검색어 필터
     if (searchQuery && searchQuery.trim() !== "") {
         const query = searchQuery.trim();
         const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -203,78 +145,39 @@ app.post('/api/recommend', async (req, res) => {
         ];
     }
 
-    // 정렬 규칙은 기본적으로 인기도를 사용하고, Aggregation Pipeline 내에서 가격 기반 정렬을 시도합니다.
     let sortRule = { popularity: -1, _id: -1 }; 
-    if (sortBy === 'new') {
+    if (sortBy === 'discount') {
+        sortRule = { "price_info.discount_percent": -1, popularity: -1 };
+        filter["price_info.discount_percent"] = { $gt: 0 }; // 할인 중인 게임만 필터
+    } else if (sortBy === 'new') {
         sortRule = { releaseDate: -1 }; 
-    } 
+    } else if (sortBy === 'price') {
+        sortRule = { "price_info.current_price": 1, popularity: -1 };
+        filter["price_info.current_price"] = { $gte: 0 };
+    }
 
-    // 1차 검색 (총 개수)
     const totalGames = await Game.countDocuments(filter);
 
-    // ★ Aggregation Pipeline을 사용하여 PriceHistory와 조인 (메인 페이지 가격 표시)
-    let gamesWithPrice = await Game.aggregate([
-        { $match: filter }, 
-        
-        // PriceHistory 컬렉션과 조인하여 최신 가격 정보를 가져옵니다.
-        {
-            $lookup: {
-                from: 'pricehistories', // 컬렉션 이름 확인 필요
-                localField: 'steam_appid',
-                foreignField: 'steam_appid',
-                as: 'latest_price_records',
-                pipeline: [
-                    { $sort: { recordedAt: -1 } }, 
-                    { $limit: 1 }
-                ]
-            }
-        },
-        // 배열 형태의 latest_price_records를 단일 객체로 변환
-        {
-            $addFields: {
-                price_info: { $arrayElemAt: ["$latest_price_records", 0] }
-            }
-        },
-        // 정렬: 조인된 price_info를 사용하여 정렬
-        {
-            $sort: sortBy === 'discount' ? { 'price_info.discount_percent': -1, popularity: -1 } :
-                   sortBy === 'price' ? { 'price_info.current_price': 1, popularity: -1 } :
-                   sortRule // 기본 정렬
-        },
-        
-        { $skip: skip },
-        { $limit: limit },
-        
-        { $project: { latest_price_records: 0 } }
-    ]);
+    // ★★★ Game.find()로 직접 조회 (Aggregation 제거) ★★★
+    let games = await Game.find(filter)
+      .sort(sortRule)
+      .skip(skip)  
+      .limit(limit)
+      .lean();
       
     console.log(`👉 검색 결과: ${totalGames}개`);
 
-    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 반환 (Aggregation으로 재구현 필요)
+    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 반환
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
         console.log("⚠️ 데이터 없음 -> 인기 게임 강제 로딩");
-        gamesWithPrice = await Game.aggregate([
-            { $sort: { popularity: -1 } },
-            { $limit: 20 },
-             {
-                $lookup: {
-                    from: 'pricehistories', 
-                    localField: 'steam_appid',
-                    foreignField: 'steam_appid',
-                    as: 'latest_price_records',
-                    pipeline: [
-                        { $sort: { recordedAt: -1 } }, 
-                        { $limit: 1 }
-                    ]
-                }
-            },
-            { $addFields: { price_info: { $arrayElemAt: ["$latest_price_records", 0] } } },
-            { $project: { latest_price_records: 0 } }
-        ]);
+        games = await Game.find({})
+            .sort({ popularity: -1 })
+            .limit(20)
+            .lean();
     }
     
     res.status(200).json({
-      games: gamesWithPrice,
+      games: games, // Game 객체 안에 price_info와 trend_score가 모두 포함되어 있음
       totalPages: Math.ceil(totalGames / limit) || 1
     });
 
@@ -301,30 +204,9 @@ app.get('/api/search/autocomplete', async (req, res) => {
 app.post('/api/wishlist', async (req, res) => {
   if (!req.body.slugs) return res.status(400).json({ error: "Bad Request" });
   try {
+    // Game.js에 price_info가 있으므로, find로 한 번에 가져옵니다.
     const games = await Game.find({ slug: { $in: req.body.slugs } }).lean();
-    
-    const steamAppIds = games.map(g => g.steam_appid);
-    
-    const latestPrices = await PriceHistory.aggregate([
-        { $match: { steam_appid: { $in: steamAppIds } } },
-        { $sort: { recordedAt: -1 } },
-        {
-            $group: {
-                _id: '$steam_appid',
-                price_info: { $first: '$$ROOT' }
-            }
-        }
-    ]);
-    
-    const finalGames = games.map(game => {
-        const priceRecord = latestPrices.find(p => p._id === game.steam_appid);
-        return {
-            ...game,
-            price_info: priceRecord?.price_info || { current_price: 0, regular_price: 0, discount_percent: 0, isFree: true }
-        };
-    });
-
-    res.json(finalGames);
+    res.json(games);
   } catch (error) { res.status(500).json({ error: "DB Error" }); }
 });
 
@@ -366,11 +248,9 @@ app.post('/api/games/:id/vote', async (req, res) => {
 app.get('/api/debug', async (req, res) => {
     try {
         const count = await Game.countDocuments();
-        const priceCount = await PriceHistory.countDocuments();
         res.json({ 
             status: "OK",
             totalGames: count, 
-            totalPriceHistory: priceCount, 
             dbName: mongoose.connection.name,
             collectionName: Game.collection.name
         });
