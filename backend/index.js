@@ -10,16 +10,17 @@ const SteamStrategy = require('passport-steam').Strategy;
 const jwt = require('jsonwebtoken'); 
 const cookieParser = require('cookie-parser');
 
-// ★★★ 모델 로드 (Game.js가 복원되었으므로, 여기서 History 모델은 직접 사용하지 않습니다.) ★★★
+// ★★★ 모델 로드 ★★★
 const User = require('./models/User'); 
 const Game = require('./models/Game'); 
-// const PriceHistory = require('./models/PriceHistory'); // History 모델들은 collector에서만 사용
-// const TrendHistory = require('./models/TrendHistory');
-// const SaleHistory = require('./models/SaleHistory');
+const PriceHistory = require('./models/PriceHistory'); 
+const TrendHistory = require('./models/TrendHistory');
+const SaleHistory = require('./models/SaleHistory');
 
 // 라우터 로드
 const authRoutes = require('./routes/auth');
 const recommendRoutes = require('./routes/recommend');
+// ★ user.js 파일을 소문자로 require 합니다. (대소문자 오류 방지)
 const userRoutes = require('./routes/user'); 
 
 const app = express();
@@ -99,19 +100,18 @@ if (!MONGODB_URI) {
 // 라우터 등록
 app.use('/api/auth', authRoutes);
 app.use('/api/ai-recommend', recommendRoutes);
-app.use('/api/user', userRoutes); 
+app.use('/api/user', userRoutes); // ★ user 라우터 등록
 
-// 1. 상세 페이지 API (Game.js 복원 구조에서 직접 조회)
+// 1. 상세 페이지 API 
 app.get('/api/games/:id', async (req, res) => {
   try {
-    // Game.js 스키마 복원으로 모든 정보(가격, 트렌드)를 한 번에 가져옵니다.
     const gameInfo = await Game.findOne({ slug: req.params.id }).lean();
     if (!gameInfo) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
     
-    // 프론트엔드가 요구하는 필드들을 Game.js의 price_info에서 직접 매핑합니다.
+    // Game.js 스키마가 복원되었으므로, price_info와 trend_score 필드가 존재합니다.
     const finalData = {
         ...gameInfo,
-        // Game.js에 price_info가 있으므로, 거기서 URL과 deals를 가져옵니다.
+        // 프론트엔드가 요구하는 필드들을 Game.js의 price_info에서 직접 매핑합니다.
         lowest_price_url: gameInfo.price_info?.store_url || `https://store.steampowered.com/app/${gameInfo.steam_appid}`,
         all_deals: gameInfo.price_info?.deals || []
     };
@@ -123,7 +123,7 @@ app.get('/api/games/:id', async (req, res) => {
   }
 });
 
-// 2. 메인/검색 페이지 API (Game.js 복원 구조에서 직접 조회)
+// 2. 메인/검색 페이지 API
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body; 
   const limit = 15; 
@@ -151,7 +151,7 @@ app.post('/api/recommend', async (req, res) => {
     let sortRule = { popularity: -1, _id: -1 }; 
     if (sortBy === 'discount') {
         sortRule = { "price_info.discount_percent": -1, popularity: -1 };
-        filter["price_info.discount_percent"] = { $gt: 0 }; // 할인 중인 게임만 필터
+        filter["price_info.discount_percent"] = { $gt: 0 }; 
     } else if (sortBy === 'new') {
         sortRule = { releaseDate: -1 }; 
     } else if (sortBy === 'price') {
@@ -161,7 +161,6 @@ app.post('/api/recommend', async (req, res) => {
 
     const totalGames = await Game.countDocuments(filter);
 
-    // ★★★ Game.find()로 직접 조회 (안정적인 방법으로 복귀) ★★★
     let games = await Game.find(filter)
       .sort(sortRule)
       .skip(skip)  
@@ -180,7 +179,7 @@ app.post('/api/recommend', async (req, res) => {
     }
     
     res.status(200).json({
-      games: games, // Game 객체 안에 price_info와 trend_score가 모두 포함되어 있음
+      games: games, // Game 객체 안에 price_info가 포함되어 있으므로 메인 페이지 가격이 정상 표시될 것입니다.
       totalPages: Math.ceil(totalGames / limit) || 1
     });
 
@@ -207,7 +206,6 @@ app.get('/api/search/autocomplete', async (req, res) => {
 app.post('/api/wishlist', async (req, res) => {
   if (!req.body.slugs) return res.status(400).json({ error: "Bad Request" });
   try {
-    // Game.js에 price_info가 있으므로, find로 한 번에 가져옵니다.
     const games = await Game.find({ slug: { $in: req.body.slugs } }).lean();
     res.json(games);
   } catch (error) { res.status(500).json({ error: "DB Error" }); }
