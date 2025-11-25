@@ -1,15 +1,14 @@
 // backend/middleware/auth.js
 
 const jwt = require('jsonwebtoken');
-// User 모델이 필요합니다. middleware 폴더에서 models 폴더로 상대 경로를 수정합니다.
+// User 모델 경로 조정 (middleware 폴더에서 models 폴더로 접근)
 const User = require('../models/User'); 
 
 /**
  * JWT 토큰을 쿠키에서 검증하고, 유저 정보를 req.user에 삽입하는 미들웨어
  */
 const authenticateToken = async (req, res, next) => {
-    // 1. 쿠키에서 'token' 이름의 JWT 토큰을 가져옵니다.
-    // 주의: 이 코드가 작동하려면 'cookie-parser'가 index.js에 등록되어 있어야 합니다.
+    // 1. 쿠키에서 'token' 이름의 JWT 토큰을 가져옵니다. (cookie-parser 필요)
     const token = req.cookies?.token; 
 
     if (!token) {
@@ -22,6 +21,7 @@ const authenticateToken = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
         // 3. 사용자 ID로 DB에서 사용자 정보를 찾고, 비밀번호 필드는 제외합니다.
+        // req.user에 steamId가 포함되도록 합니다.
         const user = await User.findById(decoded.id).select('-password');
         
         if (!user) {
