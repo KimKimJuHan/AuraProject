@@ -16,7 +16,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
+        node-version: '20' # Node.js 20 사용 (File 객체 지원)
 
     - name: Install Dependencies
       run: |
