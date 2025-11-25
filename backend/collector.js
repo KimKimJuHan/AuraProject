@@ -2,19 +2,18 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const axios = require('axios');
 const Game = require('./models/Game');
-const GameCategory = require('./models/GameCategory'); // 필수
+const GameCategory = require('./models/GameCategory'); // 트렌드 족보
+const GameMetadata = require('./models/GameMetadata'); // 가격 족보
 const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
 const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
-if (!ITAD_API_KEY) {
-    console.error("🚨 ITAD_API_KEY 누락.");
-    process.exit(1);
-}
+if (!ITAD_API_KEY) { console.error("🚨 ITAD_API_KEY 누락"); process.exit(1); }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// --- [트위치 토큰] ---
 let twitchToken = null;
 async function getTwitchToken() {
     if (!TWITCH_CLIENT_ID) return;
@@ -26,13 +25,13 @@ async function getTwitchToken() {
     } catch (e) { console.error("⚠️ Twitch Token Error"); }
 }
 
+// --- [태그 매핑] ---
 const TAG_MAP = {
   'rpg': 'RPG', 'role-playing': 'RPG', 'action': '액션', 'fps': 'FPS', 'simulation': '시뮬레이션', 
   'strategy': '전략', 'sports': '스포츠', 'racing': '레이싱', 'puzzle': '퍼즐', 'survival': '생존', 
   'horror': '공포', 'adventure': '어드벤처', 'open world': '오픈 월드', 'co-op': '협동',
   'multiplayer': '멀티플레이', 'roguelike': '로그라이크', 'souls-like': '소울라이크', 'story rich': '스토리 중심'
 };
-
 function translateTags(tags) {
     if (!tags) return [];
     const myTags = new Set();
@@ -43,15 +42,13 @@ function translateTags(tags) {
     return Array.from(myTags);
 }
 
-// [A] 트렌드 데이터 (DB 매핑 조회 + 비율 보정)
+// --- [A. 트렌드 조회] ---
 async function getTrendStats(steamAppId) {
     const mapping = await GameCategory.findOne({ steamAppId });
-    
-    // 상태 객체: value(시청자수), status(ok/fail)
     let twitch = { value: 0, status: 'fail' }; 
     let chzzk = { value: 0, status: 'fail' };
 
-    // 2. 트위치 조회
+    // 트위치
     if (mapping?.twitch?.id) {
         if (!twitchToken) await getTwitchToken();
         try {
@@ -60,11 +57,11 @@ async function getTrendStats(steamAppId) {
                 params: { game_id: mapping.twitch.id, first: 100 }
             });
             const viewers = res.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
-            twitch = { value: viewers, status: 'ok' }; // 성공 (0명이어도 성공)
-        } catch (e) { /* 실패 유지 */ }
-    } 
+            twitch = { value: viewers, status: 'ok' };
+        } catch (e) {}
+    }
 
-    // 3. 치지직 조회
+    // 치지직
     if (mapping?.chzzk?.categoryValue) {
         try {
             const keyword = encodeURIComponent(mapping.chzzk.categoryValue);
@@ -74,10 +71,8 @@ async function getTrendStats(steamAppId) {
                     ...(CHZZK_CLIENT_ID && { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET })
                 }
             });
-            
             const lives = res.data?.content?.data || [];
             const target = mapping.chzzk.categoryValue.replace(/\s/g, ''); 
-            
             let viewers = 0;
             lives.forEach(item => {
                 const live = item.live;
@@ -87,74 +82,86 @@ async function getTrendStats(steamAppId) {
                     viewers += live.concurrentUserCount || 0;
                 }
             });
-            chzzk = { value: viewers, status: 'ok' }; // 성공
-        } catch (e) { /* 실패 유지 */ }
+            chzzk = { value: viewers, status: 'ok' };
+        } catch (e) {}
     }
-
     return { twitch, chzzk };
 }
 
-// 점수 보정 계산 함수
 function calculateWeightedScore(trends) {
     const { twitch, chzzk } = trends;
-    let finalScore = 0;
-
-    // 둘 다 성공: 단순 합산 (1:1 비율 가정)
-    if (twitch.status === 'ok' && chzzk.status === 'ok') {
-        finalScore = twitch.value + chzzk.value;
-    }
-    // 트위치만 성공: 트위치 점수 * 2 (치지직 몫까지 채움)
-    else if (twitch.status === 'ok') {
-        finalScore = twitch.value * 2;
-    }
-    // 치지직만 성공: 치지직 점수 * 2
-    else if (chzzk.status === 'ok') {
-        finalScore = chzzk.value * 2;
-    }
-    // 둘 다 실패: 0점
-    else {
-        finalScore = 0;
-    }
-
-    return finalScore;
+    if (twitch.status === 'ok' && chzzk.status === 'ok') return twitch.value + chzzk.value;
+    if (twitch.status === 'ok') return twitch.value * 2;
+    if (chzzk.status === 'ok') return chzzk.value * 2;
+    return 0;
 }
 
-// [B] ITAD 로직
-async function fetchITADData(steamAppId) {
-    try {
-        const lookupRes = await axios.get(`https://api.isthereanydeal.com/games/lookup/v1?key=${ITAD_API_KEY}&appid=${steamAppId}`, { timeout: 5000 });
-        if (!lookupRes.data?.found) return null;
-        
-        const pricesRes = await axios.post(`https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`, 
-            [lookupRes.data.game.id], { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-        
-        const gameData = pricesRes.data?.[0];
-        if (!gameData) return null;
-        
-        const deals = (gameData.deals || []).sort((a, b) => a.price.amount - b.price.amount);
-        const best = deals[0] || {};
+// --- [B. 가격 조회 (ITAD + Steam Package)] ---
+async function fetchPriceInfo(steamAppId, steamData) {
+    let priceInfo = {
+        regular_price: 0, current_price: 0, discount_percent: 0,
+        store_name: 'Steam', store_url: `https://store.steampowered.com/app/${steamAppId}`,
+        isFree: steamData.is_free === true, deals: []
+    };
 
-        return {
-            current_price: best.price?.amount ?? 0,
-            regular_price: best.regular?.amount ?? 0,
-            discount_percent: best.cut ?? 0,
-            deals: deals.map(d => ({ shopName: d.shop?.name, price: d.price?.amount, url: d.url })),
-            historical_low: gameData.historyLow?.price?.amount || 0
-        };
-    } catch (e) { return null; }
+    if (steamData.price_overview) {
+        priceInfo.regular_price = steamData.price_overview.initial / 100;
+        priceInfo.current_price = steamData.price_overview.final / 100;
+        priceInfo.discount_percent = steamData.price_overview.discount_percent;
+    } 
+    else if (!steamData.is_free && steamData.packages && steamData.packages.length > 0) {
+        try {
+            const packageId = steamData.packages[0]; 
+            const pkgRes = await axios.get(`https://store.steampowered.com/api/packagedetails?packageids=${packageId}&l=korean&cc=kr`);
+            const pkgData = pkgRes.data[packageId]?.data;
+            if (pkgData && pkgData.price) {
+                priceInfo.regular_price = pkgData.price.initial / 100;
+                priceInfo.current_price = pkgData.price.final / 100;
+                priceInfo.discount_percent = pkgData.price.discount_percent;
+            }
+        } catch(e) {}
+    }
+
+    const metadata = await GameMetadata.findOne({ steamAppId });
+    if (metadata?.itad?.uuid) {
+        try {
+            const pricesRes = await axios.post(`https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`, 
+                [metadata.itad.uuid], { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+            
+            const itadGame = pricesRes.data?.[0];
+            if (itadGame) {
+                const deals = (itadGame.deals || []).sort((a, b) => a.price.amount - b.price.amount);
+                
+                priceInfo.deals = deals.map(d => ({ 
+                    shopName: d.shop?.name, price: d.price?.amount, regularPrice: d.regular?.amount, discount: d.cut, url: d.url 
+                }));
+                priceInfo.historical_low = itadGame.historyLow?.price?.amount || 0;
+
+                const bestDeal = deals[0];
+                if (bestDeal && !priceInfo.isFree && (bestDeal.price.amount < priceInfo.current_price || priceInfo.current_price === 0)) {
+                    priceInfo.current_price = bestDeal.price.amount;
+                    priceInfo.regular_price = bestDeal.regular.amount;
+                    priceInfo.discount_percent = bestDeal.cut;
+                }
+            }
+        } catch (e) {}
+    }
+
+    return priceInfo;
 }
 
+// --- [C. 메인 수집 루프] ---
 async function collectGamesData() {
     if (!MONGODB_URI) return;
     await mongoose.connect(MONGODB_URI);
     console.log("✅ DB Connected. 수집 시작...");
 
-    const mappings = await GameCategory.find({});
-    let targetAppIds = mappings.map(m => m.steamAppId);
+    const metadatas = await GameMetadata.find({});
+    let targetAppIds = metadatas.map(m => m.steamAppId);
 
     if (targetAppIds.length === 0) {
-        console.log("⚠️ 매핑된 게임 없음. 기본 목록 사용");
-        targetAppIds = [1623730, 578080, 570, 730, 271590, 359550];
+        console.log("⚠️ 메타데이터 없음. 기본 목록 사용");
+        targetAppIds = [271590, 1623730, 1086940]; 
     }
     
     console.log(`🎯 수집 대상: ${targetAppIds.length}개`);
@@ -162,33 +169,18 @@ async function collectGamesData() {
     let count = 0;
     for (const appid of targetAppIds) {
         try {
-            await sleep(1500);
+            await sleep(1500); 
 
-            const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appid}&l=korean&cc=kr`);
+            const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, {
+                params: { appids: appid, l: 'korean', cc: 'kr' },
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+            });
             const data = steamRes.data[appid]?.data;
             if (!data) continue;
 
-            // 트렌드 조회 (상태값 포함)
             const trends = await getTrendStats(appid);
-            // 보정된 점수 계산
             const trendScore = calculateWeightedScore(trends);
-
-            let priceInfo = {
-                regular_price: data.price_overview?.initial / 100 || 0,
-                current_price: data.price_overview?.final / 100 || 0,
-                discount_percent: data.price_overview?.discount_percent || 0,
-                store_name: 'Steam', store_url: `https://store.steampowered.com/app/${appid}`,
-                isFree: data.is_free, deals: []
-            };
-            const itadData = await fetchITADData(appid);
-            if (itadData) {
-                if (!data.is_free && (itadData.current_price < priceInfo.current_price || priceInfo.current_price === 0)) {
-                    priceInfo = { ...priceInfo, ...itadData };
-                } else {
-                    priceInfo.deals = itadData.deals;
-                    priceInfo.historical_low = itadData.historical_low;
-                }
-            }
+            const priceInfo = await fetchPriceInfo(appid, data);
 
             let playTime = "정보 없음";
             try {
@@ -196,17 +188,21 @@ async function collectGamesData() {
                 if(hltbRes.length > 0) playTime = `${hltbRes[0].gameplayMain} 시간`;
             } catch(e){}
 
+            const categoryData = await GameCategory.findOne({ steamAppId: appid });
+
             await Game.findOneAndUpdate({ steam_appid: appid }, {
                 slug: `steam-${appid}`,
                 steam_appid: appid,
                 title: data.name,
-                title_ko: (mappings.find(m=>m.steamAppId===appid)?.chzzk?.categoryValue) || data.name,
+                title_ko: categoryData?.chzzk?.categoryValue || data.name,
                 main_image: data.header_image,
                 description: data.short_description,
                 smart_tags: translateTags([...(data.genres||[]).map(g=>g.description), ...(data.categories||[]).map(c=>c.description)]),
+                
                 trend_score: trendScore,
                 twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
                 chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
+                
                 price_info: priceInfo,
                 releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월|일/g, '-')) : new Date(),
                 screenshots: data.screenshots?.map(s=>s.path_full)||[],
@@ -216,11 +212,7 @@ async function collectGamesData() {
             }, { upsert: true });
 
             count++;
-            
-            // 로그 출력: (Tw: 1000 | Chzzk: X -> 보정점수)
-            const twLog = trends.twitch.status === 'ok' ? trends.twitch.value : 'X';
-            const chLog = trends.chzzk.status === 'ok' ? trends.chzzk.value : 'X';
-            console.log(`✅ [${count}] ${data.name} (Total: ${trendScore} | Tw: ${twLog} | Ch: ${chLog})`);
+            console.log(`✅ [${count}] ${data.name} (Price: ${priceInfo.current_price}원 | Trend: ${trendScore})`);
 
         } catch (e) { console.error(`❌ Error ${appid}: ${e.message}`); }
     }

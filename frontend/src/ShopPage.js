@@ -16,7 +16,8 @@ const styles = {
   storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: '#fff', transition: 'background 0.2s', cursor: 'pointer', width: '100%', boxSizing: 'border-box' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
-  tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' }
+  tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
+  trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' }
 };
 
 const InfoWithTooltip = ({ text, icon, tooltipText }) => {
@@ -81,8 +82,11 @@ function ShopPage({ region }) {
     fetchDetails();
   }, [id]); 
 
-  const getPriceDisplay = (price) => {
-    if (price === null) return "정보 없음";
+  // [수정됨] 가격 표시 로직 개선
+  const getPriceDisplay = (price, isFree) => {
+    if (isFree) return "무료"; // 진짜 무료인 경우
+    if (price === null || price === undefined) return "가격 정보 없음";
+    if (price === 0) return "가격 정보 확인 필요"; // 유료인데 0원이면 정보 누락으로 간주
     return `₩${(Math.round(price / 10) * 10).toLocaleString()}`; 
   };
 
@@ -146,8 +150,8 @@ function ShopPage({ region }) {
                 {deal.discount > 0 && <span style={{marginLeft:'10px', color:'#E50914', fontSize:'12px', fontWeight:'bold'}}>-{deal.discount}%</span>}
             </div>
             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                {deal.regularPrice > deal.price && <span style={{textDecoration:'line-through', color:'#888', fontSize:'12px'}}>{getPriceDisplay(deal.regularPrice)}</span>}
-                <span style={{color:'#A24CD9', fontWeight:'bold'}}>{getPriceDisplay(deal.price)}</span>
+                {deal.regularPrice > deal.price && <span style={{textDecoration:'line-through', color:'#888', fontSize:'12px'}}>{getPriceDisplay(deal.regularPrice, false)}</span>}
+                <span style={{color:'#A24CD9', fontWeight:'bold'}}>{getPriceDisplay(deal.price, false)}</span>
                 <span style={{fontSize:'12px', color:'#999'}}>&gt;</span>
             </div>
         </a>
@@ -160,6 +164,20 @@ function ShopPage({ region }) {
          <div style={{position:'absolute', inset:0, background:'linear-gradient(to top, #141414, transparent 80%)'}}></div>
          <div style={{position:'absolute', bottom:'50px', left:'4%', maxWidth:'800px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)'}}>
             <h1 style={{fontSize:'50px', marginBottom:'15px', lineHeight:'1.1'}}>{gameData.title_ko || gameData.title}</h1>
+            {/* 트렌드 정보 표시 (데이터 유효성 검사 추가) */}
+            <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
+                {gameData.twitch_viewers !== undefined && gameData.twitch_viewers > 0 && (
+                    <span style={{...styles.trendBadge, backgroundColor:'#9146FF'}}>
+                        💜 Twitch {gameData.twitch_viewers.toLocaleString()}명 시청중
+                    </span>
+                )}
+                {gameData.chzzk_viewers !== undefined && gameData.chzzk_viewers > 0 && (
+                    <span style={{...styles.trendBadge, backgroundColor:'#00FFA3', color:'#000'}}>
+                        💚 치지직 {gameData.chzzk_viewers.toLocaleString()}명 시청중
+                    </span>
+                )}
+            </div>
+
             <div style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap'}}>
                 <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="게임 출시일" icon="" />
                 {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점" icon="Ⓜ️" />}
@@ -168,7 +186,8 @@ function ShopPage({ region }) {
             <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
                  {pi && (
                     <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
-                        {pi.isFree ? "무료 플레이" : (pi.current_price ? `구매하기 ${getPriceDisplay(pi.current_price)}` : "가격 정보 확인")}
+                        {/* [수정됨] 버튼 텍스트 로직 개선 */}
+                        {pi.isFree ? "무료 플레이" : (pi.current_price > 0 ? `구매하기 ${getPriceDisplay(pi.current_price, pi.isFree)}` : "가격 정보 확인")}
                     </a>
                  )}
                  <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
