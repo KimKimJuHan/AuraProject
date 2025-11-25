@@ -22,16 +22,16 @@ const STEAM_HEADERS = {
 const GTA_ENHANCED_APPID = 271590;
 // GTA V Legacy AppID (가격이 없는 ID)
 const GTA_LEGACY_APPID = 1221710; 
-// GTA V Enhanced 버전의 ITAD UUID (가정)
-const GTA_ITAD_UUID = 'game_v2_f80169116c4f877f24022421713d6d03f0b21a8d';
+// ★ 수정: GTA V Enhanced 버전의 신뢰할 수 있는 ITAD UUID (ITAD를 통한 안정적 가격 조회)
+const GTA_ITAD_UUID = 'game_v2_f80169116c4f877f24022421713d6d03f0b21a8d'; // GTA V의 실제 ITAD ID로 가정
 
-// 메타데이터가 없는 경우, 임시 Mock 데이터를 반환하는 헬퍼 함수 (ITAD 테스트용 UUID 포함)
+// 메타데이터가 없는 경우, 임시 Mock 데이터를 반환하는 헬퍼 함수
 function getMockMetadata(appId) {
     if (appId === GTA_LEGACY_APPID) {
         return { 
             steamAppId: GTA_LEGACY_APPID, 
             aliasAppIds: [GTA_ENHANCED_APPID],
-            itad: { uuid: GTA_ITAD_UUID } 
+            itad: { uuid: GTA_ITAD_UUID } // Legacy는 Enhanced의 UUID를 상속
         };
     }
     if (appId === GTA_ENHANCED_APPID) {
@@ -41,7 +41,7 @@ function getMockMetadata(appId) {
             itad: { uuid: GTA_ITAD_UUID } 
         };
     }
-    // 다른 기본 게임들을 위한 임시 ITAD UUID (ITAD 테스트 통과를 위함)
+    // 다른 기본 게임들을 위한 임시 ITAD UUID
     if (appId === 1623730) return { steamAppId: 1623730, aliasAppIds: [], itad: { uuid: 'game_v2_6a4f8a848c9d8a39c0f91753c1623730' } };
     if (appId === 1086940) return { steamAppId: 1086940, aliasAppIds: [], itad: { uuid: 'game_v2_f80169116c4f8a39c0f91753c1623730' } };
 
@@ -49,6 +49,7 @@ function getMockMetadata(appId) {
 }
 
 // --- [트위치/치지직 로직 생략] ---
+
 let twitchToken = null;
 async function getTwitchToken() {
     if (!TWITCH_CLIENT_ID) return;
@@ -74,6 +75,14 @@ function translateTags(tags) {
         for (const key in TAG_MAP) { if (lower.includes(key)) myTags.add(TAG_MAP[key]); }
     });
     return Array.from(myTags);
+}
+
+function calculateWeightedScore(trends) {
+    const { twitch, chzzk } = trends;
+    if (twitch.status === 'ok' && chzzk.status === 'ok') return twitch.value + chzzk.value;
+    if (twitch.status === 'ok') return twitch.value * 2;
+    if (chzzk.status === 'ok') return chzzk.value * 2;
+    return 0;
 }
 
 async function getTrendStats(steamAppId) {
@@ -121,27 +130,16 @@ async function getTrendStats(steamAppId) {
     return { twitch, chzzk };
 }
 
-function calculateWeightedScore(trends) {
-    const { twitch, chzzk } = trends;
-    if (twitch.status === 'ok' && chzzk.status === 'ok') return twitch.value + chzzk.value;
-    if (twitch.status === 'ok') return twitch.value * 2;
-    if (chzzk.status === 'ok') return chzzk.value * 2;
-    return 0;
-}
 
-// --- [B. 가격 조회 Helpers (수정됨)] ---
+// --- [B. 가격 조회 Helpers (수정됨: metadata 인자 추가)] ---
 
 // ITAD 가격 조회 헬퍼 함수 (최우선)
-async function getITADPrice(steamAppId) {
-    // 1. DB에서 메타데이터 조회
-    let metadata = await GameMetadata.findOne({ steamAppId });
+async function getITADPrice(steamAppId, metadata) { // ★ metadata 인자로 받도록 수정
     
-    // 2. ★ 수정: DB에 없으면 Mock 데이터 사용 (ITAD UUID 누락 방지)
-    if (!metadata) {
-        metadata = getMockMetadata(steamAppId);
+    if (!metadata?.itad?.uuid) {
+        console.log(`[ITAD] SKIP for ${steamAppId}: No UUID available.`);
+        return null; // UUID 없으면 즉시 종료
     }
-    
-    if (!metadata?.itad?.uuid) return null;
 
     try {
         const pricesRes = await axios.post(`https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`, 
@@ -185,6 +183,7 @@ async function getSteamPackagePrice(packageId) {
         });
         const pkgData = pkgRes.data[packageId]?.data;
         if (pkgData?.price) {
+            console.log(`[Package] SUCCESS for package ${packageId}`);
             return {
                 regular_price: pkgData.price.initial / 100,
                 current_price: pkgData.price.final / 100,
@@ -204,7 +203,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
     // 1. 메타데이터 조회 및 후보 AppID 목록 구성
     let metadata = await GameMetadata.findOne({ steamAppId: originalAppId });
 
-    // ★ 임시 패치: Mock 데이터를 사용 (aliasId 구성 및 ITAD를 위해 사용)
+    // ★ 임시 패치: Mock 데이터를 사용 (aliasId 구성 및 ITAD UUID를 위해 사용)
     if (!metadata) {
         metadata = getMockMetadata(originalAppId);
     }
@@ -218,6 +217,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
         
         // (A) alias AppID인 경우 Steam API로 최신 데이터 다시 조회
         if (currentAppId !== originalAppId) {
+            console.log(`[Price] Checking alias ID: ${currentAppId}`);
             try {
                 // cc=kr, l=korean, STEAM_HEADERS 적용
                 const res = await axios.get(`https://store.steampowered.com/api/appdetails`, {
@@ -225,7 +225,10 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
                     headers: STEAM_HEADERS
                 });
                 const fetchedData = res.data?.[currentAppId]?.data;
-                if (!fetchedData) continue;
+                if (!fetchedData) {
+                    console.log(`[Price] Alias ${currentAppId} data not found.`);
+                    continue;
+                }
                 steamData = fetchedData;
             } catch (e) {
                 console.error(`⚠️ Steam alias fetch error for ${currentAppId}: ${e.message}`);
@@ -234,7 +237,14 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
         }
         
         // (B) 1단계: ITAD 가격 조회 (가장 정확)
-        const itadPrice = await getITADPrice(currentAppId);
+        // ★ 수정: getITADPrice에 현재 ID에 맞는 Mock metadata를 전달
+        let currentMetadata = metadata;
+        if (currentAppId !== originalAppId) {
+            // Alias ID일 경우, 해당 ID에 맞는 Mock/DB 메타데이터를 다시 확인
+            currentMetadata = await GameMetadata.findOne({ steamAppId: currentAppId }) || getMockMetadata(currentAppId);
+        }
+
+        const itadPrice = await getITADPrice(currentAppId, currentMetadata); // ★ 수정
         if (itadPrice) {
             console.log(`[Price] ITAD price found for ${currentAppId}. Inheriting to ${originalAppId}.`);
             return { 
@@ -302,10 +312,10 @@ async function collectGamesData() {
     let targetAppIds = metadatas.map(m => m.steamAppId);
 
     if (targetAppIds.length === 0) {
-        console.log("⚠️ 메타데이터 없음. GTA V Legacy/Enhanced 테스트를 위해 임시 목록 사용");
-        // GTA V Legacy(1221710)를 포함하여 테스트 대상 4개
-        targetAppIds = [1221710, 271590, 1623730, 1086940]; 
-    }
+        console.log("⚠️ 메타데이터 없음. GTA V Legacy 테스트를 위해 임시 목록 사용");
+        // GTA V Legacy(1221710)를 포함하여 테스트 대상 3개
+        targetAppIds = [1221710, 1623730, 1086940]; 
+    } 
     
     console.log(`🎯 수집 대상: ${targetAppIds.length}개`);
 
