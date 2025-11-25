@@ -1,75 +1,74 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Skeleton from '../Skeleton';
 
 const TAG_CATEGORIES = {
-  '장르': ['RPG', 'FPS', '시뮬레이션', '전략'],
-  '특징': ['오픈 월드', '협동', '스토리 중심']
+  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '로그라이크', '소울라이크'],
+  '특징': ['오픈 월드', '협동', '스토리 중심', '경쟁']
 };
 
 function PersonalRecoPage() {
   const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
+  
+  const [searchParams] = useSearchParams();
+  const steamIdFromUrl = searchParams.get('steamId');
+  const [steamId, setSteamId] = useState(steamIdFromUrl || '');
 
   useEffect(() => {
-    const fetchRecommendations = async () => {
+    if (steamIdFromUrl) setSteamId(steamIdFromUrl);
+  }, [steamIdFromUrl]);
+
+  const fetchRecommendations = async () => {
       setLoading(true);
       const user = JSON.parse(localStorage.getItem('user'));
-      
-      if (!user) {
-        setError("로그인이 필요한 서비스입니다.");
-        setLoading(false);
-        return;
-      }
-
       try {
         const res = await axios.post('http://localhost:8000/api/ai-recommend/personal', { 
-            userId: user.id,
-            tags: selectedTags 
+            userId: user?.id,
+            tags: selectedTags,
+            steamId: steamId 
         });
         setGames(res.data);
-        setError(null);
-      } catch (err) {
-        console.error(err);
-        setError("추천을 불러오는 중 오류가 발생했습니다.");
-      } finally {
-        setLoading(false);
-      }
-    };
+      } catch (err) { console.error(err); } 
+      finally { setLoading(false); }
+  };
 
-    fetchRecommendations();
-  }, [selectedTags]);
+  useEffect(() => { fetchRecommendations(); }, [selectedTags, steamId]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
 
-  if (loading) return <div className="net-panel" style={{textAlign:'center'}}><Skeleton height="400px" /></div>;
-
-  if (error) return (
-    <div className="net-panel" style={{textAlign:'center', marginTop:'100px'}}>
-      <h2>{error}</h2>
-      <Link to="/login" style={{color:'#E50914', textDecoration:'none', fontSize:'18px', display:'block', marginTop:'20px'}}>로그인 하러 가기 &gt;</Link>
-    </div>
-  );
+  const handleSteamLogin = () => {
+      window.location.href = 'http://localhost:8000/api/auth/steam';
+  };
 
   return (
     <div className="net-panel">
-        <h2 className="net-section-title" style={{borderLeftColor:'#E50914'}}>
-            🤖 AI 맞춤 추천
-        </h2>
-        <p style={{color:'#bbb', marginBottom:'30px'}}>회원님의 활동과 선택한 태그를 분석하여 선정한 게임입니다.</p>
+        <h2 className="net-section-title" style={{borderLeftColor:'#E50914'}}>🤖 AI 맞춤 추천</h2>
 
+        {/* 스팀 연동 버튼 */}
+        {!steamId ? (
+            <div style={{backgroundColor:'#1b2838', padding:'20px', borderRadius:'8px', marginBottom:'30px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                <span style={{color:'#fff', fontWeight:'bold'}}>내 스팀 라이브러리 분석하기</span>
+                <button onClick={handleSteamLogin} style={{backgroundColor:'#66c0f4', border:'none', padding:'10px 20px', borderRadius:'4px', fontWeight:'bold', cursor:'pointer', color:'#fff'}}>
+                    Steam으로 로그인
+                </button>
+            </div>
+        ) : (
+            <div style={{backgroundColor:'#181818', padding:'15px', borderRadius:'8px', marginBottom:'30px', border:'1px solid #46d369', color:'#46d369'}}>
+                ✅ 스팀 계정이 연동되었습니다. (ID: {steamId})
+            </div>
+        )}
+
+        {/* 태그 필터 */}
         <div style={{marginBottom:'30px', display:'flex', gap:'10px', flexWrap:'wrap'}}>
             {Object.values(TAG_CATEGORIES).flat().map(tag => (
-                <button 
-                    key={tag} 
-                    onClick={() => toggleTag(tag)}
+                <button key={tag} onClick={() => toggleTag(tag)}
                     style={{
-                        padding:'5px 12px', borderRadius:'15px', border:'1px solid #444', 
+                        padding:'6px 14px', borderRadius:'20px', border:'1px solid #444', 
                         background: selectedTags.includes(tag) ? '#E50914' : '#222',
                         color: 'white', cursor:'pointer'
                     }}
@@ -79,20 +78,17 @@ function PersonalRecoPage() {
             ))}
         </div>
 
-        {games.length === 0 ? (
-            <div className="net-empty">추천할 데이터가 부족합니다. 더 많은 게임을 찜하거나 태그를 선택해보세요!</div>
-        ) : (
+        {/* 결과 리스트 */}
+        {loading ? <Skeleton height="300px" /> : (
             <div className="net-cards">
                 {games.map(g => (
                     <Link to={`/game/${g.slug}`} key={g.slug} className="net-card">
-                        <div className="net-card-thumb"><img src={g.main_image} alt="" /></div>
+                        <div className="net-card-thumb"><img src={g.main_image} alt=""/></div>
                         <div className="net-card-body">
                             <div className="net-card-title">{g.title_ko || g.title}</div>
                             <div className="net-card-footer">
-                                <span style={{color:'#46d369', fontWeight:'bold'}}>
-                                    {Math.round(g.score * 100)}% 일치
-                                </span>
-                                {g.trend_score > 500 && <span style={{fontSize:'10px', border:'1px solid red', padding:'2px'}}>🔥TRENDING</span>}
+                                <span style={{color:'#46d369'}}>{Math.round(g.score*100)}% 일치</span>
+                                {g.trend_score > 500 && <span style={{fontSize:'10px', border:'1px solid red', color:'red', padding:'2px'}}>HOT</span>}
                             </div>
                         </div>
                     </Link>
@@ -102,5 +98,4 @@ function PersonalRecoPage() {
     </div>
   );
 }
-
 export default PersonalRecoPage;
