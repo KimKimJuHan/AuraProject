@@ -2,8 +2,7 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const axios = require('axios');
 const Game = require('./models/Game');
-// GameCategory 모델 필수
-const GameCategory = require('./models/GameCategory'); 
+const GameCategory = require('./models/GameCategory'); // 필수
 const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
@@ -16,7 +15,6 @@ if (!ITAD_API_KEY) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// 트위치 토큰
 let twitchToken = null;
 async function getTwitchToken() {
     if (!TWITCH_CLIENT_ID) return;
@@ -28,7 +26,6 @@ async function getTwitchToken() {
     } catch (e) { console.error("⚠️ Twitch Token Error"); }
 }
 
-// 태그 번역
 const TAG_MAP = {
   'rpg': 'RPG', 'role-playing': 'RPG', 'action': '액션', 'fps': 'FPS', 'simulation': '시뮬레이션', 
   'strategy': '전략', 'sports': '스포츠', 'racing': '레이싱', 'puzzle': '퍼즐', 'survival': '생존', 
@@ -46,17 +43,15 @@ function translateTags(tags) {
     return Array.from(myTags);
 }
 
-// ---------------------------------------------------------
-// [A] 트렌드 데이터 (DB 매핑 조회 방식)
-// ---------------------------------------------------------
+// [A] 트렌드 데이터 (DB 매핑 조회 + 비율 보정)
 async function getTrendStats(steamAppId) {
-    // 1. DB에서 매핑 정보 조회
     const mapping = await GameCategory.findOne({ steamAppId });
     
-    let twitchView = 0;
-    let chzzkView = 0;
+    // 상태 객체: value(시청자수), status(ok/fail)
+    let twitch = { value: 0, status: 'fail' }; 
+    let chzzk = { value: 0, status: 'fail' };
 
-    // 2. 트위치 조회 (저장된 ID 사용 -> 검색 생략)
+    // 2. 트위치 조회
     if (mapping?.twitch?.id) {
         if (!twitchToken) await getTwitchToken();
         try {
@@ -64,15 +59,15 @@ async function getTrendStats(steamAppId) {
                 headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
                 params: { game_id: mapping.twitch.id, first: 100 }
             });
-            twitchView = res.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
-        } catch (e) {}
-    }
+            const viewers = res.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
+            twitch = { value: viewers, status: 'ok' }; // 성공 (0명이어도 성공)
+        } catch (e) { /* 실패 유지 */ }
+    } 
 
-    // 3. 치지직 조회 (저장된 정확한 키워드 사용 -> 검색 생략 효과)
+    // 3. 치지직 조회
     if (mapping?.chzzk?.categoryValue) {
         try {
             const keyword = encodeURIComponent(mapping.chzzk.categoryValue);
-            // 이미 검증된 키워드이므로 바로 검색 API 호출
             const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${keyword}&offset=0&size=50&sortType=POPULAR`, {
                 headers: { 
                     'User-Agent': 'Mozilla/5.0',
@@ -81,27 +76,50 @@ async function getTrendStats(steamAppId) {
             });
             
             const lives = res.data?.content?.data || [];
-            const target = mapping.chzzk.categoryValue.replace(/\s/g, ''); // 공백 제거 후 비교
+            const target = mapping.chzzk.categoryValue.replace(/\s/g, ''); 
             
+            let viewers = 0;
             lives.forEach(item => {
                 const live = item.live;
                 if (!live) return;
                 const cat = (live.liveCategoryValue || "").replace(/\s/g, '');
-                
-                // 카테고리가 DB에 저장된 것과 일치하거나 포함되면 집계
                 if (cat.includes(target) || target.includes(cat)) {
-                    chzzkView += live.concurrentUserCount || 0;
+                    viewers += live.concurrentUserCount || 0;
                 }
             });
-        } catch (e) {}
+            chzzk = { value: viewers, status: 'ok' }; // 성공
+        } catch (e) { /* 실패 유지 */ }
     }
 
-    return { twitch: twitchView, chzzk: chzzkView };
+    return { twitch, chzzk };
 }
 
-// ---------------------------------------------------------
-// [B] ITAD 및 메인 수집 로직
-// ---------------------------------------------------------
+// 점수 보정 계산 함수
+function calculateWeightedScore(trends) {
+    const { twitch, chzzk } = trends;
+    let finalScore = 0;
+
+    // 둘 다 성공: 단순 합산 (1:1 비율 가정)
+    if (twitch.status === 'ok' && chzzk.status === 'ok') {
+        finalScore = twitch.value + chzzk.value;
+    }
+    // 트위치만 성공: 트위치 점수 * 2 (치지직 몫까지 채움)
+    else if (twitch.status === 'ok') {
+        finalScore = twitch.value * 2;
+    }
+    // 치지직만 성공: 치지직 점수 * 2
+    else if (chzzk.status === 'ok') {
+        finalScore = chzzk.value * 2;
+    }
+    // 둘 다 실패: 0점
+    else {
+        finalScore = 0;
+    }
+
+    return finalScore;
+}
+
+// [B] ITAD 로직
 async function fetchITADData(steamAppId) {
     try {
         const lookupRes = await axios.get(`https://api.isthereanydeal.com/games/lookup/v1?key=${ITAD_API_KEY}&appid=${steamAppId}`, { timeout: 5000 });
@@ -131,11 +149,9 @@ async function collectGamesData() {
     await mongoose.connect(MONGODB_URI);
     console.log("✅ DB Connected. 수집 시작...");
 
-    // 1. 수집 대상: GameCategory DB에 등록된 게임들 (가장 정확함)
     const mappings = await GameCategory.find({});
     let targetAppIds = mappings.map(m => m.steamAppId);
 
-    // 매핑된 게 없으면 기본 리스트 사용 (안전장치)
     if (targetAppIds.length === 0) {
         console.log("⚠️ 매핑된 게임 없음. 기본 목록 사용");
         targetAppIds = [1623730, 578080, 570, 730, 271590, 359550];
@@ -148,16 +164,15 @@ async function collectGamesData() {
         try {
             await sleep(1500);
 
-            // 스팀 정보
             const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appid}&l=korean&cc=kr`);
             const data = steamRes.data[appid]?.data;
             if (!data) continue;
 
-            // 트렌드 조회 (DB 활용)
+            // 트렌드 조회 (상태값 포함)
             const trends = await getTrendStats(appid);
-            const trendScore = trends.twitch + trends.chzzk;
+            // 보정된 점수 계산
+            const trendScore = calculateWeightedScore(trends);
 
-            // 가격 정보
             let priceInfo = {
                 regular_price: data.price_overview?.initial / 100 || 0,
                 current_price: data.price_overview?.final / 100 || 0,
@@ -175,14 +190,12 @@ async function collectGamesData() {
                 }
             }
 
-            // HLTB
             let playTime = "정보 없음";
             try {
                 const hltbRes = await hltbService.search(data.name.replace(/[™®©]/g,''));
                 if(hltbRes.length > 0) playTime = `${hltbRes[0].gameplayMain} 시간`;
             } catch(e){}
 
-            // DB 저장
             await Game.findOneAndUpdate({ steam_appid: appid }, {
                 slug: `steam-${appid}`,
                 steam_appid: appid,
@@ -192,8 +205,8 @@ async function collectGamesData() {
                 description: data.short_description,
                 smart_tags: translateTags([...(data.genres||[]).map(g=>g.description), ...(data.categories||[]).map(c=>c.description)]),
                 trend_score: trendScore,
-                twitch_viewers: trends.twitch,
-                chzzk_viewers: trends.chzzk,
+                twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
+                chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
                 price_info: priceInfo,
                 releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월|일/g, '-')) : new Date(),
                 screenshots: data.screenshots?.map(s=>s.path_full)||[],
@@ -203,7 +216,11 @@ async function collectGamesData() {
             }, { upsert: true });
 
             count++;
-            console.log(`✅ [${count}] ${data.name} (Tw: ${trends.twitch} | Chzzk: ${trends.chzzk})`);
+            
+            // 로그 출력: (Tw: 1000 | Chzzk: X -> 보정점수)
+            const twLog = trends.twitch.status === 'ok' ? trends.twitch.value : 'X';
+            const chLog = trends.chzzk.status === 'ok' ? trends.chzzk.value : 'X';
+            console.log(`✅ [${count}] ${data.name} (Total: ${trendScore} | Tw: ${twLog} | Ch: ${chLog})`);
 
         } catch (e) { console.error(`❌ Error ${appid}: ${e.message}`); }
     }
