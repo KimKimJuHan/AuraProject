@@ -1,60 +1,58 @@
-// backend/routes/user.js
-
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
-
-// 위에서 수정한 auth.js를 불러옵니다.
-// { } 중괄호를 사용하여 구조 분해 할당으로 가져옵니다.
 const { authenticateToken } = require('../middleware/auth'); 
 
 const STEAM_WEB_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
 
-/**
- * 사용자 소유 게임 목록을 Steam Web API에서 가져오는 엔드포인트
- * GET /api/user/games
- */
+// GET /api/user/games
 router.get('/games', authenticateToken, async (req, res) => {
-    // req.user는 authenticateToken 미들웨어에서 넣어준 값입니다.
+    // 1. DB에 저장된 steamId 확인
     const steamId = req.user.steamId; 
 
     if (!steamId) {
+        // 이 에러가 뜬다면 "연동이 저장되지 않은 것"입니다. (User.js 수정 후 재연동 필수)
+        console.error(`[Steam Error] User ${req.user.username} has no steamId linked.`);
         return res.status(400).json({ message: "Steam 계정이 연동되지 않았습니다." });
     }
 
     if (!STEAM_WEB_API_KEY) {
-        console.error("Steam API Key Missing");
         return res.status(500).json({ message: "서버 설정 오류: Steam API Key 누락" });
     }
 
-    // Steam API URL
-    const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/`;
+    // ★ 가이드에 맞춘 API 엔드포인트 및 파라미터 설정 ★
+    const url = `http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/`;
 
     try {
-        // Steam Web API 호출
         const steamRes = await axios.get(url, {
             params: {
                 key: STEAM_WEB_API_KEY,
                 steamid: steamId,
-                include_appinfo: true,
-                include_played_free_games: true,
-                format: 'json'
+                format: 'json',
+                include_appinfo: true,       // 게임 이름, 아이콘 등 상세 정보
+                include_played_free_games: true // 무료 게임(플레이 기록 있는) 포함
             }
         });
 
-        const games = steamRes.data?.response?.games || [];
+        const responseData = steamRes.data?.response;
         
-        // 게임 목록 반환
+        // 데이터가 없거나 games 배열이 없으면 '비공개 프로필'일 가능성이 높음
+        if (!responseData || !responseData.games) {
+            console.warn(`[Steam Warning] Private profile detected for ${steamId}`);
+            return res.status(403).json({ 
+                errorCode: "PRIVATE_PROFILE",
+                message: "스팀 프로필이 비공개 상태입니다." 
+            });
+        }
+
+        const games = responseData.games;
+        // console.log(`[Steam Success] Fetched ${games.length} games for ${steamId}`);
+        
         return res.json(games);
         
     } catch (error) {
-        const statusCode = error.response?.status || 500;
         console.error("Steam Web API Error:", error.message);
-        
-        // 에러 발생 시 클라이언트에 메시지 전달
-        return res.status(statusCode).json({ 
-            message: "Steam API 호출 실패. Steam 프로필 공개 설정과 연동 상태를 확인해주세요." 
-        });
+        return res.status(500).json({ message: "Steam API 호출 실패" });
     }
 });
 

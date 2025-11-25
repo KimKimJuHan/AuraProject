@@ -22,7 +22,12 @@ function SignupPage() {
   const verifyAndRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:8000/api/auth/verify', { ...formData, code: otp });
+      // ★★★ 수정된 부분: { withCredentials: true } 추가 ★★★
+      await axios.post('http://localhost:8000/api/auth/verify', 
+        { ...formData, code: otp },
+        { withCredentials: true }
+      );
+      
       alert("가입 완료! 로그인해주세요.");
       navigate('/login');
     } catch (err) { alert(err.response?.data?.error || "가입 실패"); }

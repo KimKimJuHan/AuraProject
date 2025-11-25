@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PersonalRecoPage from './pages/PersonalRecoPage';
 
+// 스타일 정의 (사용자분 코드 그대로 사용)
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
@@ -138,6 +139,16 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     setIsFocused(true); 
   };
 
+  // ★★★ [수정] 로그아웃 시 쿠키까지 삭제하여 완벽하게 로그아웃
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    setUser(null);
+    alert("로그아웃 되었습니다.");
+    navigate('/');
+  };
+
   return (
     <header className="net-header">
       <Link to="/" className="net-logo">PLAY FOR YOU</Link>
@@ -174,7 +185,8 @@ function NavigationBar({ user, setUser, region, setRegion }) {
       </div>
 
       <div style={styles.rightGroup}>
-          <Link to="/recommend" style={styles.recoBtn}>🤖 AI 추천</Link>
+          {/* ★★★ [수정] /recommend -> /recommend/personal (백엔드 리다이렉트와 일치) */}
+          <Link to="/recommend/personal" style={styles.recoBtn}>🤖 AI 추천</Link>
           <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="KR">🇰🇷 KRW</option>
             <option value="US">🇺🇸 USD</option>
@@ -184,7 +196,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
           {user ? (
             <>
                 <span style={styles.userText}>{user.username}님</span>
-                <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); alert("로그아웃 되었습니다."); }} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
+                <button onClick={handleLogout} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
             </>
           ) : (
             <Link to="/login" style={styles.authBtn}>로그인</Link>
@@ -214,7 +226,9 @@ function App() {
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/recommend" element={<PersonalRecoPage />} />
+          
+          {/* ★★★ [수정] 스팀 연동 후 돌아오는 주소와 일치시킴 */}
+          <Route path="/recommend/personal" element={<PersonalRecoPage />} />
         </Routes>
       </div>
     </Router>
