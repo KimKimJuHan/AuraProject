@@ -4,7 +4,7 @@ const axios = require('axios');
 const Game = require('./models/Game');
 const GameCategory = require('./models/GameCategory'); // 트렌드 족보
 const GameMetadata = require('./models/GameMetadata'); // 가격 족보
-// ★ 추가된 History 모델 로드
+// ★ History 모델 로드
 const PriceHistory = require('./models/PriceHistory'); 
 const TrendHistory = require('./models/TrendHistory');
 const SaleHistory = require('./models/SaleHistory');
@@ -53,8 +53,7 @@ function getMockMetadata(appId) {
     return null;
 }
 
-// --- [트위치/치지직 로직 생략] ---
-
+// --- [A. 트렌드 조회] ---
 let twitchToken = null;
 async function getTwitchToken() {
     if (!TWITCH_CLIENT_ID) return;
@@ -217,6 +216,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
     for (const currentAppId of candidateIds) {
         
         if (currentAppId !== originalAppId) {
+            console.log(`[Price] Checking alias ID: ${currentAppId}`);
             try {
                 const res = await axios.get(`https://store.steampowered.com/api/appdetails`, {
                     params: { appids: currentAppId, l: 'korean', cc: 'kr' },
@@ -246,6 +246,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
         }
 
         if (steamData.price_overview) {
+            console.log(`[Price] Steam price_overview found for ${currentAppId}. Inheriting to ${originalAppId}.`);
             return {
                 regular_price: steamData.price_overview.initial / 100,
                 current_price: steamData.price_overview.final / 100,
@@ -261,6 +262,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
         if (pkgId) {
             const pkgPrice = await getSteamPackagePrice(pkgId);
             if (pkgPrice) {
+                console.log(`[Price] Steam Package price found for ${currentAppId}. Inheriting to ${originalAppId}.`);
                  return {
                     ...pkgPrice,
                     historical_low: 0, deals: [],
@@ -273,6 +275,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
     }
     
     // 3. 최종 폴백 
+    console.log(`[Price] Fallback to 0 KRW for ${originalAppId}.`);
     return {
         regular_price: 0, current_price: 0, discount_percent: 0,
         store_name: 'Steam', store_url: `https://store.steampowered.com/app/${originalAppId}`,
@@ -282,27 +285,24 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
 }
 
 
-// ★★★ 수정: ITAD API를 사용하여 인기 게임 목록을 가져와 DB에 시드 ★★★
+// ITAD API를 사용하여 인기 게임 목록을 가져와 DB에 시드
 async function fetchTopGamesFromITAD() {
     console.log("🚀 ITAD에서 인기 게임 목록 (상위 150개) 조회 시작...");
     const targetAppIds = [];
     const limit = 150;
 
     try {
-        // 1. ITAD Most Popular 목록 조회 (UUID를 얻기 위함)
         const popularRes = await axios.get(`https://api.isthereanydeal.com/stats/most-popular/v1`, {
             params: { key: ITAD_API_KEY, limit: limit }
         });
         const popularList = popularRes.data || [];
 
-        // 2. 각 게임의 Steam AppID 조회 및 메타데이터 시드
         for (const game of popularList) {
             await sleep(500); 
 
             try {
-                // ITAD Game Info API를 사용하여 ITAD UUID로 Steam AppID 조회
                 const infoRes = await axios.get(`https://api.isthereanydeal.com/games/info/v2`, {
-                    params: { key: ITAD_API_KEY, id: game.id } // game.id는 ITAD UUID
+                    params: { key: ITAD_API_KEY, id: game.id } 
                 });
 
                 const foundGame = infoRes.data;
@@ -311,7 +311,6 @@ async function fetchTopGamesFromITAD() {
                 const gameTitle = foundGame?.title;
                 
                 if (steamAppId && itadUuid && gameTitle) {
-                    // 3. Steam AppID와 ITAD UUID를 GameMetadata에 미리 저장
                     await GameMetadata.findOneAndUpdate({ steamAppId }, {
                         title: gameTitle,
                         itad: { uuid: itadUuid },
@@ -320,7 +319,7 @@ async function fetchTopGamesFromITAD() {
                     targetAppIds.push(steamAppId);
                 }
             } catch (e) {
-                // console.error(`⚠️ ITAD Lookup Error for ${game.title}: ${e.message}`); // 디버그 로그 제거
+                // ITAD Lookup Error
             }
         }
         
@@ -342,12 +341,11 @@ async function collectGamesData() {
     let targetAppIds = metadatas.map(m => m.steamAppId);
 
     if (targetAppIds.length === 0) {
-        // 하드코딩된 목록 대신 ITAD 인기 게임 목록을 가져오도록 변경
         targetAppIds = await fetchTopGamesFromITAD();
         
         if (targetAppIds.length === 0) {
              console.log("⚠️ ITAD에서 목록을 가져오지 못했습니다. 수집 중단.");
-             process.exit(0); // 목록이 없으면 수집 중단
+             process.exit(0);
         }
     } 
     
@@ -396,43 +394,76 @@ async function collectGamesData() {
                 trailers: data.movies?.map(m=>m.webm?.max)||[],
                 metacritic_score: data.metacritic?.score || 0,
                 play_time: playTime,
-                // 주의: trend_score, price_info는 Game 모델에서 제거되었으므로 여기에 포함하지 않음.
-
             }, { upsert: true });
 
-            // ★★★ 4. 동적 데이터 History 컬렉션에 Insert (누적) ★★★
+            // ★★★ 4. 동적 데이터 History 컬렉션에 Insert (차등 삽입 적용) ★★★
             
-            // 4-1. Price History 기록
-            await PriceHistory.create({
-                steam_appid: appid,
-                regular_price: priceInfo.regular_price,
-                current_price: priceInfo.current_price,
-                discount_percent: priceInfo.discount_percent,
-                isFree: priceInfo.isFree,
-                historical_low: priceInfo.historical_low,
-            });
+            // 4-1. Price History 기록 (변동 시에만 기록)
+            const latestPriceHistory = await PriceHistory.findOne({ steam_appid: appid }).sort({ recordedAt: -1 });
 
-            // 4-2. Trend History 기록
-            await TrendHistory.create({
-                steam_appid: appid,
-                trend_score: trendScore,
-                twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
-                chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
-            });
+            // 변경 기준: current_price 또는 discount_percent가 다를 경우
+            const priceChanged = !latestPriceHistory || 
+                latestPriceHistory.current_price !== priceInfo.current_price ||
+                latestPriceHistory.discount_percent !== priceInfo.discount_percent;
 
-            // 4-3. Sale History 기록 (할인 중일 경우에만)
-            if (priceInfo.discount_percent > 0) {
-                await SaleHistory.create({
+            if (priceChanged) {
+                await PriceHistory.create({
                     steam_appid: appid,
-                    current_price: priceInfo.current_price,
                     regular_price: priceInfo.regular_price,
+                    current_price: priceInfo.current_price,
                     discount_percent: priceInfo.discount_percent,
-                    store_url: priceInfo.store_url,
-                    store_name: priceInfo.store_name,
-                    // Steam API는 만료일(expiry) 정보를 정확히 제공하지 않으므로, ITAD deals에서 만료일을 가져오거나 (복잡) 일단 생략.
-                    itad_deals: priceInfo.deals 
+                    isFree: priceInfo.isFree,
+                    historical_low: priceInfo.historical_low,
                 });
+            } else {
+                console.log(`[History] Price for ${data.name} skipped: No change since last run.`);
             }
+
+            // 4-2. Trend History 기록 (변동 시에만 기록 - 1% 이상 변화 시)
+            const latestTrendHistory = await TrendHistory.findOne({ steam_appid: appid }).sort({ recordedAt: -1 });
+
+            const TREND_THRESHOLD = 0.01; // 1% 변화 기준
+            const trendChanged = !latestTrendHistory || 
+                Math.abs(latestTrendHistory.trend_score - trendScore) / (latestTrendHistory.trend_score || 1) > TREND_THRESHOLD;
+
+            if (trendChanged) {
+                await TrendHistory.create({
+                    steam_appid: appid,
+                    trend_score: trendScore,
+                    twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
+                    chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
+                });
+            } else {
+                console.log(`[History] Trend for ${data.name} skipped: No significant change.`);
+            }
+
+            // 4-3. Sale History 기록 (할인 중이며, 오늘 이미 기록되지 않았을 경우에만)
+            if (priceInfo.discount_percent > 0) {
+                const today = new Date();
+                today.setUTCHours(0, 0, 0, 0); // UTC 기준 오늘 자정
+
+                // 동일 가격의 할인이 오늘 기록되었는지 확인
+                const existingSaleToday = await SaleHistory.findOne({
+                    steam_appid: appid,
+                    current_price: priceInfo.current_price, 
+                    startDate: { $gte: today } 
+                });
+
+                if (!existingSaleToday) {
+                    await SaleHistory.create({
+                        steam_appid: appid,
+                        current_price: priceInfo.current_price,
+                        regular_price: priceInfo.regular_price,
+                        discount_percent: priceInfo.discount_percent,
+                        store_url: priceInfo.store_url,
+                        store_name: priceInfo.store_name,
+                        itad_deals: priceInfo.deals 
+                    });
+                } else {
+                    console.log(`[History] Sale for ${data.name} skipped: Same sale already recorded today.`);
+                }
+            }
+
 
             count++;
             console.log(`✅ [${count}] ${data.name} (Price: ${priceInfo.current_price}원 | Trend: ${trendScore})`);
