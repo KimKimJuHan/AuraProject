@@ -1,4 +1,4 @@
-// backend/index.js (Aggregation 제거 및 Game.js 복원 구조에 맞춤)
+// backend/index.js
 
 require('dotenv').config(); 
 const express = require('express');
@@ -10,10 +10,12 @@ const SteamStrategy = require('passport-steam').Strategy;
 const jwt = require('jsonwebtoken'); 
 const cookieParser = require('cookie-parser');
 
-// ★★★ 모델 로드 (모든 History 모델은 이제 사용되지 않지만, import는 유지) ★★★
+// ★★★ 모델 로드 (Game.js가 복원되었으므로, 여기서 History 모델은 직접 사용하지 않습니다.) ★★★
 const User = require('./models/User'); 
 const Game = require('./models/Game'); 
-// History 모델은 collector에서만 사용하며, index.js에서 직접 조회하지 않으므로 제거하거나 주석 처리 가능
+// const PriceHistory = require('./models/PriceHistory'); // History 모델들은 collector에서만 사용
+// const TrendHistory = require('./models/TrendHistory');
+// const SaleHistory = require('./models/SaleHistory');
 
 // 라우터 로드
 const authRoutes = require('./routes/auth');
@@ -102,11 +104,11 @@ app.use('/api/user', userRoutes);
 // 1. 상세 페이지 API (Game.js 복원 구조에서 직접 조회)
 app.get('/api/games/:id', async (req, res) => {
   try {
-    // Game.js 스키마가 복원되었으므로, findOne으로 모든 정보(가격/트렌드)를 한 번에 가져옵니다.
+    // Game.js 스키마 복원으로 모든 정보(가격, 트렌드)를 한 번에 가져옵니다.
     const gameInfo = await Game.findOne({ slug: req.params.id }).lean();
     if (!gameInfo) return res.status(404).json({ error: "게임을 찾을 수 없습니다." });
     
-    // 프론트엔드가 요구하는 최저가 URL, 딜 목록 필드 추가
+    // 프론트엔드가 요구하는 필드들을 Game.js의 price_info에서 직접 매핑합니다.
     const finalData = {
         ...gameInfo,
         // Game.js에 price_info가 있으므로, 거기서 URL과 deals를 가져옵니다.
@@ -145,6 +147,7 @@ app.post('/api/recommend', async (req, res) => {
         ];
     }
 
+    // Game.js의 price_info 필드를 사용하여 정렬 및 필터링
     let sortRule = { popularity: -1, _id: -1 }; 
     if (sortBy === 'discount') {
         sortRule = { "price_info.discount_percent": -1, popularity: -1 };
@@ -158,7 +161,7 @@ app.post('/api/recommend', async (req, res) => {
 
     const totalGames = await Game.countDocuments(filter);
 
-    // ★★★ Game.find()로 직접 조회 (Aggregation 제거) ★★★
+    // ★★★ Game.find()로 직접 조회 (안정적인 방법으로 복귀) ★★★
     let games = await Game.find(filter)
       .sort(sortRule)
       .skip(skip)  
@@ -167,7 +170,7 @@ app.post('/api/recommend', async (req, res) => {
       
     console.log(`👉 검색 결과: ${totalGames}개`);
 
-    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 반환
+    // ★ [안전장치] 결과가 0개이면, 필터 다 무시하고 인기 게임 20개 강제 로딩
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
         console.log("⚠️ 데이터 없음 -> 인기 게임 강제 로딩");
         games = await Game.find({})
