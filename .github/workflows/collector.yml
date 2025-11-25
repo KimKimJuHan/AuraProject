@@ -2,7 +2,8 @@ name: Game Data Collector
 
 on:
   schedule:
-    - cron: '0 15 * * *' # 매일 한국시간 00:00 (UTC 15:00)
+    # 한국 시간 오후 8시 (20:00 KST) = UTC 11:00
+    - cron: '0 11 * * *'
   workflow_dispatch: # 수동 실행 가능
 
 jobs:
