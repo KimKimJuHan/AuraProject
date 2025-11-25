@@ -9,25 +9,14 @@ const gameSchema = new mongoose.Schema({
   description: { type: String },
   smart_tags: [String], 
   
-  // ★ 트렌드 데이터 (하이브리드 추천용)
-  trend_score: { type: Number, default: 0 },
-  twitch_viewers: { type: Number, default: 0 }, // 트위치 시청자
-  chzzk_viewers: { type: Number, default: 0 },  // ★ 치지직 시청자
+  // ★ 삭제됨: trend_score, twitch_viewers, chzzk_viewers (-> TrendHistory로 이동)
   
   pc_requirements: { minimum: String, recommended: String },
   popularity: { type: Number, default: 0 },
   releaseDate: { type: Date },
-  price_info: {
-    regular_price: Number,
-    current_price: Number,
-    discount_percent: Number,
-    store_url: String,
-    store_name: String, 
-    historical_low: Number,
-    expiry: String, 
-    isFree: { type: Boolean, default: false },
-    deals: [{ shopName: String, price: Number, regularPrice: Number, discount: Number, url: String }]
-  },
+
+  // ★ 삭제됨: price_info (-> PriceHistory 및 SaleHistory로 이동)
+  
   screenshots: [String], 
   trailers: [String],
   play_time: { type: String, default: "정보 없음" }, 
