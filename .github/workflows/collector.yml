@@ -1,35 +1,35 @@
-name: Run Game Data Collector
+name: Game Data Collector
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 매일 자정 실행
-  workflow_dispatch: # 수동 실행 버튼
+    - cron: '0 15 * * *' # 매일 한국시간 00:00 (UTC 15:00)
+  workflow_dispatch: # 수동 실행 가능
 
 jobs:
-  run-collector:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          # ★ [수정] 24 -> 20 (안정적인 LTS 버전 사용 필수)
-          node-version: '20'
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
 
-      - name: Install dependencies
-        run: |
-          cd backend
-          npm install
+    - name: Install Dependencies
+      run: |
+        cd backend
+        npm install
 
-      - name: Run collector script
-        # ★ [수정] 따옴표('')를 붙여서 문법 오류 방지
-        env:
-          ITAD_API_KEY: '${{ secrets.ITAD_API_KEY }}'
-          MONGODB_URI: '${{ secrets.MONGODB_URI }}'
-          STEAM_API_KEY: '${{ secrets.STEAM_API_KEY }}'
-        run: |
-          cd backend
-          node collector.js
+    - name: Run Collector
+      run: node backend/collector.js
+      env:
+        # 👇 여기에 GitHub Secrets에 등록한 키들을 연결합니다.
+        MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+        TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+        TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+        CHZZK_CLIENT_ID: ${{ secrets.CHZZK_CLIENT_ID }}
+        CHZZK_CLIENT_SECRET: ${{ secrets.CHZZK_CLIENT_SECRET }}
