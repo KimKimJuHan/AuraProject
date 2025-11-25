@@ -2,24 +2,27 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const axios = require('axios');
 const Game = require('./models/Game');
+const hltb = require('howlongtobeat');
+const hltbService = new hltb.HowLongToBeatService();
 
 // 1. 환경변수 검증 및 로드
-const { MONGODB_URI, ITAD_API_KEY } = process.env;
+const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
-// API 키 상태 로그 (보안상 앞 4자리만 출력)
-console.log("🔑 ITAD KEY 상태:", ITAD_API_KEY ? `로드됨 (${ITAD_API_KEY.substring(0,4)}****)` : "❌ 없음 (Undefined)");
-console.log("💾 DB URI 상태:", MONGODB_URI ? "로드됨" : "❌ 없음");
+// [디버깅 로그] 환경변수 상태 확인
+console.log("📋 환경변수 점검:");
+console.log(`  - ITAD KEY: ${ITAD_API_KEY ? "✅ 로드됨" : "❌ 없음"}`);
+console.log(`  - DB URI: ${MONGODB_URI ? "✅ 로드됨" : "❌ 없음"}`);
+console.log(`  - TWITCH: ${TWITCH_CLIENT_ID ? "✅ 로드됨" : "⚠️ 없음 (트렌드 0점 예상)"}`);
+console.log(`  - CHZZK: ${CHZZK_CLIENT_ID ? "✅ 로드됨" : "⚠️ 없음 (트렌드 0점 예상)"}`);
 
-// 키가 없으면 즉시 종료 (무의미한 요청 방지)
 if (!ITAD_API_KEY) {
-    console.error("🚨 [치명적 오류] .env 파일에 ITAD_API_KEY가 없습니다. 수집을 중단합니다.");
+    console.error("🚨 ITAD_API_KEY가 없습니다. 수집을 중단합니다.");
     process.exit(1);
 }
 
-// 딜레이 함수 (API 차단 방지)
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// 태그 매핑 (한글화)
+// 태그 매핑
 const TAG_MAP = {
   'rpg': 'RPG', 'role-playing': 'RPG', 'jrpg': 'RPG', 'action': '액션', 'hack and slash': '액션',
   'fps': 'FPS', 'shooter': 'FPS', 'simulation': '시뮬레이션', 'strategy': '전략', 'rts': '전략',
@@ -35,51 +38,104 @@ function translateTags(tags) {
     const myTags = new Set();
     tags.forEach(t => {
         const lower = t.toLowerCase();
-        if (TAG_MAP[lower]) myTags.add(TAG_MAP[lower]);
+        for (const key in TAG_MAP) { if (lower.includes(key)) myTags.add(TAG_MAP[key]); }
     });
     return Array.from(myTags);
 }
 
 // ---------------------------------------------------------
-// [핵심] ITAD 데이터 가져오기 (에러 핸들링 강화)
+// [A] 트렌드 데이터 (Twitch & Chzzk)
+// ---------------------------------------------------------
+let twitchToken = null;
+
+async function getTwitchToken() {
+    if (!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET) return;
+    try {
+        const res = await axios.post('https://id.twitch.tv/oauth2/token', null, {
+            params: { client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET, grant_type: 'client_credentials' }
+        });
+        twitchToken = res.data.access_token;
+        // console.log("✅ Twitch Token 발급 성공");
+    } catch (e) { console.error("⚠️ Twitch Token 실패:", e.message); }
+}
+
+function cleanGameName(name) {
+    if (!name) return "";
+    let cleaned = name.replace(/[™®©]/g, '');
+    // 불필요한 에디션 이름 제거
+    const suffixes = ["Game of the Year", "GOTY", "Complete Edition", "Definitive", "Remastered", "Deluxe", "Ultimate"];
+    suffixes.forEach(s => {
+        const regex = new RegExp(`\\s*${s}.*$`, 'gi');
+        cleaned = cleaned.replace(regex, '');
+    });
+    return cleaned.replace(/\s*\(.*\)/g, '').trim();
+}
+
+async function getTwitchStats(gameName) {
+    if (!TWITCH_CLIENT_ID) return 0;
+    if (!twitchToken) await getTwitchToken();
+    if (!twitchToken) return 0;
+    
+    const searchName = cleanGameName(gameName);
+    try {
+        // 1. 카테고리 검색으로 게임 ID 찾기
+        const searchRes = await axios.get('https://api.twitch.tv/helix/search/categories', {
+            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
+            params: { query: searchName, first: 1 }
+        });
+        
+        const foundGame = searchRes.data?.data?.[0];
+        if (!foundGame) return 0;
+
+        // 2. 시청자 수 조회
+        const streamRes = await axios.get('https://api.twitch.tv/helix/streams', {
+            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
+            params: { game_id: foundGame.id, first: 100 }
+        });
+        
+        return streamRes.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
+    } catch (e) { return 0; }
+}
+
+async function getChzzkStats(gameName) {
+    if (!CHZZK_CLIENT_ID) return 0;
+    const searchName = cleanGameName(gameName);
+    try {
+        const res = await axios.get('https://openapi.chzzk.naver.com/open/v1/categories/search', {
+            headers: { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET, 'Content-Type': 'application/json' },
+            params: { query: searchName, size: 1 }
+        });
+        // 카테고리 있으면 가산점 (1000점)
+        return res.data?.content?.data?.length > 0 ? 1000 : 0;
+    } catch (e) { return 0; }
+}
+
+// ---------------------------------------------------------
+// [B] ITAD 로직 (안정성 강화)
 // ---------------------------------------------------------
 async function fetchITADData(steamAppId) {
     try {
-        // 1. Lookup: Steam ID -> ITAD UUID 변환
-        // axios params 대신 URL에 직접 입력하여 인코딩 이슈 방지
         const lookupUrl = `https://api.isthereanydeal.com/games/lookup/v1?key=${ITAD_API_KEY}&appid=${steamAppId}`;
         const lookupRes = await axios.get(lookupUrl, { timeout: 5000 });
         
-        if (!lookupRes.data?.found || !lookupRes.data.game?.id) {
-            // console.log(`   ⚠️ ITAD에서 찾을 수 없음: Steam(${steamAppId})`);
-            return null;
-        }
+        if (!lookupRes.data?.found || !lookupRes.data.game?.id) return null;
         const itadUuid = lookupRes.data.game.id;
 
-        // 2. Prices: 가격 정보 조회
         const priceUrl = `https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`;
-        const pricesRes = await axios.post(
-            priceUrl,
-            [itadUuid], 
-            { headers: { 'Content-Type': 'application/json' }, timeout: 5000 }
-        );
+        const pricesRes = await axios.post(priceUrl, [itadUuid], { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
 
         const gameData = pricesRes.data?.[0];
         if (!gameData) return null;
 
         const dealsRaw = gameData.deals || [];
-        // 가격 낮은 순 정렬
         dealsRaw.sort((a, b) => (a.price.amount - b.price.amount));
-        
         const bestDeal = dealsRaw[0] || {};
-        const currentPrice = bestDeal.price?.amount ?? 0;
-        const regularPrice = bestDeal.regular?.amount ?? 0;
 
         return {
-            current_price: currentPrice,
-            regular_price: regularPrice,
+            current_price: bestDeal.price?.amount ?? 0,
+            regular_price: bestDeal.regular?.amount ?? 0,
             discount_percent: bestDeal.cut ?? 0,
-            store_name: bestDeal.shop?.name || "Steam", // 기본값
+            store_name: bestDeal.shop?.name || "Steam",
             url: bestDeal.url || "",
             historical_low: gameData.historyLow?.price?.amount || 0,
             deals: dealsRaw.map(d => ({
@@ -90,61 +146,41 @@ async function fetchITADData(steamAppId) {
                  url: d.url || ""
             }))
         };
-    } catch (e) {
-        // 서버가 에러 메시지를 보냈다면 그걸 출력, 아니면 일반 에러 출력
-        if (e.response) {
-            console.error(`❌ ITAD API Error (AppID:${steamAppId}): ${e.response.status} - ${JSON.stringify(e.response.data)}`);
-        } else {
-            // console.error(`❌ Network/Parsing Error (AppID:${steamAppId}): ${e.message}`);
-        }
-        return null; 
-    }
+    } catch (e) { return null; }
 }
 
 // ---------------------------------------------------------
-// 메인 수집 로직
+// [C] 메인 수집 로직
 // ---------------------------------------------------------
 async function collectGamesData() {
-  if (!MONGODB_URI) return console.error("❌ DB URI가 없습니다.");
+  if (!MONGODB_URI) return console.error("❌ DB URI 없음");
 
   try {
     await mongoose.connect(MONGODB_URI);
     console.log("✅ DB 연결 성공. 데이터 수집 시작...");
 
-    // 수집할 스팀 게임 ID 목록 (Top 20 예시 - 실제론 더 늘리셔도 됩니다)
-    // 팰월드, 배그, 도타2, 카스2, 에이펙스, 나루카, GTA5, 발더스3, 엘든링 등
+    // 수집 대상 게임 (예시)
     const targetAppIds = [
         1623730, 578080, 570, 730, 1172470, 244210, 271590, 1086940, 1245620, 
         292030, 359550, 105600, 413150, 1966720, 230410, 252490, 221100, 440, 550, 945360
     ];
+    console.log(`🎯 수집 대상: ${targetAppIds.length}개`);
 
-    console.log(`🎯 수집 대상 게임: ${targetAppIds.length}개`);
     let successCount = 0;
 
     for (const appid of targetAppIds) {
       try {
-        await sleep(1500); // 1.5초 대기 (Rate Limit 방지)
+        await sleep(1000); // 1초 대기
 
-        // 1. Steam 상점 정보 가져오기 (한국어, 한국 가격)
+        // 1. Steam 정보
         const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appid}&l=korean&cc=kr`);
-        
-        if (!steamRes.data[appid]?.success) {
-            console.log(`⚠️ Steam 정보 없음: ${appid}`);
-            continue;
-        }
-        
+        if (!steamRes.data[appid]?.success) continue;
         const data = steamRes.data[appid].data;
-        if (data.type !== 'game') continue; // DLC 제외
+        if (data.type !== 'game') continue;
 
-        // 태그 처리
-        const steamGenres = data.genres ? data.genres.map(g => g.description) : [];
-        const steamCategories = data.categories ? data.categories.map(c => c.description) : [];
-        const smartTags = translateTags([...steamGenres, ...steamCategories]);
-
-        // 가격 정보 초기화 (Steam 기준)
+        // 2. 가격 정보 구성
         const priceOverview = data.price_overview;
         const isFree = data.is_free === true;
-        
         let priceInfo = {
             regular_price: priceOverview ? priceOverview.initial / 100 : 0,
             current_price: priceOverview ? priceOverview.final / 100 : 0,
@@ -152,62 +188,83 @@ async function collectGamesData() {
             store_url: `https://store.steampowered.com/app/${appid}`,
             store_name: 'Steam',
             isFree: isFree,
-            deals: [],
-            historical_low: 0,
-            expiry: null
+            deals: []
         };
 
-        // 2. ITAD 가격 비교 정보 가져오기
+        // ITAD 연동
         const itadData = await fetchITADData(appid);
-        
         if (itadData) {
-            // ITAD 데이터가 있고, 스팀보다 싸거나 스팀 가격이 없으면 덮어씌움
             if (!isFree && (itadData.current_price < priceInfo.current_price || priceInfo.current_price === 0)) {
-                 priceInfo = { ...priceInfo, ...itadData }; // ITAD 최저가로 갱신
+                 priceInfo = { ...priceInfo, ...itadData };
             } else {
-                 // 스팀이 최저가라도 ITAD의 다른 딜 정보는 가져감
                  priceInfo.deals = itadData.deals;
                  priceInfo.historical_low = itadData.historical_low;
             }
-            // console.log(`   💰 ITAD 가격 정보 연동 완료`);
         }
 
-        // 3. DB 저장 객체 생성
+        // 3. 트렌드 점수 (Twitch + Chzzk)
+        const cleanName = data.name;
+        const [twitchView, chzzkView] = await Promise.all([
+            getTwitchStats(cleanName),
+            getChzzkStats(cleanName)
+        ]);
+        const trendScore = twitchView + chzzkView; // 단순 합산
+
+        // 4. 날짜 처리 (에러 원인 해결)
+        let releaseDate = new Date();
+        if (data.release_date?.date) {
+            // 날짜 파싱 시도
+            const parsedDate = new Date(data.release_date.date);
+            if (!isNaN(parsedDate.getTime())) {
+                releaseDate = parsedDate;
+            } else {
+                // 한글 날짜 포맷 처리 (예: 2024년 1월 1일)
+                const dateStr = data.release_date.date.replace(/년|월|일/g, '-').replace(/\s/g, '');
+                const kParsed = new Date(dateStr);
+                if (!isNaN(kParsed.getTime())) releaseDate = kParsed;
+                // 그래도 실패하면 그냥 현재 날짜(new Date()) 유지 -> 에러 방지
+            }
+        }
+
+        // 5. 태그
+        const rawTags = [];
+        if(data.genres) rawTags.push(...data.genres.map(g=>g.description));
+        if(data.categories) rawTags.push(...data.categories.map(c=>c.description));
+        const smartTags = translateTags(rawTags);
+
+        // 6. DB 저장
         const gameDoc = {
-            slug: `steam-${appid}`, // 고유 ID
+            slug: `steam-${appid}`,
             steam_appid: appid,
             title: data.name,
-            title_ko: data.name, // 스팀은 한글 제목 잘 줌
+            title_ko: data.name,
             main_image: data.header_image,
             description: data.short_description,
             smart_tags: smartTags,
+            trend_score: trendScore,
+            twitch_viewers: twitchView,
+            chzzk_viewers: chzzkView,
             pc_requirements: {
                 minimum: data.pc_requirements?.minimum || "정보 없음",
                 recommended: data.pc_requirements?.recommended || "정보 없음"
             },
             price_info: priceInfo,
-            releaseDate: data.release_date?.date ? new Date(data.release_date.date) : new Date(),
+            releaseDate: releaseDate, // 안전한 날짜 사용
             screenshots: data.screenshots ? data.screenshots.map(s => s.path_full) : [],
             trailers: data.movies ? data.movies.map(m => m.webm?.max) : [],
             metacritic_score: data.metacritic?.score || 0
         };
 
-        // DB Upsert (있으면 업데이트, 없으면 생성)
-        await Game.findOneAndUpdate(
-            { steam_appid: appid }, 
-            gameDoc, 
-            { upsert: true, new: true }
-        );
-
+        await Game.findOneAndUpdate({ steam_appid: appid }, gameDoc, { upsert: true });
         successCount++;
-        console.log(`✅ [${successCount}/${targetAppIds.length}] 저장 완료: ${data.name}`);
+        console.log(`✅ [${successCount}] 저장: ${data.name} (트렌드: ${trendScore})`);
 
       } catch (innerErr) {
-        console.error(`❌ 개별 게임 처리 실패 (${appid}): ${innerErr.message}`);
+        console.error(`❌ 개별 실패 (${appid}): ${innerErr.message}`);
       }
     }
 
-    console.log(`🎉 모든 작업 완료. 총 ${successCount}개 저장됨.`);
+    console.log(`🎉 완료. 총 ${successCount}개 저장.`);
     process.exit(0);
 
   } catch (err) {
