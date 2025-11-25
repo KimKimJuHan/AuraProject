@@ -31,12 +31,28 @@ const TAG_MAP = {
   'anime': '애니메이션', 'scifi': 'SF', 'sci-fi': 'SF', 'fantasy': '판타지'
 };
 
-// ★ 게임 이름 수동 매핑 (치지직 검색 정확도 향상용)
+// ★ 트위치용 영문 별칭 매핑 (공식 카테고리명과 다를 때 사용)
+const TWITCH_GAME_ALIAS = {
+    "grand theft auto v": "Grand Theft Auto V",
+    "gta 5": "Grand Theft Auto V",
+    "gta v": "Grand Theft Auto V",
+    "pubg: battlegrounds": "PUBG: BATTLEGROUNDS",
+    "counter-strike 2": "Counter-Strike",
+    "tom clancy's rainbow six siege": "Tom Clancy's Rainbow Six Siege",
+    "rainbow six siege": "Tom Clancy's Rainbow Six Siege",
+    "r6s": "Tom Clancy's Rainbow Six Siege",
+    "baldurs gate 3": "Baldur's Gate 3",
+    "the witcher 3: wild hunt": "The Witcher 3: Wild Hunt",
+    "among us": "Among Us"
+};
+
+// ★ 치지직용 한글 별칭 매핑 (매우 중요)
 const KOREAN_NAME_MAP = {
     "palworld": "팰월드",
     "pubg: battlegrounds": "배틀그라운드",
     "league of legends": "리그 오브 레전드",
-    "grand theft auto v": "GTA 5",
+    "grand theft auto v": "GTA 5", 
+    "gta 5": "GTA 5",
     "counter-strike 2": "카운터 스트라이크 2",
     "baldurs gate 3": "발더스 게이트 3",
     "elden ring": "엘든 링",
@@ -50,9 +66,14 @@ const KOREAN_NAME_MAP = {
     "rust": "러스트",
     "dayz": "데이즈",
     "among us": "어몽어스",
-    "euro truck simulator 2": "유로 트럭 시뮬레이터 2",
+    "tom clancy's rainbow six siege": "레인보우 식스 시즈",
+    "rainbow six siege": "레인보우 식스 시즈",
     "dead by daylight": "데드 바이 데이라이트",
-    "overwatch 2": "오버워치 2"
+    "overwatch 2": "오버워치 2",
+    "team fortress 2": "팀 포트리스 2",
+    "left 4 dead 2": "레프트 4 데드 2",
+    "warframe": "워프레임",
+    "assetto corsa": "아세토 코르사"
 };
 
 function translateTags(tags) {
@@ -83,17 +104,12 @@ async function getTwitchToken() {
 function cleanGameName(name) {
     if (!name) return "";
     let cleaned = name.toLowerCase();
-    
-    // 특수문자 제거 (® ™ 등)
     cleaned = cleaned.replace(/[™®©]/g, '');
-    
-    // 불필요한 접미사 제거 (강력하게)
     const suffixes = ["game of the year", "goty", "complete edition", "definitive", "remastered", "deluxe", "ultimate", "legacy", "edition", "re-elected"];
     suffixes.forEach(s => {
         const regex = new RegExp(`\\s*${s}.*$`, 'gi');
         cleaned = cleaned.replace(regex, '');
     });
-    
     return cleaned.replace(/\s*\(.*\)/g, '').trim();
 }
 
@@ -103,40 +119,42 @@ async function getTwitchStats(gameName) {
     if (!twitchToken) await getTwitchToken();
     if (!twitchToken) return 0;
     
-    const searchName = cleanGameName(gameName);
+    const cleanedName = cleanGameName(gameName);
+    const searchName = TWITCH_GAME_ALIAS[cleanedName] || cleanedName;
+
     try {
-        // 1. 카테고리 검색
         const searchRes = await axios.get('https://api.twitch.tv/helix/search/categories', {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
-            params: { query: searchName, first: 1 }
+            params: { query: searchName, first: 5 }
         });
         
-        const foundGame = searchRes.data?.data?.[0];
-        if (!foundGame) return 0;
+        const candidates = searchRes.data?.data || [];
+        if (candidates.length === 0) return 0;
 
-        // 2. 시청자 수 조회
+        let targetGame = candidates[0];
+        const exactMatch = candidates.find(c => c.name.toLowerCase() === searchName.toLowerCase());
+        if (exactMatch) targetGame = exactMatch;
+
         const streamRes = await axios.get('https://api.twitch.tv/helix/streams', {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
-            params: { game_id: foundGame.id, first: 100 }
+            params: { game_id: targetGame.id, first: 100 }
         });
         return streamRes.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
     } catch (e) { return 0; }
 }
 
-// ★ 치지직 실시간 시청자 수 조회 (이중 검색 + 한글 매핑)
+// ★ 치지직 실시간 시청자 수 조회 (구조 수정됨)
 async function getChzzkStats(gameName) {
     const cleanedName = cleanGameName(gameName);
     
-    // 검색 후보군 생성 (한글 매핑된 이름이 있으면 그걸 최우선으로)
-    let queries = [cleanedName];
-    if (KOREAN_NAME_MAP[cleanedName.toLowerCase()]) {
-        queries.unshift(KOREAN_NAME_MAP[cleanedName.toLowerCase()]); // 한글 이름을 맨 앞으로
-    }
+    // 한글 매핑 우선 사용
+    const queries = [];
+    if (KOREAN_NAME_MAP[cleanedName]) queries.push(KOREAN_NAME_MAP[cleanedName]);
+    queries.push(cleanedName);
 
     for (const query of queries) {
         if (!query) continue;
         try {
-            // 공개 검색 API 호출
             const encodeName = encodeURIComponent(query);
             const url = `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeName}&offset=0&size=20&sortType=POPULAR`;
             
@@ -153,18 +171,21 @@ async function getChzzkStats(gameName) {
                 let totalViewers = 0;
                 let matchCount = 0;
 
-                lives.forEach(live => {
-                    const category = (live.liveCategoryValue || "").replace(/\s/g, '').toLowerCase();
-                    const q = query.replace(/\s/g, '').toLowerCase(); // 공백 제거 후 비교
+                lives.forEach(item => {
+                    // ⚠️ [핵심 수정] live 객체 내부 접근으로 변경
+                    const live = item.live; 
+                    if (!live) return;
 
-                    // 카테고리 이름이 검색어를 포함하거나 비슷하면 집계
+                    const category = (live.liveCategoryValue || "").replace(/\s/g, '').toLowerCase();
+                    const q = query.replace(/\s/g, '').toLowerCase();
+
+                    // 카테고리가 검색어와 일치하거나 포함되면 집계
                     if (category.includes(q) || q.includes(category)) {
                         totalViewers += live.concurrentUserCount || 0;
                         matchCount++;
                     }
                 });
 
-                // 매칭된 방송이 하나라도 있으면 그 결과를 사용하고 종료
                 if (matchCount > 0) return totalViewers;
             }
         } catch (e) { }
@@ -217,7 +238,7 @@ async function collectGamesData() {
     await mongoose.connect(MONGODB_URI);
     console.log("✅ DB 연결 성공. 데이터 수집 시작...");
 
-    // 수집 대상 (Steam Top Chart + 예시 ID)
+    // 수집 대상 (Steam Top Chart)
     const targetAppIds = [
         1623730, 578080, 570, 730, 1172470, 244210, 271590, 1086940, 1245620, 
         292030, 359550, 105600, 413150, 1966720, 230410, 252490, 221100, 440, 550, 945360
@@ -258,11 +279,11 @@ async function collectGamesData() {
             }
         }
 
-        // 트렌드 점수 (한글 매핑 적용)
+        // 트렌드 점수
         const cleanName = cleanGameName(data.name);
         const [twitchView, chzzkView] = await Promise.all([
             getTwitchStats(cleanName),
-            getChzzkStats(cleanName) // 이제 팰월드 같은 한글 이름으로 검색됨
+            getChzzkStats(cleanName)
         ]);
         const trendScore = twitchView + chzzkView;
 
@@ -291,7 +312,7 @@ async function collectGamesData() {
             slug: `steam-${appid}`,
             steam_appid: appid,
             title: data.name,
-            title_ko: KOREAN_NAME_MAP[cleanName] || data.name, // 매핑된 한글 이름 우선 사용
+            title_ko: KOREAN_NAME_MAP[cleanName] || data.name,
             main_image: data.header_image,
             description: data.short_description,
             smart_tags: smartTags,
