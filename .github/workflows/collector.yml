@@ -2,8 +2,7 @@ name: Game Data Collector
 
 on:
   schedule:
-    # 한국 시간 오후 8시 (20:00 KST) = UTC 11:00
-    - cron: '0 11 * * *'
+    - cron: '0 10 * * *' # 매일 한국시간 19:00 (UTC 10:00) 실행
   workflow_dispatch: # 수동 실행 가능
 
 jobs:
@@ -17,17 +16,22 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '20' # Node.js 20 사용 (File 객체 지원)
+        node-version: '20' # Node.js 20 사용 (필수)
 
     - name: Install Dependencies
       run: |
         cd backend
         npm install
 
+    - name: Seed Databases (필요시 주석 해제하여 사용)
+      run: |
+        cd backend
+        # node metadata_seeder.js  # 가격 족보 업데이트 시 주석 해제
+        # node category_seeder.js  # 트렌드 족보 업데이트 시 주석 해제
+
     - name: Run Collector
       run: node backend/collector.js
       env:
-        # 👇 여기에 GitHub Secrets에 등록한 키들을 연결합니다.
         MONGODB_URI: ${{ secrets.MONGODB_URI }}
         ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
         TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
