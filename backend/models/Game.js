@@ -9,13 +9,13 @@ const gameSchema = new mongoose.Schema({
   description: { type: String },
   smart_tags: [String], 
   
-  // ★ 삭제됨: trend_score, twitch_viewers, chzzk_viewers (-> TrendHistory로 이동)
+  // ★ 삭제됨: trend_score, twitch_viewers, chzzk_viewers
   
   pc_requirements: { minimum: String, recommended: String },
   popularity: { type: Number, default: 0 },
   releaseDate: { type: Date },
 
-  // ★ 삭제됨: price_info (-> PriceHistory 및 SaleHistory로 이동)
+  // ★ 삭제됨: price_info
   
   screenshots: [String], 
   trailers: [String],

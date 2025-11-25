@@ -8,9 +8,9 @@ const priceHistorySchema = new mongoose.Schema({
   current_price: { type: Number, default: 0 },
   discount_percent: { type: Number, default: 0 },
   isFree: { type: Boolean, default: false },
-  historical_low: { type: Number, default: 0 }, // 수집 당시 ITAD에서 확인된 역대 최저가
+  historical_low: { type: Number, default: 0 }, 
   
-  // 수집 시점
+  // 수집 시점 (인덱스를 통해 빠른 시간 순 조회 가능)
   recordedAt: { type: Date, default: Date.now, index: true }
 });
 
