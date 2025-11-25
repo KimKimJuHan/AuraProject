@@ -8,6 +8,8 @@ const styles = {
   buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
   wishlistButton: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#fff', color: '#000', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
+  thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#555', borderRadius: '4px', background: 'transparent', color: '#fff' },
+  thumbButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#E50914', borderRadius: '4px', background: '#E50914', color: '#fff' },
   mediaContainer: { display: 'flex', overflowX: 'auto', padding: '20px 0', gap:'10px' },
   mediaItem: { height: '100px', borderRadius: '4px', borderWidth:'2px', borderStyle:'solid', borderColor:'transparent', cursor: 'pointer', transition:'border-color 0.2s' },
   mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', maxHeight:'500px', marginBottom: '10px', borderRadius: '4px', backgroundColor: '#000', display: 'flex', justifyContent: 'center', objectFit:'contain' },
@@ -103,7 +105,7 @@ function ShopPage({ region }) {
       } catch (error) { alert("투표 실패"); }
   };
 
-  const cleanHTML = (html) => DOMPurify.sanitize(html, { USE_PROFILES: { html: false } });
+  const cleanHTML = (html) => { return DOMPurify.sanitize(html, { USE_PROFILES: { html: false } }); };
   const formatDate = (dateString) => {
       if (!dateString) return "정보 없음";
       const d = new Date(dateString);
@@ -186,9 +188,15 @@ function ShopPage({ region }) {
         <h3 className="net-section-title">스크린샷 & 트레일러</h3>
         <div style={styles.mainMediaDisplay}>
           {selectedMedia?.type === 'video' ? (
-            <iframe title="Game Trailer" src={selectedMedia.url} style={{width:'100%', height:'100%', border:'none'}} allow="autoplay; encrypted-media" allowFullScreen />
+            <iframe 
+              title="Game Trailer" 
+              src={selectedMedia.url} 
+              style={{width:'100%', height:'100%', border:'none'}} 
+              allow="autoplay; encrypted-media" 
+              allowFullScreen 
+            />
           ) : (
-            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300/021E73/FFFFFF?text=Image+Not+Available"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
+            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300?text=No+Image"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
           )}
         </div>
         <div style={styles.mediaContainer}>

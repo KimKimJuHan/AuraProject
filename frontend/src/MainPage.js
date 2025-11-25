@@ -65,9 +65,7 @@ function GameListItem({ game }) {
   const price = game.price_info || {};
   const isFree = price.isFree;
   const currentPrice = price.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
-  const regularPrice = price.regular_price ? `₩${price.regular_price.toLocaleString()}` : null;
   const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
-  const isLimitedTime = discount && price.expiry;
 
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
@@ -81,8 +79,6 @@ function GameListItem({ game }) {
             <div className="net-card-title">{game.title_ko || game.title}</div>
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
-                    {isLimitedTime && <span style={{fontSize:'11px', color:'#E50914', fontWeight:'bold', marginBottom:'2px'}}>⏳ 기간 한정 할인</span>}
-                    {discount && regularPrice && <span style={{fontSize:'11px', color:'#777', textDecoration:'line-through', marginBottom:'-2px'}}>{regularPrice}</span>}
                     <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
                         {isFree ? "무료" : currentPrice}
                     </span>
@@ -100,47 +96,45 @@ function MainPage() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
+  const [error, setError] = useState(null);
 
-  // 필터 변경 시 초기화
   useEffect(() => {
     setGames([]); 
     setPage(1); 
     setHasMore(true); 
   }, [selectedTags, activeTab]);
 
-  // 데이터 로드
   useEffect(() => {
     if (!hasMore) return; 
     
     const fetchGames = async () => {
         setLoading(true);
+        setError(null);
         try {
             const response = await fetch('http://localhost:8000/api/recommend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
             });
+            if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
-            console.log(`[프론트] 수신된 데이터: ${data.games.length}개`); // ★ 확인용
-
+            
             setGames(prev => {
-                // 페이지 1이면 덮어쓰기, 아니면 이어붙이기 (가장 안전한 방법)
                 if (page === 1) return data.games;
-                
-                // 이어붙일 때만 중복 제거
                 const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
                 return [...prev, ...newGames];
             });
-            
             setHasMore(page < data.totalPages); 
         } catch (err) {
-            console.error("Fetch Error:", err);
+            console.error(err);
+            setError("서버와 연결할 수 없습니다. (Backend가 켜져 있는지 확인하세요)");
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
     
     fetchGames();
-  }, [page, selectedTags, activeTab]); 
+  }, [page, selectedTags, activeTab, hasMore]); 
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -167,13 +161,17 @@ function MainPage() {
         </div>
       )}
 
-      <div className="net-cards">
-        {games.map(game => <GameListItem key={game.slug} game={game} />)}
-        {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
-      </div>
+      {error ? (
+        <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
+      ) : (
+        <div className="net-cards">
+          {games.map(game => <GameListItem key={game.slug} game={game} />)}
+          {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
+        </div>
+      )}
       
-      {!loading && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
-      {!loading && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
+      {!loading && !error && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
+      {!loading && !error && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
     </div>
   );
 }
