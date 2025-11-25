@@ -4,6 +4,9 @@ const gameMetadataSchema = new mongoose.Schema({
   steamAppId: { type: Number, required: true, unique: true },
   title: { type: String, required: true },
   
+  // ★ 추가: 같은 게임의 다른 버전 AppID 목록 (가격 상속용)
+  aliasAppIds: [Number],
+
   // 1. 가격 수집 정보 (ITAD)
   itad: {
     uuid: String,        // ITAD 고유 ID (매번 Lookup 안 해도 됨)

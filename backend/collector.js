@@ -11,7 +11,7 @@ const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK
 
 if (!ITAD_API_KEY) { console.error("🚨 ITAD_API_KEY 누락"); process.exit(1); }
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise(r => setTimeout(r, 1500)); // Sleep 시간을 1500ms로 유지
 
 // --- [트위치 토큰] ---
 let twitchToken = null;
@@ -96,58 +96,151 @@ function calculateWeightedScore(trends) {
     return 0;
 }
 
-// --- [B. 가격 조회 (ITAD + Steam Package)] ---
-async function fetchPriceInfo(steamAppId, steamData) {
-    let priceInfo = {
-        regular_price: 0, current_price: 0, discount_percent: 0,
-        store_name: 'Steam', store_url: `https://store.steampowered.com/app/${steamAppId}`,
-        isFree: steamData.is_free === true, deals: []
-    };
+// --- [B. 가격 조회 Helpers (모듈화)] ---
 
-    if (steamData.price_overview) {
-        priceInfo.regular_price = steamData.price_overview.initial / 100;
-        priceInfo.current_price = steamData.price_overview.final / 100;
-        priceInfo.discount_percent = steamData.price_overview.discount_percent;
-    } 
-    else if (!steamData.is_free && steamData.packages && steamData.packages.length > 0) {
-        try {
-            const packageId = steamData.packages[0]; 
-            const pkgRes = await axios.get(`https://store.steampowered.com/api/packagedetails?packageids=${packageId}&l=korean&cc=kr`);
-            const pkgData = pkgRes.data[packageId]?.data;
-            if (pkgData && pkgData.price) {
-                priceInfo.regular_price = pkgData.price.initial / 100;
-                priceInfo.current_price = pkgData.price.final / 100;
-                priceInfo.discount_percent = pkgData.price.discount_percent;
-            }
-        } catch(e) {}
-    }
-
+// ITAD 가격 조회 헬퍼 함수 (최우선)
+async function getITADPrice(steamAppId) {
     const metadata = await GameMetadata.findOne({ steamAppId });
-    if (metadata?.itad?.uuid) {
-        try {
-            const pricesRes = await axios.post(`https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`, 
-                [metadata.itad.uuid], { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+    if (!metadata?.itad?.uuid) return null;
+
+    try {
+        const pricesRes = await axios.post(`https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`, 
+            [metadata.itad.uuid], { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
+        
+        const itadGame = pricesRes.data?.[0];
+        if (itadGame) {
+            const deals = (itadGame.deals || []).sort((a, b) => a.price.amount - b.price.amount);
             
-            const itadGame = pricesRes.data?.[0];
-            if (itadGame) {
-                const deals = (itadGame.deals || []).sort((a, b) => a.price.amount - b.price.amount);
-                
-                priceInfo.deals = deals.map(d => ({ 
-                    shopName: d.shop?.name, price: d.price?.amount, regularPrice: d.regular?.amount, discount: d.cut, url: d.url 
-                }));
-                priceInfo.historical_low = itadGame.historyLow?.price?.amount || 0;
+            const dealsMapped = deals.map(d => ({ 
+                shopName: d.shop?.name, price: d.price?.amount, regularPrice: d.regular?.amount, discount: d.cut, url: d.url 
+            }));
+            
+            const historical_low = itadGame.historyLow?.price?.amount || 0;
+            const bestDeal = deals[0];
 
-                const bestDeal = deals[0];
-                if (bestDeal && !priceInfo.isFree && (bestDeal.price.amount < priceInfo.current_price || priceInfo.current_price === 0)) {
-                    priceInfo.current_price = bestDeal.price.amount;
-                    priceInfo.regular_price = bestDeal.regular.amount;
-                    priceInfo.discount_percent = bestDeal.cut;
-                }
+            if (bestDeal) {
+                return {
+                    regular_price: bestDeal.regular.amount,
+                    current_price: bestDeal.price.amount,
+                    discount_percent: bestDeal.cut,
+                    historical_low: historical_low,
+                    deals: dealsMapped,
+                };
             }
-        } catch (e) {}
+        }
+    } catch (e) {
+        // console.error(`⚠️ ITAD Price Error for ${steamAppId}: ${e.message}`); // 로깅은 주석 처리하여 깔끔하게 유지
     }
+    return null;
+}
 
-    return priceInfo;
+// Steam 패키지 가격 조회 헬퍼 함수
+async function getSteamPackagePrice(packageId) {
+    try {
+        const pkgRes = await axios.get(`https://store.steampowered.com/api/packagedetails?packageids=${packageId}&l=korean&cc=kr`);
+        const pkgData = pkgRes.data[packageId]?.data;
+        if (pkgData?.price) {
+            return {
+                regular_price: pkgData.price.initial / 100,
+                current_price: pkgData.price.final / 100,
+                discount_percent: pkgData.price.discount_percent,
+            };
+        }
+    } catch (e) {
+        // 패키지 조회 오류는 무시하고 null 반환
+    }
+    return null;
+}
+
+
+// --- [B. 가격 조회 (Alias + 3단계 폴백 시스템 적용)] ---
+async function fetchPriceInfo(originalAppId, initialSteamData) {
+    
+    // 1. 메타데이터 조회 및 후보 AppID 목록 구성
+    const metadata = await GameMetadata.findOne({ steamAppId: originalAppId });
+    // 원래 AppID를 포함하고, aliasAppIds를 순차적으로 포함하는 후보 목록
+    const candidateIds = [originalAppId, ...(metadata?.aliasAppIds || [])].filter(id => id); 
+
+    let steamData = initialSteamData;
+
+    // 2. 후보 AppID 순회하며 가격 조회 시도 (ITAD -> Price Overview -> Package)
+    for (const currentAppId of candidateIds) {
+        
+        // (A) alias AppID인 경우 Steam API로 최신 데이터 다시 조회
+        if (currentAppId !== originalAppId) {
+            try {
+                // alias AppID로 스팀 API를 호출하여 최신 steamData를 가져옴
+                const res = await axios.get(`https://store.steampowered.com/api/appdetails`, {
+                    params: { appids: currentAppId, l: 'korean', cc: 'kr' },
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                const fetchedData = res.data?.[currentAppId]?.data;
+                if (!fetchedData) continue; // 데이터 없으면 다음 ID 시도
+                steamData = fetchedData;
+            } catch (e) {
+                console.error(`⚠️ Steam alias fetch error for ${currentAppId}: ${e.message}`);
+                continue; // 오류 발생해도 다음 ID 시도
+            }
+        }
+        
+        // (B) 1단계: ITAD 가격 조회 (가장 정확)
+        const itadPrice = await getITADPrice(currentAppId);
+        if (itadPrice) {
+            // 가격 상속 시에도 store_url은 originalAppId를 따름
+            return { 
+                regular_price: itadPrice.regular_price,
+                current_price: itadPrice.current_price,
+                discount_percent: itadPrice.discount_percent,
+                historical_low: itadPrice.historical_low,
+                deals: itadPrice.deals,
+                store_name: 'Steam',
+                store_url: `https://store.steampowered.com/app/${originalAppId}`,
+                isFree: false
+            };
+        }
+
+        // (C) 2단계: Steam price_overview 조회 (스팀 정가/할인)
+        if (steamData.price_overview) {
+            return {
+                regular_price: steamData.price_overview.initial / 100,
+                current_price: steamData.price_overview.final / 100,
+                discount_percent: steamData.price_overview.discount_percent,
+                historical_low: 0, deals: [], 
+                store_name: 'Steam',
+                store_url: `https://store.steampowered.com/app/${originalAppId}`,
+                isFree: false
+            };
+        } 
+        
+        // (D) 3단계: Steam Package 가격 조회 (단품 가격 없을 때)
+        const pkgId = steamData.packages?.[0];
+        if (pkgId) {
+            const pkgPrice = await getSteamPackagePrice(pkgId);
+            if (pkgPrice) {
+                 return {
+                    regular_price: pkgPrice.regular_price,
+                    current_price: pkgPrice.current_price,
+                    discount_percent: pkgPrice.discount_percent,
+                    historical_low: 0, deals: [],
+                    store_name: 'Steam',
+                    store_url: `https://store.steampowered.com/app/${originalAppId}`,
+                    isFree: false
+                };
+            }
+        }
+
+        // 이 AppID에서 가격을 찾지 못했다면 다음 candidateIds로 넘어감
+        // originalAppId에 대해서는 steamData를 유지해야 하므로, 루프가 끝나기 전에 steamData를 초기값으로 복원할 필요는 없음.
+        // 현재 로직은 다음 루프에서 if (currentAppId !== originalAppId) 블록이 실행되어 steamData를 업데이트하므로 안전함.
+    }
+    
+    // 3. 최종 폴백 (후보 ID 전체에서 가격을 못 찾은 경우)
+    return {
+        regular_price: 0, current_price: 0, discount_percent: 0,
+        store_name: 'Steam', store_url: `https://store.steampowered.com/app/${originalAppId}`,
+        isFree: initialSteamData.is_free === true, // 원래 데이터를 기준으로 무료 여부 판단
+        deals: [], historical_low: 0
+    };
 }
 
 // --- [C. 메인 수집 루프] ---
@@ -171,6 +264,7 @@ async function collectGamesData() {
         try {
             await sleep(1500); 
 
+            // App details를 한 번만 가져옵니다. alias 처리 중에는 fetchPriceInfo 내부에서 다시 호출됩니다.
             const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, {
                 params: { appids: appid, l: 'korean', cc: 'kr' },
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -180,6 +274,7 @@ async function collectGamesData() {
 
             const trends = await getTrendStats(appid);
             const trendScore = calculateWeightedScore(trends);
+            // 수정된 fetchPriceInfo 호출 (Alias 처리 및 폴백 포함)
             const priceInfo = await fetchPriceInfo(appid, data);
 
             let playTime = "정보 없음";
