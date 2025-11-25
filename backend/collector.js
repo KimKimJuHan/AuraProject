@@ -1,14 +1,17 @@
+// backend/collector.js
+
 require('dotenv').config();
 const mongoose = require('mongoose');
 const axios = require('axios');
 const Game = require('./models/Game');
 const GameCategory = require('./models/GameCategory'); // 트렌드 족보
 const GameMetadata = require('./models/GameMetadata'); // 가격 족보
-// ★ History 모델 로드
+// ★ 추가된 History 모델 로드
 const PriceHistory = require('./models/PriceHistory'); 
 const TrendHistory = require('./models/TrendHistory');
 const SaleHistory = require('./models/SaleHistory');
 
+// howlongtobeat 모듈 로드 (Error: Cannot find module 'howlongtobeat' 해결 전제)
 const hltb = require('howlongtobeat');
 const hltbService = new hltb.HowLongToBeatService();
 
@@ -237,6 +240,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData) {
 
         const itadPrice = await getITADPrice(currentAppId, currentMetadata);
         if (itadPrice) {
+            console.log(`[Price] ITAD price found for ${currentAppId}. Inheriting to ${originalAppId}.`);
             return { 
                 ...itadPrice,
                 store_url: itadPrice.store_url || `https://store.steampowered.com/app/${originalAppId}`,
@@ -363,6 +367,7 @@ async function collectGamesData() {
             });
             const data = steamRes.data[appid]?.data; 
 
+            // 데이터가 없으면 건너뜀
             if (!data) continue; 
             
             // 2. 동적 데이터 수집
@@ -416,7 +421,7 @@ async function collectGamesData() {
                     historical_low: priceInfo.historical_low,
                 });
             } else {
-                console.log(`[History] Price for ${data.name} skipped: No change since last run.`);
+                // console.log(`[History] Price for ${data.name} skipped: No change since last run.`);
             }
 
             // 4-2. Trend History 기록 (변동 시에만 기록 - 1% 이상 변화 시)
@@ -434,7 +439,7 @@ async function collectGamesData() {
                     chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
                 });
             } else {
-                console.log(`[History] Trend for ${data.name} skipped: No significant change.`);
+                // console.log(`[History] Trend for ${data.name} skipped: No significant change.`);
             }
 
             // 4-3. Sale History 기록 (할인 중이며, 오늘 이미 기록되지 않았을 경우에만)
@@ -460,7 +465,7 @@ async function collectGamesData() {
                         itad_deals: priceInfo.deals 
                     });
                 } else {
-                    console.log(`[History] Sale for ${data.name} skipped: Same sale already recorded today.`);
+                    // console.log(`[History] Sale for ${data.name} skipped: Same sale already recorded today.`);
                 }
             }
 
