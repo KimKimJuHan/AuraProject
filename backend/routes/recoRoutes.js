@@ -20,7 +20,8 @@ function calculateTagScore(gameTags, userTags) {
 }
 
 // 추천 API
-router.post('/recommend', async (req, res) => {
+// 프론트엔드에서 /api/steam/reco 로 호출하므로 경로를 '/reco'로 설정
+router.post('/reco', async (req, res) => {
     const { term, liked, k = 12 } = req.body; // term: 검색어, liked: 선택 태그 배열
 
     try {

@@ -9,7 +9,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PersonalRecoPage from './pages/PersonalRecoPage';
 
-// 스타일 정의 (사용자분 코드 그대로 사용)
+// 스타일 정의 (기존 유지)
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
@@ -139,10 +139,13 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     setIsFocused(true); 
   };
 
-  // ★★★ [수정] 로그아웃 시 쿠키까지 삭제하여 완벽하게 로그아웃
+  // ★★★ [수정] 로그아웃 시 gameWishlist는 삭제하지 않음 (게스트 모드 지원)
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    // localStorage.removeItem('gameWishlist'); // <-- 이 줄 삭제됨
+    sessionStorage.clear();
+    
     document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     setUser(null);
     alert("로그아웃 되었습니다.");
@@ -185,7 +188,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
       </div>
 
       <div style={styles.rightGroup}>
-          {/* ★★★ [수정] /recommend -> /recommend/personal (백엔드 리다이렉트와 일치) */}
           <Link to="/recommend/personal" style={styles.recoBtn}>🤖 AI 추천</Link>
           <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="KR">🇰🇷 KRW</option>
@@ -210,9 +212,16 @@ function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
 
+  // 자동 로그인 체크 로직
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) setUser(JSON.parse(storedUser));
+    const sessionUser = sessionStorage.getItem('user');
+    const localUser = localStorage.getItem('user');
+
+    if (sessionUser) {
+        setUser(JSON.parse(sessionUser));
+    } else if (localUser) {
+        setUser(JSON.parse(localUser));
+    }
   }, []);
 
   return (
@@ -220,15 +229,13 @@ function App() {
       <div className="net-app">
         <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} />
         <Routes>
-          <Route path="/" element={<MainPage region={region} />} />
+          <Route path="/" element={<MainPage region={region} user={user} />} />
           <Route path="/game/:id" element={<ShopPage region={region} />} />
-          <Route path="/comparison" element={<ComparisonPage region={region} />} />
+          <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
-          
-          {/* ★★★ [수정] 스팀 연동 후 돌아오는 주소와 일치시킴 */}
-          <Route path="/recommend/personal" element={<PersonalRecoPage />} />
+          <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
         </Routes>
       </div>
     </Router>

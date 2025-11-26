@@ -1,7 +1,7 @@
 // backend/index.js
 
 require('dotenv').config(); 
-const { exec } = require('child_process'); // ★ 추가된 부분: 스크립트 실행을 위해 필요
+const { exec } = require('child_process'); // 스크립트 실행용
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -18,11 +18,13 @@ const PriceHistory = require('./models/PriceHistory');
 const TrendHistory = require('./models/TrendHistory');
 const SaleHistory = require('./models/SaleHistory');
 
-// 라우터 로드
+// ★★★ 라우터 로드 ★★★
 const authRoutes = require('./routes/auth');
 const recommendRoutes = require('./routes/recommend');
 const userRoutes = require('./routes/user'); 
-const steamRecoRouter = require('./routes/steamReco.route'); // 사용자님 코드 유지
+
+// ★ [수정됨] 경로를 './routes/recoRoutes'로 변경 (파일을 backend/routes/ 폴더에 넣으셔야 합니다)
+const recoRoutes = require('./routes/recoRoutes'); 
 
 const app = express();
 const PORT = 8000;
@@ -48,7 +50,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ★★★ 스팀 전략 설정 (저장 로직 강화 및 로그 추가됨) ★★★
+// ★★★ 스팀 전략 설정 ★★★
 try {
     passport.use(new SteamStrategy({
         returnURL: `${BACKEND_URL}/api/auth/steam/return`, 
@@ -59,7 +61,6 @@ try {
       async function(req, identifier, profile, done) { 
         const steamId = identifier.split('/').pop();
         
-        // [로그 추가] 스팀에서 응답이 왔는지 확인
         console.log(`🔍 [Steam Strategy] 스팀 응답 수신! ID: ${steamId}`);
         console.log(`🔍 [Steam Strategy] 연동 요청 여부(세션):`, req.session.linkUserId ? `YES (User ID: ${req.session.linkUserId})` : "NO (Login Mode)");
 
@@ -68,10 +69,8 @@ try {
             if (req.session.linkUserId) {
                 const currentUser = await User.findById(req.session.linkUserId);
                 if (currentUser) {
-                    // [수정] 메모리에만 넣지 않고 여기서 '즉시 저장'합니다.
                     currentUser.steamId = steamId;
                     await currentUser.save(); 
-                    
                     console.log(`✅ [DB 저장 성공] 유저(${currentUser.username}) DB에 SteamID(${steamId})가 저장되었습니다.`);
                     return done(null, currentUser);
                 }
@@ -115,24 +114,20 @@ if (!MONGODB_URI) {
     .catch(err => console.error("❌ 몽고DB 연결 실패:", err));
 }
 
-// 라우터 등록
+// ★★★ 라우터 등록 ★★★
 app.use('/api/auth', authRoutes);
 app.use('/api/ai-recommend', recommendRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/steam', steamRecoRouter); // 사용자님 코드 유지
+app.use('/api/steam', recoRoutes);
 
 
 // =================================================================
-// ★ [추가됨] 관리자용 스크립트 실행 API
-// 브라우저나 Postman에서 아래 주소를 호출하여 수집기를 실행할 수 있습니다.
+// ★ 관리자용 스크립트 실행 API
 // =================================================================
 
-// 1. 게임 데이터 수집기 실행 (Steam, ITAD, 트렌드 종합)
-// 호출 URL: http://localhost:8000/api/admin/collect
+// 1. 게임 데이터 수집기 실행
 app.get('/api/admin/collect', (req, res) => {
     console.log("🚀 [Admin] 게임 데이터 수집기(Collector) 실행 요청됨...");
-    
-    // 별도 프로세스로 실행하여 서버에 영향을 주지 않음
     exec('node collector.js', { cwd: __dirname }, (error, stdout, stderr) => {
         if (error) {
             console.error(`❌ Collector 실행 중 오류 발생: ${error.message}`);
@@ -141,15 +136,12 @@ app.get('/api/admin/collect', (req, res) => {
         if (stderr) console.error(`⚠️ Collector 경고: ${stderr}`);
         console.log(`✅ Collector 결과:\n${stdout}`);
     });
-
-    res.json({ message: "수집기가 백그라운드에서 시작되었습니다. 진행 상황은 서버 콘솔을 확인하세요." });
+    res.json({ message: "수집기가 백그라운드에서 시작되었습니다." });
 });
 
 // 2. 트렌드(카테고리) 족보 업데이트 실행
-// 호출 URL: http://localhost:8000/api/admin/seed/category
 app.get('/api/admin/seed/category', (req, res) => {
     console.log("🚀 [Admin] 트렌드 카테고리 시더(Category Seeder) 실행 요청됨...");
-    
     exec('node category_seeder.js', { cwd: __dirname }, (error, stdout, stderr) => {
         if (error) {
             console.error(`❌ Category Seeder 오류: ${error.message}`);
@@ -157,15 +149,12 @@ app.get('/api/admin/seed/category', (req, res) => {
         }
         console.log(`✅ Category Seeder 결과:\n${stdout}`);
     });
-
     res.json({ message: "트렌드 카테고리 매핑 작업이 시작되었습니다." });
 });
 
 // 3. 가격(ITAD) 족보 업데이트 실행
-// 호출 URL: http://localhost:8000/api/admin/seed/metadata
 app.get('/api/admin/seed/metadata', (req, res) => {
     console.log("🚀 [Admin] 메타데이터 시더(Metadata Seeder) 실행 요청됨...");
-    
     exec('node metadata_seeder.js', { cwd: __dirname }, (error, stdout, stderr) => {
         if (error) {
             console.error(`❌ Metadata Seeder 오류: ${error.message}`);
@@ -173,13 +162,12 @@ app.get('/api/admin/seed/metadata', (req, res) => {
         }
         console.log(`✅ Metadata Seeder 결과:\n${stdout}`);
     });
-
     res.json({ message: "가격 데이터 매핑 작업이 시작되었습니다." });
 });
 
 
 // =================================================================
-// 기존 API 유지
+// 기존 API 유지 (상세 페이지, 검색, 찜 등)
 // =================================================================
 
 // 1. 상세 페이지 API 
