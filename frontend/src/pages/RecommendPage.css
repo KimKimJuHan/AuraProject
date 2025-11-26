@@ -1,0 +1,190 @@
+/* 전체 컨테이너 */
+.reco-container {
+  padding: 40px 4%;
+  background-color: #141414;
+  min-height: 100vh;
+  color: #fff;
+}
+
+/* 검색 박스 */
+.search-panel {
+  background: #181818;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #333;
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 14px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #222;
+  color: white;
+  font-size: 16px;
+}
+.search-input:focus {
+  outline: none;
+  border-color: #E50914;
+}
+
+.search-btn {
+  padding: 0 24px;
+  background: #E50914;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 16px;
+}
+.search-btn:hover {
+  background: #f40612;
+}
+
+/* 태그 필터 영역 */
+.tags-panel {
+  background: #181818;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  margin-bottom: 30px;
+}
+
+.tag-group {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tag-group:last-child {
+  margin-bottom: 0;
+}
+
+.tag-label {
+  font-weight: bold;
+  color: #aaa;
+  width: 60px;
+  font-size: 14px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.tag-chip {
+  padding: 6px 14px;
+  background: #2b2b2b;
+  border-radius: 20px;
+  cursor: pointer;
+  border: 1px solid #444;
+  color: #ccc;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.tag-chip:hover {
+  background: #333;
+  border-color: #888;
+}
+
+.tag-chip.on {
+  background: #E50914;
+  border-color: #E50914;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* 게임 그리드 */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.game-card {
+  background: #181818;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s, border-color 0.2s;
+  border: 1px solid #333;
+  display: block; /* Link 태그용 */
+}
+
+.game-card:hover {
+  transform: translateY(-5px);
+  border-color: #888;
+  z-index: 10;
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.card-info {
+  padding: 12px;
+}
+
+.game-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 15px;
+}
+
+.game-price {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.score-bar {
+  width: 100%;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.score-bar > div {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+/* 배지 스타일 */
+.card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+.badge.trend {
+  background: #00FFA3;
+  color: #000;
+}
+
+.badge.score {
+  background: #333;
+  color: #46d369;
+  border: 1px solid #46d369;
+}
