@@ -1,18 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 
 const styles = {
+  // ... (기존 버튼 스타일 유지) ...
   buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
   wishlistButton: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#fff', color: '#000', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#555', borderRadius: '4px', background: 'transparent', color: '#fff' },
   thumbButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#E50914', borderRadius: '4px', background: '#E50914', color: '#fff' },
-  mediaContainer: { display: 'flex', overflowX: 'auto', padding: '20px 0', gap:'10px' },
-  mediaItem: { height: '100px', borderRadius: '4px', borderWidth:'2px', borderStyle:'solid', borderColor:'transparent', cursor: 'pointer', transition:'border-color 0.2s' },
-  mainMediaDisplay: { width: '100%', maxWidth: '100%', height: 'auto', maxHeight:'500px', marginBottom: '10px', borderRadius: '4px', backgroundColor: '#000', display: 'flex', justifyContent: 'center', objectFit:'contain' },
+  
+  // ★ 미디어 갤러리 스타일 (스팀 스타일) ★
+  galleryContainer: { display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '40px' },
+  mainMediaDisplay: { 
+    width: '100%', 
+    aspectRatio: '16 / 9', // 16:9 비율 고정
+    backgroundColor: '#000', 
+    display: 'flex', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    borderRadius: '4px',
+    overflow: 'hidden',
+    border: '1px solid #333',
+    position: 'relative' // 재생 버튼 오버레이를 위해
+  },
+  mediaStrip: { 
+    display: 'flex', 
+    gap: '8px', 
+    overflowX: 'auto', 
+    paddingBottom: '10px',
+    scrollBehavior: 'smooth'
+  },
+  thumbItem: { 
+    width: '120px', 
+    height: '68px', // 16:9 비율 썸네일
+    borderRadius: '2px', 
+    cursor: 'pointer', 
+    objectFit: 'cover',
+    border: '2px solid transparent',
+    opacity: 0.6,
+    transition: 'all 0.2s'
+  },
+  thumbItemActive: { 
+    border: '2px solid #E50914', // 선택된 항목 강조
+    opacity: 1 
+  },
+  // 썸네일 위 영상 아이콘 (작게)
+  videoIconSmall: {
+    position: 'absolute',
+    bottom: '5px',
+    left: '5px',
+    fontSize: '12px',
+    color: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: '2px 4px',
+    borderRadius: '2px',
+    pointerEvents: 'none'
+  },
+  // 메인 화면 재생 버튼 (크게)
+  playButtonOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    fontSize: '60px',
+    color: 'rgba(255,255,255,0.8)',
+    cursor: 'pointer',
+    textShadow: '0 0 10px rgba(0,0,0,0.5)',
+    zIndex: 10
+  },
+
+  // ... (기타 스타일 유지) ...
   storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: '#fff', transition: 'background 0.2s', cursor: 'pointer', width: '100%', boxSizing: 'border-box' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
@@ -55,38 +115,90 @@ function ShopPage({ region }) {
   const [gameData, setGameData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
+  const [mediaList, setMediaList] = useState([]); 
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [likes, setLikes] = useState(0);
   const [dislikes, setDislikes] = useState(0);
-  const [myVote, setMyVote] = useState(null); 
+  const [myVote, setMyVote] = useState(null);
+  
+  // 동영상 자동 재생 방지용 상태
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     const fetchDetails = async () => {
         try {
             const res = await axios.get(`http://localhost:8000/api/games/${id}`);
-            setGameData(res.data);
+            const data = res.data;
+            setGameData(data);
             setLoading(false);
-            if (res.data.trailers?.length > 0) setSelectedMedia({ type: 'video', url: res.data.trailers[0] });
-            else if (res.data.main_image) setSelectedMedia({ type: 'image', url: res.data.main_image });
+
+            // ★ 미디어 리스트 구성 (영상 2개 -> 이미지 -> 나머지 영상) ★
+            const videos = [];
+            if (data.trailers && data.trailers.length > 0) {
+                data.trailers.forEach(url => {
+                     // 스팀 영상은 poster 이미지가 따로 없으므로 메인 이미지 사용 (또는 영상 자체 썸네일 API 활용 필요)
+                     // 여기서는 메인 이미지를 임시 썸네일로 사용
+                     videos.push({ type: 'video', url: url, thumb: data.main_image }); 
+                });
+            }
+
+            const images = [];
+            if (data.screenshots && data.screenshots.length > 0) {
+                data.screenshots.forEach(url => {
+                    images.push({ type: 'image', url: url, thumb: url });
+                });
+            } else if (data.main_image) {
+                images.push({ type: 'image', url: data.main_image, thumb: data.main_image });
+            }
+
+            // 순서: 영상(최대 2개) -> 이미지들 -> 나머지 영상들
+            const firstVideos = videos.slice(0, 2);
+            const remainingVideos = videos.slice(2);
+            const combinedList = [...firstVideos, ...images, ...remainingVideos];
+
+            setMediaList(combinedList);
+            
+            // 초기 선택: 첫 번째 미디어 (자동 재생 X)
+            if (combinedList.length > 0) {
+                setSelectedMedia(combinedList[0]);
+                setIsPlaying(false); // 처음에 재생 안 함
+            }
+
             const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-            setIsWishlisted(wishlist.includes(res.data.slug));
-            setLikes(res.data.likes_count || 0);
-            setDislikes(res.data.dislikes_count || 0);
+            setIsWishlisted(wishlist.includes(data.slug));
+            setLikes(data.likes_count || 0);
+            setDislikes(data.dislikes_count || 0);
+            
             try {
                 const ipRes = await axios.get('http://localhost:8000/api/user/ip');
-                const myVoteData = res.data.votes?.find(v => v.identifier === ipRes.data.ip);
+                const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
                 if(myVoteData) setMyVote(myVoteData.type);
             } catch(e) {}
+
         } catch (err) { setLoading(false); }
     };
     fetchDetails();
   }, [id]); 
 
-  // [수정됨] 가격 표시 로직 개선
+  // 미디어 선택 시 처리 (영상은 자동 재생 안 함)
+  const handleMediaSelect = (media) => {
+      setSelectedMedia(media);
+      setIsPlaying(false); // 영상 선택 시 일단 멈춤 상태로 시작
+  };
+
+  // 재생 버튼 클릭 시
+  const handlePlayVideo = () => {
+      setIsPlaying(true);
+      if (videoRef.current) {
+          videoRef.current.play();
+      }
+  };
+
   const getPriceDisplay = (price, isFree) => {
-    if (isFree) return "무료"; // 진짜 무료인 경우
+    if (isFree) return "무료";
     if (price === null || price === undefined) return "가격 정보 없음";
-    if (price === 0) return "가격 정보 확인 필요"; // 유료인데 0원이면 정보 누락으로 간주
+    if (price === 0) return "가격 정보 확인 필요";
     return `₩${(Math.round(price / 10) * 10).toLocaleString()}`; 
   };
 
@@ -121,15 +233,6 @@ function ShopPage({ region }) {
   if (loading) return <div className="net-panel"><Skeleton height="500px" /></div>;
   if (!gameData) return <div className="net-panel net-empty">게임을 찾을 수 없습니다.</div>;
 
-  const mediaList = [];
-  gameData.trailers?.forEach(url => {
-      let embedUrl = url.includes('watch?v=') ? url.replace('watch?v=', 'embed/') : url;
-      mediaList.push({ type: 'video', url: embedUrl });
-  });
-  gameData.screenshots?.forEach(url => {
-      if (url !== gameData.main_image) mediaList.push({ type: 'image', url });
-  });
-
   const pi = gameData.price_info;
   const storeName = pi?.store_name || "스토어";
 
@@ -160,84 +263,138 @@ function ShopPage({ region }) {
 
   return (
     <div>
-      <div style={{position:'relative', height:'70vh', width:'100%', backgroundImage:`url(${gameData.screenshots?.[0] || gameData.main_image})`, backgroundSize:'cover', backgroundPosition:'center'}}>
-         <div style={{position:'absolute', inset:0, background:'linear-gradient(to top, #141414, transparent 80%)'}}></div>
-         <div style={{position:'absolute', bottom:'50px', left:'4%', maxWidth:'800px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)'}}>
-            <h1 style={{fontSize:'50px', marginBottom:'15px', lineHeight:'1.1'}}>{gameData.title_ko || gameData.title}</h1>
-            {/* 트렌드 정보 표시 (데이터 유효성 검사 추가) */}
-            <div style={{display:'flex', gap:'10px', marginBottom:'15px'}}>
-                {gameData.twitch_viewers !== undefined && gameData.twitch_viewers > 0 && (
-                    <span style={{...styles.trendBadge, backgroundColor:'#9146FF'}}>
-                        💜 Twitch {gameData.twitch_viewers.toLocaleString()}명 시청중
-                    </span>
-                )}
-                {gameData.chzzk_viewers !== undefined && gameData.chzzk_viewers > 0 && (
-                    <span style={{...styles.trendBadge, backgroundColor:'#00FFA3', color:'#000'}}>
-                        💚 치지직 {gameData.chzzk_viewers.toLocaleString()}명 시청중
-                    </span>
-                )}
-            </div>
+      {/* 상단 배너 배경 */}
+      <div style={{
+          position:'relative', height:'40vh', width:'100%', 
+          backgroundImage:`url(${gameData.main_image})`, 
+          backgroundSize:'cover', backgroundPosition:'center',
+          filter: 'blur(20px) brightness(0.4)', 
+          zIndex: 0
+      }}></div>
+      
+      <div style={{
+          position:'absolute', top: '100px', left:0, right:0, zIndex: 1,
+          display:'flex', flexDirection:'column', alignItems:'center', padding:'0 4%'
+      }}>
+         <h1 style={{fontSize:'48px', marginBottom:'20px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)', textAlign:'center'}}>
+            {gameData.title_ko || gameData.title}
+         </h1>
 
-            <div style={{display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap'}}>
-                <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="게임 출시일" icon="" />
-                {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점" icon="Ⓜ️" />}
-                <InfoWithTooltip text={gameData.play_time !== "정보 없음" ? `⏳ ${gameData.play_time}` : "⏳ 플레이 타임 정보 없음"} tooltipText="메인 스토리 클리어 평균 시간 (HLTB)" icon="" />
-            </div>
-            <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
-                 {pi && (
-                    <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
-                        {/* [수정됨] 버튼 텍스트 로직 개선 */}
-                        {pi.isFree ? "무료 플레이" : (pi.current_price > 0 ? `구매하기 ${getPriceDisplay(pi.current_price, pi.isFree)}` : "가격 정보 확인")}
-                    </a>
-                 )}
-                 <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
-                 <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('like')}>👍 {likes}</button>
-                 <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
-            </div>
-            {pi?.discount_percent > 0 && countdown && (
-                <div style={{color:'#E50914', fontWeight:'bold', fontSize:'15px', marginTop:'10px', display:'flex', alignItems:'center', gap:'5px'}}>
-                    <span>🔥 특가 할인 중!</span>
-                    <span>(⏰ 남은 시간: {countdown})</span>
-                </div>
+         <div style={{display:'flex', gap:'10px', marginBottom:'30px'}}>
+            {gameData.twitch_viewers > 0 && (
+                <span style={{...styles.trendBadge, backgroundColor:'#9146FF'}}>
+                    💜 Twitch {gameData.twitch_viewers.toLocaleString()}명
+                </span>
+            )}
+            {gameData.chzzk_viewers > 0 && (
+                <span style={{...styles.trendBadge, backgroundColor:'#00FFA3', color:'#000'}}>
+                    💚 치지직 {gameData.chzzk_viewers.toLocaleString()}명
+                </span>
             )}
          </div>
       </div>
 
-      <div className="net-panel">
-        <h3 className="net-section-title">스크린샷 & 트레일러</h3>
-        <div style={styles.mainMediaDisplay}>
-          {selectedMedia?.type === 'video' ? (
-            <iframe 
-              title="Game Trailer" 
-              src={selectedMedia.url} 
-              style={{width:'100%', height:'100%', border:'none'}} 
-              allow="autoplay; encrypted-media" 
-              allowFullScreen 
-            />
-          ) : (
-            <img src={selectedMedia?.url} onError={(e)=>e.target.src="https://via.placeholder.com/600x300?text=No+Image"} alt="Main" style={{maxWidth:'100%', maxHeight:'500px', objectFit:'contain'}} />
-          )}
-        </div>
-        <div style={styles.mediaContainer}>
-          {mediaList.map((m, i) => (
-            <img key={i} src={m.type==='video' ? gameData.main_image : m.url} style={{...styles.mediaItem, borderColor: selectedMedia?.url === m.url ? '#E50914' : 'transparent'}} onClick={() => setSelectedMedia(m)} alt="thumb" />
-          ))}
-        </div>
-
-        <h3 className="net-section-title" style={{marginTop:'40px'}}>가격 비교</h3>
-        <div style={{border:'1px solid #333', borderRadius:'8px', overflow:'hidden'}}>
-            {renderStoreList()}
-        </div>
-
-        <h3 className="net-section-title" style={{marginTop:'40px'}}>시스템 요구 사항</h3>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px', color:'#ccc', fontSize:'14px', lineHeight:'1.6'}}>
-            <div>
-                <strong style={{color:'#fff', display:'block', marginBottom:'10px'}}>최소 사양</strong>
-                <div dangerouslySetInnerHTML={{ __html: cleanHTML(gameData.pc_requirements?.minimum || "정보 없음") }} />
+      <div className="net-panel" style={{position:'relative', marginTop:'-10vh', zIndex: 2}}>
+        
+        {/* ★ 미디어 갤러리 ★ */}
+        <div style={styles.galleryContainer}>
+            {/* 메인 뷰어 */}
+            <div style={styles.mainMediaDisplay}>
+                {selectedMedia?.type === 'video' ? (
+                    <>
+                        {/* 영상 요소 (초기엔 포스터만 보이고, 재생 시 영상 로드) */}
+                        <video 
+                            ref={videoRef}
+                            src={selectedMedia.url} 
+                            controls={isPlaying} // 재생 중에만 컨트롤 표시
+                            muted={false} 
+                            style={{width:'100%', height:'100%', objectFit:'contain', display: isPlaying ? 'block' : 'none'}}
+                        >
+                            브라우저가 영상을 지원하지 않습니다.
+                        </video>
+                        
+                        {/* 재생 전 포스터 & 재생 버튼 */}
+                        {!isPlaying && (
+                            <>
+                                <img 
+                                    src={selectedMedia.thumb} 
+                                    alt="Trailer Poster" 
+                                    style={{width:'100%', height:'100%', objectFit:'cover', opacity:0.7}} 
+                                />
+                                <div style={styles.playButtonOverlay} onClick={handlePlayVideo}>
+                                    ▶
+                                </div>
+                            </>
+                        )}
+                    </>
+                ) : (
+                    <img src={selectedMedia?.url} alt="Main View" style={{width:'100%', height:'100%', objectFit:'contain'}} />
+                )}
             </div>
+
+            {/* 썸네일 스트립 */}
+            <div style={styles.mediaStrip}>
+                {mediaList.map((item, idx) => (
+                    <div 
+                        key={idx} 
+                        style={{position:'relative', flexShrink:0}} 
+                        onClick={() => handleMediaSelect(item)}
+                    >
+                        <img 
+                            src={item.thumb} 
+                            alt={`thumb-${idx}`} 
+                            style={{
+                                ...styles.thumbItem,
+                                ...(selectedMedia?.url === item.url ? styles.thumbItemActive : {})
+                            }} 
+                        />
+                        {/* 영상이면 작은 아이콘 표시 */}
+                        {item.type === 'video' && (
+                            <div style={styles.videoIconSmall}>▶ Video</div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+
+        {/* ... (하단 정보 섹션은 기존 유지) ... */}
+        <div style={{display:'flex', gap:'10px', marginBottom:'40px', flexWrap:'wrap'}}>
+            <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
+            {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점" icon="Ⓜ️" />}
+            <InfoWithTooltip text={gameData.play_time !== "정보 없음" ? `⏳ ${gameData.play_time}` : "⏳ 시간 정보 없음"} tooltipText="플레이 타임" icon="" />
+        </div>
+
+        <div style={{display:'flex', gap:'15px', alignItems:'center', marginBottom:'40px'}}>
+             {pi && (
+                <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
+                    {getPriceDisplay(pi.current_price, pi.isFree)} 구매하기
+                </a>
+             )}
+             <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
+             <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('like')}>👍 {likes}</button>
+             <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
+        </div>
+        
+        {pi?.discount_percent > 0 && countdown && (
+            <div style={{color:'#E50914', fontWeight:'bold', fontSize:'16px', marginBottom:'40px'}}>
+                🔥 특가 할인 중! (남은 시간: {countdown})
+            </div>
+        )}
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px'}}>
             <div>
-                <strong style={{color:'#fff', display:'block', marginBottom:'10px'}}>권장 사양</strong>
-                <div dangerouslySetInnerHTML={{ __html: cleanHTML(gameData.pc_requirements?.recommended || "권장 사양 정보 없음") }} />
+                <h3 className="net-section-title">가격 비교</h3>
+                <div style={{border:'1px solid #333', borderRadius:'8px', overflow:'hidden'}}>
+                    {renderStoreList()}
+                </div>
+            </div>
+
+            <div>
+                <h3 className="net-section-title">시스템 요구 사항</h3>
+                <div style={{fontSize:'14px', lineHeight:'1.6', color:'#ccc'}}>
+                    <strong style={{color:'#fff', display:'block', marginBottom:'10px'}}>최소 사양</strong>
+                    <div dangerouslySetInnerHTML={{ __html: cleanHTML(gameData.pc_requirements?.minimum || "정보 없음") }} />
+                </div>
             </div>
         </div>
       </div>

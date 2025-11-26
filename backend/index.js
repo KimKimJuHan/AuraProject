@@ -1,6 +1,4 @@
-// backend/index.js
-
-require('dotenv').config(); 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -154,7 +152,8 @@ app.post('/api/recommend', async (req, res) => {
 
   try {
     let filter = {};
-    if (tags && tags.length > 0) filter.smart_tags = { $in: tags }; 
+
+    // 1. 검색어 필터
     if (searchQuery && searchQuery.trim() !== "") {
         const query = searchQuery.trim();
         const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -164,6 +163,14 @@ app.post('/api/recommend', async (req, res) => {
         ];
     }
 
+    // 2. 태그 필터 (하나라도 포함되면 보여주기 -> $in 사용)
+    // 기존에는 $all (모두 포함)이었는데, 너무 엄격해서 결과가 안 나올 수 있음.
+    // 사용자가 'RPG', '액션'을 누르면 둘 중 하나만 있어도 나오게 수정.
+    if (tags && tags.length > 0) {
+        filter.smart_tags = { $in: tags }; 
+    }
+
+    // 3. 정렬 로직
     let sortRule = { popularity: -1, _id: -1 }; 
     if (sortBy === 'discount') {
         sortRule = { "price_info.discount_percent": -1, popularity: -1 };
@@ -173,6 +180,8 @@ app.post('/api/recommend', async (req, res) => {
     } else if (sortBy === 'price') {
         sortRule = { "price_info.current_price": 1, popularity: -1 };
         filter["price_info.current_price"] = { $gte: 0 };
+    } else if (sortBy === 'trend') {
+        sortRule = { trend_score: -1 };
     }
 
     const totalGames = await Game.countDocuments(filter);
@@ -180,6 +189,7 @@ app.post('/api/recommend', async (req, res) => {
       
     console.log(`👉 검색 결과: ${totalGames}개`);
 
+    // 검색 결과가 없고 필터도 없을 때 인기 게임 노출
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
         console.log("⚠️ 데이터 없음 -> 인기 게임 강제 로딩");
         games = await Game.find({}).sort({ popularity: -1 }).limit(20).lean();
