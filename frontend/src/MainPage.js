@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Skeleton from './Skeleton';
 
 const TAG_CATEGORIES = {
@@ -45,8 +45,10 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
     );
 };
 
-function GameListItem({ game }) {
+function GameListItem({ game, user }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const navigate = useNavigate();
+
   useEffect(() => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     setIsWishlisted(wishlist.includes(game.slug));
@@ -54,6 +56,8 @@ function GameListItem({ game }) {
 
   const toggleWishlist = (e) => {
     e.preventDefault(); e.stopPropagation();
+
+    // ★★★ [수정] 로그인 여부 상관없이 로컬 스토리지에 저장 (게스트 모드)
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
@@ -89,7 +93,7 @@ function GameListItem({ game }) {
   );
 }
 
-function MainPage() {
+function MainPage({ user }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
@@ -165,7 +169,7 @@ function MainPage() {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => <GameListItem key={game.slug} game={game} />)}
+          {games.map(game => <GameListItem key={game.slug} game={game} user={user} />)}
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}

@@ -9,6 +9,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # ★ 모든 스크립트(Seeder, Collector)가 DB와 API 키를 쓸 수 있도록 환경 변수를 여기로 이동
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      CHZZK_CLIENT_ID: ${{ secrets.CHZZK_CLIENT_ID }}
+      CHZZK_CLIENT_SECRET: ${{ secrets.CHZZK_CLIENT_SECRET }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -16,25 +25,27 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '20' # Node.js 20 사용 (필수)
+        node-version: '20'
 
     - name: Install Dependencies
       run: |
         cd backend
         npm install
 
-    - name: Seed Databases (필요시 주석 해제하여 사용)
+    # 1단계: 최신 게임 목록 및 가격 정보 ID(UUID) 갱신
+    - name: 1. Seed Game Metadata (Price & Game List)
       run: |
         cd backend
-        # node metadata_seeder.js  # 가격 족보 업데이트 시 주석 해제
-        # node category_seeder.js  # 트렌드 족보 업데이트 시 주석 해제
+        node metadata_seeder.js
 
-    - name: Run Collector
-      run: node backend/collector.js
-      env:
-        MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
-        TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
-        TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
-        CHZZK_CLIENT_ID: ${{ secrets.CHZZK_CLIENT_ID }}
-        CHZZK_CLIENT_SECRET: ${{ secrets.CHZZK_CLIENT_SECRET }}
+    # 2단계: 갱신된 게임 목록에 대한 트위치/치지직 카테고리 매핑
+    - name: 2. Seed Category Mapping (Trend Source)
+      run: |
+        cd backend
+        node category_seeder.js
+
+    # 3단계: 완성된 족보를 바탕으로 실제 가격/트렌드/상세정보 수집
+    - name: 3. Run Main Collector
+      run: |
+        cd backend
+        node collector.js

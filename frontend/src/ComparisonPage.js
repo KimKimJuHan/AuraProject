@@ -22,13 +22,20 @@ const styles = {
   tag: { fontSize: '11px', color: '#ddd', marginRight: '5px', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '999px' }
 };
 
+// ★ [수정] user prop 제거 (로그인 여부 상관없이 작동)
 function ComparisonPage({ region }) {
   const [wishlistGames, setWishlistGames] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // ★★★ [수정] 로그인 체크 제거. 로컬 스토리지 기반 조회
     const slugs = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    if (slugs.length === 0) { setLoading(false); return; }
+    
+    if (slugs.length === 0) { 
+        setWishlistGames([]);
+        setLoading(false); 
+        return; 
+    }
 
     fetch('http://localhost:8000/api/wishlist', {
       method: 'POST',
@@ -53,7 +60,6 @@ function ComparisonPage({ region }) {
     return `₩${price.toLocaleString()}`; 
   };
 
-  // ★ [수정] padding 단축 속성 대신 paddingTop 등 명시적 사용 (오류 해결)
   if (loading) return <div className="net-panel" style={{textAlign:'center', paddingTop:'100px'}}>로딩 중...</div>;
 
   if (wishlistGames.length === 0) {
