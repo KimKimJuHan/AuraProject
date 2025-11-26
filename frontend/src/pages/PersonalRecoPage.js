@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
 import Skeleton from '../Skeleton';
+import "./RecommendPage.css"; // 기존 CSS 활용
 
 // 태그 카테고리 정의
 const TAG_CATEGORIES = {
@@ -16,6 +17,7 @@ function PersonalRecoPage() {
   const [games, setGames] = useState([]); // AI 추천 결과
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [err, setErr] = useState(null);
   
   // 스팀 데이터 관련 상태
   const [steamGames, setSteamGames] = useState([]); 
@@ -88,6 +90,7 @@ function PersonalRecoPage() {
   // B. AI 추천 요청
   const fetchRecommendations = async () => {
       setLoading(true);
+      setErr(null);
       const user = JSON.parse(localStorage.getItem('user'));
       
       try {
@@ -104,6 +107,7 @@ function PersonalRecoPage() {
 
       } catch (err) { 
           console.error("추천 실패:", err); 
+          setErr("추천 데이터를 불러오는 중 오류가 발생했습니다.");
           setGames([]); 
       } finally { 
           setLoading(false); 
@@ -130,7 +134,7 @@ function PersonalRecoPage() {
   // [렌더링]
   // ---------------------------------------------------------
   return (
-    <div className="net-panel">
+    <div className="reco-container">
         <h2 className="net-section-title" style={{borderLeftColor:'#E50914', fontSize:'28px', marginBottom:'30px'}}>
             🤖 AI 맞춤 추천
         </h2>
@@ -223,63 +227,77 @@ function PersonalRecoPage() {
         </div>
 
         {/* 2. 필터 및 추천 결과 섹션 */}
-        <div>
+        <div className="tags-panel">
             <h3 style={{marginBottom:'15px'}}>🎯 태그로 추천 좁히기</h3>
             <div style={{marginBottom:'30px', display:'flex', gap:'8px', flexWrap:'wrap'}}>
                 {Object.entries(TAG_CATEGORIES).map(([catName, tags]) => (
-                    <React.Fragment key={catName}>
+                    <div key={catName} className="tag-group" style={{display:'contents'}}>
                         {tags.map(tag => (
                             <button key={tag} onClick={() => toggleTag(tag)}
-                                style={{
-                                    padding:'8px 16px', borderRadius:'20px', border:'1px solid #444',
-                                    background: selectedTags.includes(tag) ? '#E50914' : '#222',
-                                    color: selectedTags.includes(tag) ? '#fff' : '#ccc', 
-                                    cursor:'pointer', transition:'all 0.2s', fontSize:'14px'
-                                }}
+                                className={`tag-chip ${selectedTags.includes(tag) ? "on" : ""}`}
                             >
                                 {tag}
                             </button>
                         ))}
-                        <div style={{width:'10px'}}></div> {/* 그룹 간 간격 */}
-                    </React.Fragment>
+                    </div>
                 ))}
             </div>
 
             <h3 style={{marginBottom:'20px'}}>
                 {selectedTags.length > 0 ? `'${selectedTags.join(', ')}' 관련 추천` : '✨ 당신을 위한 추천'}
             </h3>
+            
+             {/* 에러 메시지 */}
+            {err && <div className="error-box">{err}</div>}
 
             {loading ? (
-                <div className="net-cards">
+                <div className="game-grid">
                     {[1,2,3,4,5].map(n => <Skeleton key={n} height="250px" />)}
                 </div>
             ) : (
-                <div className="net-cards">
-                    {games && games.length > 0 ? games.map(g => (
-                        <Link to={`/game/${g.slug}`} key={g.slug} className="net-card">
-                            <div className="net-card-thumb">
-                                <img src={g.main_image} alt={g.title} style={{width:'100%', height:'100%', objectFit:'cover'}} />
-                                {/* 매칭 점수 뱃지 */}
+                <div className="game-grid">
+                    {games && games.length > 0 ? games.map((g, index) => (
+                        <Link to={`/game/${g.slug}`} key={g.slug} className="game-card" style={{textDecoration:'none', color:'inherit'}}>
+                            <div style={{position:'relative', overflow:'hidden', borderRadius:'14px 14px 0 0'}}>
+                                <img src={g.main_image} alt={g.title} className="thumb" style={{width:'100%', height:'130px', objectFit:'cover'}} />
+                                {/* 순위 배지 (선택 사항) */}
+                                {/* <div style={{
+                                    position:'absolute', top:'10px', left:'10px', 
+                                    background:'rgba(0,0,0,0.8)', color:'#fff', width:'24px', height:'24px', 
+                                    borderRadius:'50%', textAlign:'center', lineHeight:'24px', fontWeight:'bold',
+                                    border: index < 3 ? '1px solid #E50914' : '1px solid #555'
+                                }}>
+                                    {index + 1}
+                                </div> */}
+                                 {/* 매칭 점수 뱃지 */}
                                 {g.score && (
                                     <div style={{position:'absolute', top:'10px', right:'10px', background:'rgba(0,0,0,0.8)', color:'#46d369', padding:'4px 8px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold', border:'1px solid #46d369'}}>
                                         {Math.round(g.score * 100)}% 매칭
                                     </div>
                                 )}
                             </div>
-                            <div className="net-card-body">
-                                <div className="net-card-title" style={{fontSize:'16px', marginBottom:'5px'}}>
-                                    {g.title_ko || g.title}
-                                </div>
-                                <div style={{display:'flex', gap:'5px', flexWrap:'wrap', marginTop:'10px'}}>
-                                    {g.trend_score > 1000 && (
-                                        <span style={{fontSize:'11px', color:'#000', background:'#00FFA3', padding:'2px 6px', borderRadius:'3px', fontWeight:'bold'}}>🔥 TREND</span>
-                                    )}
-                                    {g.price_info?.discount_percent > 0 && (
-                                        <span style={{fontSize:'11px', color:'#fff', background:'#E50914', padding:'2px 6px', borderRadius:'3px', fontWeight:'bold'}}>
-                                            -{g.price_info.discount_percent}%
-                                        </span>
-                                    )}
-                                </div>
+
+                            <div className="card-badges" style={{padding:'10px 10px 0'}}>
+                              {/* 트렌드 배지 */}
+                              {g.trend_score > 1000 && <span className="badge trend">🔥 HOT</span>}
+                              {/* 할인 배지 */}
+                              {g.price_info?.discount_percent > 0 && (
+                                  <span className="badge score">
+                                      -{g.price_info.discount_percent}%
+                                  </span>
+                              )}
+                            </div>
+
+                            <div className="card-info">
+                              <div className="game-title">{g.title_ko || g.title}</div>
+                              <div className="game-price" style={{color: (g.price_info?.current_price === 0 || g.price_info?.isFree) ? '#46d369' : '#aaa'}}>
+                                   {g.price_info?.isFree ? "무료" : (g.price_info?.current_price ? `₩${g.price_info.current_price.toLocaleString()}` : "가격 정보 없음")}
+                              </div>
+                              
+                              {/* 매칭 점수 바 */}
+                              <div className="score-bar">
+                                <div style={{ width: `${(g.score || 0) * 100}%`, backgroundColor: (g.score || 0) > 0.8 ? '#E50914' : '#66c0f4' }}></div>
+                              </div>
                             </div>
                         </Link>
                     )) : (
@@ -296,7 +314,7 @@ function PersonalRecoPage() {
   );
 }
 
-// 스타일 정의 (CSS-in-JS)
+// 스타일 정의 (CSS-in-JS) - 기존 컴포넌트 내부 스타일 유지
 const styles = {
     statusBox: {
         backgroundColor:'#181818', padding:'40px', borderRadius:'8px', textAlign:'center', color:'#aaa', border:'1px solid #333'
