@@ -1,4 +1,7 @@
-require('dotenv').config();
+// backend/index.js
+
+require('dotenv').config(); 
+const { exec } = require('child_process'); // ★ 추가된 부분: 스크립트 실행을 위해 필요
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -120,6 +123,62 @@ app.use('/api/steam', steamRecoRouter); // 사용자님 코드 유지
 
 
 // =================================================================
+// ★ [추가됨] 관리자용 스크립트 실행 API
+// 브라우저나 Postman에서 아래 주소를 호출하여 수집기를 실행할 수 있습니다.
+// =================================================================
+
+// 1. 게임 데이터 수집기 실행 (Steam, ITAD, 트렌드 종합)
+// 호출 URL: http://localhost:8000/api/admin/collect
+app.get('/api/admin/collect', (req, res) => {
+    console.log("🚀 [Admin] 게임 데이터 수집기(Collector) 실행 요청됨...");
+    
+    // 별도 프로세스로 실행하여 서버에 영향을 주지 않음
+    exec('node collector.js', { cwd: __dirname }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`❌ Collector 실행 중 오류 발생: ${error.message}`);
+            return;
+        }
+        if (stderr) console.error(`⚠️ Collector 경고: ${stderr}`);
+        console.log(`✅ Collector 결과:\n${stdout}`);
+    });
+
+    res.json({ message: "수집기가 백그라운드에서 시작되었습니다. 진행 상황은 서버 콘솔을 확인하세요." });
+});
+
+// 2. 트렌드(카테고리) 족보 업데이트 실행
+// 호출 URL: http://localhost:8000/api/admin/seed/category
+app.get('/api/admin/seed/category', (req, res) => {
+    console.log("🚀 [Admin] 트렌드 카테고리 시더(Category Seeder) 실행 요청됨...");
+    
+    exec('node category_seeder.js', { cwd: __dirname }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`❌ Category Seeder 오류: ${error.message}`);
+            return;
+        }
+        console.log(`✅ Category Seeder 결과:\n${stdout}`);
+    });
+
+    res.json({ message: "트렌드 카테고리 매핑 작업이 시작되었습니다." });
+});
+
+// 3. 가격(ITAD) 족보 업데이트 실행
+// 호출 URL: http://localhost:8000/api/admin/seed/metadata
+app.get('/api/admin/seed/metadata', (req, res) => {
+    console.log("🚀 [Admin] 메타데이터 시더(Metadata Seeder) 실행 요청됨...");
+    
+    exec('node metadata_seeder.js', { cwd: __dirname }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`❌ Metadata Seeder 오류: ${error.message}`);
+            return;
+        }
+        console.log(`✅ Metadata Seeder 결과:\n${stdout}`);
+    });
+
+    res.json({ message: "가격 데이터 매핑 작업이 시작되었습니다." });
+});
+
+
+// =================================================================
 // 기존 API 유지
 // =================================================================
 
@@ -152,8 +211,7 @@ app.post('/api/recommend', async (req, res) => {
 
   try {
     let filter = {};
-
-    // 1. 검색어 필터
+    if (tags && tags.length > 0) filter.smart_tags = { $in: tags }; 
     if (searchQuery && searchQuery.trim() !== "") {
         const query = searchQuery.trim();
         const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -163,14 +221,6 @@ app.post('/api/recommend', async (req, res) => {
         ];
     }
 
-    // 2. 태그 필터 (하나라도 포함되면 보여주기 -> $in 사용)
-    // 기존에는 $all (모두 포함)이었는데, 너무 엄격해서 결과가 안 나올 수 있음.
-    // 사용자가 'RPG', '액션'을 누르면 둘 중 하나만 있어도 나오게 수정.
-    if (tags && tags.length > 0) {
-        filter.smart_tags = { $in: tags }; 
-    }
-
-    // 3. 정렬 로직
     let sortRule = { popularity: -1, _id: -1 }; 
     if (sortBy === 'discount') {
         sortRule = { "price_info.discount_percent": -1, popularity: -1 };
@@ -180,8 +230,6 @@ app.post('/api/recommend', async (req, res) => {
     } else if (sortBy === 'price') {
         sortRule = { "price_info.current_price": 1, popularity: -1 };
         filter["price_info.current_price"] = { $gte: 0 };
-    } else if (sortBy === 'trend') {
-        sortRule = { trend_score: -1 };
     }
 
     const totalGames = await Game.countDocuments(filter);
@@ -189,7 +237,6 @@ app.post('/api/recommend', async (req, res) => {
       
     console.log(`👉 검색 결과: ${totalGames}개`);
 
-    // 검색 결과가 없고 필터도 없을 때 인기 게임 노출
     if (totalGames === 0 && !searchQuery && (!tags || tags.length === 0)) {
         console.log("⚠️ 데이터 없음 -> 인기 게임 강제 로딩");
         games = await Game.find({}).sort({ popularity: -1 }).limit(20).lean();
