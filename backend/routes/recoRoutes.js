@@ -1,28 +1,33 @@
+// backend/routes/recoRoutes.js
+
 const express = require('express');
 const router = express.Router();
-const Game = require('../models/Game'); // 수집된 데이터 모델
-const User = require('../models/User');
+const Game = require('../models/Game'); // ★ DB 모델 연결
 
-// 태그 유사도 계산 함수 (Jaccard Similarity)
+// 태그 유사도 계산
 function calculateTagScore(gameTags, userTags) {
     if (!gameTags || !userTags || userTags.length === 0) return 0;
-    
-    const gameSet = new Set(gameTags);
+    const gameSet = new Set(gameTags.map(t => t.toLowerCase()));
     let matchCount = 0;
-    
     userTags.forEach(tag => {
-        if (gameSet.has(tag)) matchCount++;
+        if (gameSet.has(tag.toLowerCase())) matchCount++;
     });
-
-    // 합집합 크기 = (게임 태그 수 + 유저 태그 수) - 교집합 수
-    const unionSize = gameSet.size + userTags.length - matchCount;
+    const unionSize = new Set([...gameTags, ...userTags]).size;
     return unionSize === 0 ? 0 : matchCount / unionSize;
 }
 
+// 가격 포맷팅
+function formatPrice(priceInfo) {
+    if (priceInfo?.isFree) return "무료";
+    if (priceInfo?.current_price !== undefined) {
+        return `₩${priceInfo.current_price.toLocaleString()}`;
+    }
+    return "가격 정보 없음";
+}
+
 // 추천 API
-// 프론트엔드에서 /api/steam/reco 로 호출하므로 경로를 '/reco'로 설정
 router.post('/reco', async (req, res) => {
-    const { term, liked, k = 12 } = req.body; // term: 검색어, liked: 선택 태그 배열
+    const { term, liked = [], k = 12, strict = false } = req.body; 
 
     try {
         let filter = {};
@@ -36,48 +41,61 @@ router.post('/reco', async (req, res) => {
             ];
         }
 
-        // 2. 전체 게임 가져오기 (필터링은 메모리에서 정교하게 수행)
-        // 데이터가 아주 많아지면 DB 쿼리로 최적화해야 하지만, 수백~수천 개 수준이면 메모리가 더 빠름
-        let candidates = await Game.find(filter).lean();
+        // 2. 태그 필터 (엄격 모드일 때만 필수, 아니면 가산점)
+        if (strict && liked.length > 0) {
+            filter.smart_tags = { $all: liked };
+        }
 
-        // 3. 점수 계산 및 정렬
+        // 3. DB 조회 (모든 게임 후보 가져오기)
+        const candidates = await Game.find(filter)
+            .select('steam_appid title title_ko main_image price_info smart_tags metacritic_score trend_score slug play_time')
+            .lean();
+
+        // 4. 점수 계산
         const scoredGames = candidates.map(game => {
-            // 태그 점수 (60%)
-            const tagScore = calculateTagScore(game.smart_tags, liked);
+            // A. 태그 점수 (0~1)
+            let tagScore = 0;
+            if (liked.length > 0) {
+                tagScore = calculateTagScore(game.smart_tags, liked);
+            } else {
+                // 태그 선택 안 했으면 0점 처리 (트렌드 점수로만 정렬됨)
+                tagScore = 0; 
+            }
             
-            // 트렌드 점수 (20%) - 로그 스케일 정규화
+            // B. 트렌드 점수 (로그 스케일 정규화 0~1)
+            // trend_score가 높을수록 상단 노출
             const trendVal = game.trend_score || 0;
-            const trendScore = Math.log10(trendVal + 1) / 5; // 대략 0~1 사이 값으로 조정
+            const trendScore = Math.log10(trendVal + 1) / 5; 
 
-            // 평점 점수 (20%)
+            // C. 평점 점수 (0~1)
             const metaScore = (game.metacritic_score || 0) / 100;
 
-            // 최종 점수
-            const finalScore = (tagScore * 0.6) + (trendScore * 0.2) + (metaScore * 0.2);
+            // D. 최종 점수 합산 (태그 50% + 트렌드 30% + 평점 20%)
+            // 태그를 선택 안 했으면 트렌드 비중이 자연스럽게 높아짐
+            const finalScore = (tagScore * 0.5) + (trendScore * 0.3) + (metaScore * 0.2);
 
             return {
                 appid: game.steam_appid,
                 name: game.title_ko || game.title,
                 thumb: game.main_image,
-                price: game.price_info?.current_price > 0 
-                        ? `₩${game.price_info.current_price.toLocaleString()}` 
-                        : (game.price_info?.isFree ? "무료" : "가격 정보 없음"),
-                score: Math.round(finalScore * 100), // 0~100점
+                price: formatPrice(game.price_info),
+                playtime: game.play_time || "정보 없음",
+                score: Math.round(finalScore * 100),
                 trend: trendVal,
                 slug: game.slug,
-                hiddenGem: (game.metacritic_score >= 85 && trendVal < 1000) // 숨은 명작 조건
+                hiddenGem: (game.metacritic_score >= 85 && trendVal < 1000)
             };
         });
 
-        // 점수 높은 순 정렬
+        // 5. 정렬 (점수 높은 순)
         scoredGames.sort((a, b) => b.score - a.score);
-
-        // 상위 k개 반환
+        
+        // 6. 상위 k개 반환
         res.json({ items: scoredGames.slice(0, k) });
 
     } catch (err) {
         console.error("추천 API 에러:", err);
-        res.status(500).json({ error: "추천 실패" });
+        res.status(500).json({ error: "데이터 조회 실패" });
     }
 });
 

@@ -1,190 +1,129 @@
-/* 전체 컨테이너 */
+/* frontend/src/pages/RecommendPage.css */
+
 .reco-container {
-  padding: 40px 4%;
+  padding: 40px 5%;
   background-color: #141414;
   min-height: 100vh;
   color: #fff;
+  font-family: sans-serif;
 }
 
-/* 검색 박스 */
+/* 검색 패널 */
 .search-panel {
-  background: #181818;
-  padding: 20px;
+  background-color: #181818;
+  padding: 30px;
   border-radius: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 40px;
   border: 1px solid #333;
 }
 
-.search-row {
+.search-panel h1 {
+  margin-top: 0;
+  font-size: 24px;
+  border-left: 5px solid #E50914;
+  padding-left: 15px;
+  margin-bottom: 20px;
+}
+
+/* 스팀 대시보드 */
+.steam-dashboard {
+  background-color: #222;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border: 1px solid #444;
+}
+
+.steam-guest-msg, .steam-connect-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #ccc;
+    font-size: 14px;
+}
+
+.steam-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 10px;
+}
+
+/* 스팀 리스트 세로 정렬 */
+.steam-list {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
-.search-input {
-  flex: 1;
-  padding: 14px;
-  border-radius: 4px;
-  border: 1px solid #444;
-  background: #222;
-  color: white;
-  font-size: 16px;
-}
-.search-input:focus {
-  outline: none;
-  border-color: #E50914;
-}
-
-.search-btn {
-  padding: 0 24px;
-  background: #E50914;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: 16px;
-}
-.search-btn:hover {
-  background: #f40612;
-}
-
-/* 태그 필터 영역 */
-.tags-panel {
-  background: #181818;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #333;
-  margin-bottom: 30px;
-}
-
-.tag-group {
-  margin-bottom: 15px;
+.steam-card {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.tag-group:last-child {
-  margin-bottom: 0;
+  background-color: #333;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #444;
 }
 
-.tag-label {
-  font-weight: bold;
-  color: #aaa;
+.steam-game-icon {
   width: 60px;
+  height: auto;
+  border-radius: 4px;
+  margin-right: 15px;
+}
+
+.steam-info-col {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.steam-game-name {
+  font-weight: bold;
+  color: #fff;
   font-size: 14px;
 }
 
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex: 1;
-}
-
-.tag-chip {
-  padding: 6px 14px;
-  background: #2b2b2b;
-  border-radius: 20px;
-  cursor: pointer;
-  border: 1px solid #444;
-  color: #ccc;
+.steam-playtime {
+  color: #E50914;
+  font-weight: bold;
   font-size: 13px;
-  transition: all 0.2s;
 }
 
-.tag-chip:hover {
-  background: #333;
-  border-color: #888;
-}
+/* 검색 UI */
+.search-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.search-input { flex: 1; padding: 14px; background: #333; border: 1px solid #555; color: #fff; border-radius: 4px; }
+.search-btn { padding: 0 30px; background: #E50914; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-decoration: none; display: flex; align-items: center; }
+.options-row { display: flex; justify-content: space-between; color: #aaa; font-size: 14px; }
+.checkbox-label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.checkbox-label input { accent-color: #E50914; width: 16px; height: 16px; }
+.select-k { background: #333; color: #fff; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; }
 
-.tag-chip.on {
-  background: #E50914;
-  border-color: #E50914;
-  color: #fff;
-  font-weight: bold;
-}
+/* 태그 패널 */
+.tags-panel { margin-bottom: 50px; }
+.tags-panel h2 { font-size: 20px; color: #ddd; margin-bottom: 15px; }
+.tag-group { margin-bottom: 15px; display: flex; align-items: flex-start; }
+.tag-label { width: 80px; font-weight: bold; color: #888; margin-top: 8px; flex-shrink: 0; }
+.tag-list { flex: 1; display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-chip { padding: 8px 16px; background: #252525; border: 1px solid #444; border-radius: 20px; color: #ccc; cursor: pointer; transition: all 0.2s; font-size: 14px; user-select: none; }
+.tag-chip:hover { background: #333; border-color: #888; transform: translateY(-2px); }
+.tag-chip.on { background: #E50914; border-color: #E50914; color: #fff; font-weight: bold; box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4); }
 
-/* 게임 그리드 */
-.game-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
-}
-
-.game-card {
-  background: #181818;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: transform 0.2s, border-color 0.2s;
-  border: 1px solid #333;
-  display: block; /* Link 태그용 */
-}
-
-.game-card:hover {
-  transform: translateY(-5px);
-  border-color: #888;
-  z-index: 10;
-}
-
-.thumb {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-}
-
-.card-info {
-  padding: 12px;
-}
-
-.game-title {
-  font-weight: bold;
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 15px;
-}
-
-.game-price {
-  font-size: 13px;
-  margin-bottom: 10px;
-}
-
-.score-bar {
-  width: 100%;
-  height: 4px;
-  background: #333;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.score-bar > div {
-  height: 100%;
-  transition: width 0.5s ease;
-}
-
-/* 배지 스타일 */
-.card-badges {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-weight: bold;
-}
-
-.badge.trend {
-  background: #00FFA3;
-  color: #000;
-}
-
-.badge.score {
-  background: #333;
-  color: #46d369;
-  border: 1px solid #46d369;
-}
+/* 결과 리스트 */
+.result-panel { margin-top: 30px; }
+.game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.game-card { background: #181818; border-radius: 8px; overflow: hidden; display: block; text-decoration: none; color: inherit; border: 1px solid #333; transition: transform 0.2s; }
+.game-card:hover { transform: translateY(-5px); border-color: #777; }
+.thumb { width: 100%; height: 130px; object-fit: cover; }
+.card-info { padding: 15px; }
+.game-title { font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.game-meta-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+.game-price { color: #46d369; }
+.game-playtime { color: #aaa; font-size: 12px; }
+.score-bar { height: 4px; background: #333; border-radius: 2px; }
+.score-bar div { height: 100%; background: #E50914; }
+.loading-box, .error-box { text-align: center; padding: 50px; color: #888; font-size: 18px; }
+.error-box { color: #ff4d4d; }
