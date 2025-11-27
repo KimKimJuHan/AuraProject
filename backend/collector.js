@@ -1,4 +1,4 @@
-// backend/collector.js (최종 통합 버전: Steam + ITAD + Twitch + HLTB 완벽 대응)
+// backend/collector.js (최종 통합 버전: 우선순위 변경 및 수집률 최적화)
 
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -21,7 +21,7 @@ const STEAM_HEADERS = {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// 1. 크롬 경로 찾기
+// --- [0. 유틸리티] ---
 function findChromePath() {
     const platform = os.platform();
     if (platform === 'win32') {
@@ -31,81 +31,51 @@ function findChromePath() {
             `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`
         ];
         for (const p of paths) if (fs.existsSync(p)) return p;
+    } else if (platform === 'linux') {
+        const paths = ["/usr/bin/google-chrome", "/usr/bin/chromium-browser"];
+        for (const p of paths) if (fs.existsSync(p)) return p;
     } else if (platform === 'darwin') {
         return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-    } else if (platform === 'linux') {
-        return "/usr/bin/google-chrome";
     }
     return null;
 }
 
-// 2. 이름 정제 (HLTB 검색용)
 function cleanGameTitle(title) {
     if (!title) return "";
     let clean = title;
-
-    clean = clean.replace(/[™®©]/g, ''); // 상표권 제거
-
-    // 에디션 제거
+    
+    // 상표권 기호 제거
+    clean = clean.replace(/[™®©]/g, '');
+    
+    // 에디션/버전 제거
     const removePatterns = [
-        /Game of the Year Edition/gi, /GOTY/gi,
-        /Definitive Edition/gi, /Enhanced Edition/gi, 
-        /Director's Cut/gi, /The Final Cut/gi, 
-        /Complete Edition/gi, /Bonus Edition/gi,
-        /Anniversary Edition/gi, /Remastered/gi, 
-        /Digital Deluxe/gi, /Standard Edition/gi,
-        /Legendary Edition/gi, /Special Edition/gi,
-        /Collector's Edition/gi, /Legacy/gi
+        /Game of the Year Edition/gi, /GOTY/gi, /Definitive Edition/gi, /Enhanced Edition/gi, 
+        /Director's Cut/gi, /The Final Cut/gi, /Complete Edition/gi, /Bonus Edition/gi,
+        /Anniversary Edition/gi, /Remastered/gi, /Digital Deluxe/gi, /Standard Edition/gi,
+        /Legendary Edition/gi, /Special Edition/gi, /Collector's Edition/gi, /Legacy/gi
     ];
     removePatterns.forEach(regex => { clean = clean.replace(regex, ''); });
-
-    // 끝에 남은 특수문자 정리
+    
+    // 끝에 남은 특수문자(:, -) 및 공백 제거
     clean = clean.replace(/[\s\:\-]+$/g, '');
-
-    // 관사 제거
+    
+    // 끝에 남은 관사(The) 제거 (예: BioShock Infinite The -> BioShock Infinite)
     if (clean.toLowerCase().endsWith(' the')) {
         clean = clean.substring(0, clean.length - 4);
     }
-
+    
     return clean.trim();
 }
 
-// 3. 유사도 계산
-function getSimilarity(s1, s2) {
-    const cleanS1 = cleanGameTitle(s1).toLowerCase().replace(/[:\-]/g, '');
-    const cleanS2 = cleanGameTitle(s2).toLowerCase().replace(/[:\-]/g, '');
-
-    if (cleanS1 === cleanS2) return 1.0;
-    if (cleanS1.includes(cleanS2) || cleanS2.includes(cleanS1)) return 0.9;
-
-    const longer = cleanS1.length > cleanS2.length ? cleanS1 : cleanS2;
-    const shorter = cleanS1.length > cleanS2.length ? cleanS2 : cleanS1;
-    if (longer.length === 0) return 1.0;
-
-    const editDistance = (a, b) => {
-        const costs = new Array();
-        for (let i = 0; i <= a.length; i++) {
-            let lastValue = i;
-            for (let j = 0; j <= b.length; j++) {
-                if (i == 0) costs[j] = j;
-                else {
-                    if (j > 0) {
-                        let newValue = costs[j - 1];
-                        if (a.charAt(i - 1) != b.charAt(j - 1)) newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-                        costs[j - 1] = lastValue;
-                        lastValue = newValue;
-                    }
-                }
-            }
-            if (i > 0) costs[b.length] = lastValue;
-        }
-        return costs[b.length];
+function chunkArray(array, size) {
+    const chunked = [];
+    for (let i = 0; i < array.length; i += size) {
+        chunked.push(array.slice(i, i + size));
     }
-    return (longer.length - editDistance(longer, shorter)) / longer.length;
+    return chunked;
 }
 
-
-// --- [Twitch & Tag Logic] ---
+// --- [1. Twitch Token] ---
 let twitchToken = null;
 async function getTwitchToken() {
     if (!TWITCH_CLIENT_ID) return;
@@ -133,7 +103,7 @@ function translateTags(tags) {
     return Array.from(myTags);
 }
 
-// --- [Trend Stats] ---
+// --- [2. Trend Stats] ---
 async function getTrendStats(steamAppId, categoryData) {
     let twitch = { value: 0, status: 'fail' }; 
     let chzzk = { value: 0, status: 'fail' };
@@ -154,10 +124,7 @@ async function getTrendStats(steamAppId, categoryData) {
         try {
             const keyword = encodeURIComponent(categoryData.chzzk.categoryValue);
             const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${keyword}&offset=0&size=50&sortType=POPULAR`, {
-                headers: { 
-                    'User-Agent': 'Mozilla/5.0',
-                    ...(CHZZK_CLIENT_ID && { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET })
-                }
+                headers: { 'User-Agent': 'Mozilla/5.0', ...(CHZZK_CLIENT_ID && { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET }) }
             });
             const lives = res.data?.content?.data || [];
             const target = categoryData.chzzk.categoryValue.replace(/\s/g, ''); 
@@ -182,7 +149,7 @@ function calculateWeightedScore(trends) {
     return score;
 }
 
-// --- [Price Helpers] ---
+// --- [3. Price Helpers] ---
 async function getITADPrice(metadata) {
     if (!metadata?.itad?.uuid) return null;
     try {
@@ -281,160 +248,154 @@ async function collectGamesData() {
     console.log("✅ DB Connected. 수집 시작...");
 
     const metadatas = await GameMetadata.find({});
-    const targetAppIds = metadatas.map(m => m.steamAppId);
-    
-    console.log(`🎯 수집 대상: ${targetAppIds.length}개`);
-
-    // ★ Puppeteer (HLTB용 브라우저) 시작
     const chromePath = findChromePath();
     if (!chromePath) { console.error("❌ 크롬 경로 없음"); process.exit(1); }
 
-    const browser = await puppeteer.launch({ 
-        executablePath: chromePath,
-        headless: "new", // 백그라운드 실행
-        args: ['--no-sandbox', '--disable-setuid-sandbox'] 
-    });
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-        if (['image', 'stylesheet', 'font'].includes(req.resourceType())) req.abort();
-        else req.continue();
-    });
-    // HLTB 쿠키 생성용 접속
-    await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded' });
+    // 배치 처리 (한 번에 20개씩)
+    const BATCH_SIZE = 20; 
+    const batches = chunkArray(metadatas, BATCH_SIZE);
 
-    let count = 0;
-    for (const metadata of metadatas) {
-        const appid = metadata.steamAppId;
+    console.log(`🎯 총 ${metadatas.length}개 게임을 ${batches.length}개 배치로 나누어 수집합니다.`);
+
+    let totalCount = 0;
+
+    for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`\n🔄 Batch ${i + 1}/${batches.length} 시작...`);
+
+        const browser = await puppeteer.launch({ 
+            executablePath: chromePath,
+            headless: "new", 
+            protocolTimeout: 60000, 
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-features=site-per-process'] 
+        });
 
         try {
-            await sleep(1000); 
+            const page = await browser.newPage();
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+            
+            // HLTB 접속
+            await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-            // 1. Steam Data
-            const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, {
-                params: { appids: appid, l: 'korean', cc: 'kr' },
-                headers: STEAM_HEADERS 
-            });
-            const data = steamRes.data[appid]?.data; 
-            if (!data) continue; 
-            
-            // 2. Trend & Price
-            const categoryData = await GameCategory.findOne({ steamAppId: appid });
-            const trends = await getTrendStats(appid, categoryData);
-            const trendScore = calculateWeightedScore(trends);
-            const priceInfo = await fetchPriceInfo(appid, data, metadata);
-            
-            // 3. HLTB Playtime (검증된 로직 적용)
-            let playTime = "정보 없음";
-            try {
-                const searchName = cleanGameTitle(metadata.title || data.name); // 정제된 이름 사용
-                const searchUrl = `https://howlongtobeat.com/?q=${encodeURIComponent(searchName)}`;
-                
-                await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-                
-                // 로딩 대기 (Main Story가 뜰 때까지)
+            for (const metadata of batch) {
+                const appid = metadata.steamAppId;
                 try {
-                    await page.waitForFunction(
-                        () => document.body.innerText.includes("Main Story") || document.body.innerText.includes("No results"),
-                        { timeout: 5000 }
-                    );
-                } catch(e) {}
+                    await sleep(1000); 
 
-                const hltbData = await page.evaluate(() => {
-                    const items = Array.from(document.querySelectorAll('li'));
-                    const results = [];
-                    const IGNORE_LIST = ["Forum", "Stats", "Submit", "Login", "Join"];
+                    // 1. Steam Data
+                    const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, {
+                        params: { appids: appid, l: 'korean', cc: 'kr' },
+                        headers: STEAM_HEADERS 
+                    });
+                    const data = steamRes.data[appid]?.data; 
+                    if (!data) continue; 
+                    
+                    // 2. Trend & Price
+                    const categoryData = await GameCategory.findOne({ steamAppId: appid });
+                    const trends = await getTrendStats(appid, categoryData);
+                    const trendScore = calculateWeightedScore(trends);
+                    const priceInfo = await fetchPriceInfo(appid, data, metadata);
+                    
+                    // 3. HLTB Playtime (개선된 우선순위 파싱)
+                    let playTime = "정보 없음";
+                    try {
+                        const searchName = cleanGameTitle(metadata.title || data.name);
+                        const searchUrl = `https://howlongtobeat.com/?q=${encodeURIComponent(searchName)}`;
+                        
+                        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+                        
+                        // 결과 로딩 대기
+                        try {
+                            await page.waitForFunction(
+                                () => document.body.innerText.includes("Main Story") || 
+                                      document.body.innerText.includes("All Styles") || 
+                                      document.body.innerText.includes("Co-Op") ||
+                                      document.body.innerText.includes("No results"),
+                                { timeout: 5000 }
+                            );
+                        } catch(e) {}
 
-                    for (const li of items) {
-                        const titleEl = li.querySelector('h3') || li.querySelector('a[title]') || li.querySelector('a');
-                        if (!titleEl) continue;
+                        const hltbData = await page.evaluate(() => {
+                            const items = Array.from(document.querySelectorAll('li'));
+                            const IGNORE_LIST = ["Forum", "Stats", "Submit", "Login", "Join", "Discord", "Facebook", "Twitter"];
 
-                        const title = titleEl.innerText.trim();
-                        if (IGNORE_LIST.includes(title) || title.length < 2) continue;
+                            for (const li of items) {
+                                const titleEl = li.querySelector('h3') || li.querySelector('a[title]') || li.querySelector('a');
+                                if (!titleEl) continue;
 
-                        const text = li.innerText;
-                        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+                                const title = titleEl.innerText.trim();
+                                if (IGNORE_LIST.includes(title) || title.length < 2) continue;
 
-                        // 파싱 로직
-                        const parseTime = (labels) => {
-                            for (let i = 0; i < lines.length; i++) {
-                                if (labels.some(label => lines[i].includes(label))) {
-                                    if (lines[i+1] && /[0-9]/.test(lines[i+1])) return lines[i+1];
-                                    const match = lines[i].match(/([0-9½\.]+)\s*(Hours|Mins|h)/i);
-                                    if (match) return `${match[1]} ${match[2]}`;
+                                const text = li.innerText;
+                                const hasTimeInfo = text.includes('Hours') || text.includes('Mins');
+                                if (!hasTimeInfo) continue;
+
+                                const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+                                const parseTime = (labels) => {
+                                    for (let i = 0; i < lines.length; i++) {
+                                        if (labels.some(label => lines[i].includes(label))) {
+                                            if (lines[i+1] && /[0-9]/.test(lines[i+1])) return lines[i+1];
+                                            const match = lines[i].match(/([0-9½\.]+)\s*(Hours|Mins|h)/i);
+                                            if (match) return `${match[1]} ${match[2]}`;
+                                        }
+                                    }
+                                    return null;
+                                };
+
+                                // ★ [핵심] 우선순위 변경: Main -> Main+Extra -> All Styles -> Co-Op -> Single
+                                const time = 
+                                    parseTime(['Main Story', 'Main']) || 
+                                    parseTime(['Main + Extra', 'Main + Sides']) || 
+                                    parseTime(['All Styles', 'All PlayStyles', 'All Playstyles']) || // 1순위 폴백
+                                    parseTime(['Co-Op', 'Co-Op Multiplayer']) || // 2순위 폴백
+                                    parseTime(['Single-Player', 'Solo']) ||
+                                    parseTime(['Completionist', '100%']);
+                                
+                                if (time) {
+                                    return `${time}`; // (Main) 같은 꼬리표 제거하고 깔끔하게 시간만 반환
                                 }
                             }
                             return null;
-                        };
+                        });
 
-                        const main = parseTime(['Main Story', 'Main']);
-                        const extra = parseTime(['Main + Extra', 'Main + Sides']);
-                        
-                        if (main || extra) {
-                            results.push({ title, main: main || 'TBD' });
-                        }
-                    }
-                    return results;
-                });
+                        if (hltbData) playTime = hltbData;
 
-                // 유사도 매칭
-                if (hltbData && hltbData.length > 0) {
-                    // Node.js 환경에서 유사도 함수 실행
-                    // (getSimilarity 함수는 위쪽에 정의되어 있어야 함)
-                    let bestMatch = null;
-                    let maxScore = 0;
-                    for (const candidate of hltbData) {
-                        // collector.js 내부에는 getSimilarity가 없으므로 여기서는 간단 비교 또는 함수 추가 필요
-                        // 여기서는 searchName(정제된 이름)과 가장 비슷한 것을 찾음
-                        const s1 = searchName.toLowerCase().replace(/[:\-]/g, '');
-                        const s2 = candidate.title.toLowerCase().replace(/[:\-]/g, '');
-                        
-                        // 간단 유사도: 포함 여부 및 길이 비교
-                        let score = 0;
-                        if (s1 === s2) score = 1.0;
-                        else if (s1.includes(s2) || s2.includes(s1)) score = 0.8;
-                        
-                        if (score > maxScore) {
-                            maxScore = score;
-                            bestMatch = candidate;
-                        }
-                    }
-                    
-                    if (bestMatch && maxScore > 0.5) {
-                        playTime = `${bestMatch.main} (Main)`;
-                    }
-                }
-            } catch(e) {}
+                    } catch(e) {}
 
-            // 4. DB Save
-            await Game.findOneAndUpdate({ steam_appid: appid }, {
-                slug: `steam-${appid}`,
-                steam_appid: appid,
-                title: data.name,
-                title_ko: categoryData?.chzzk?.categoryValue || data.name,
-                main_image: data.header_image,
-                description: data.short_description,
-                smart_tags: translateTags([...(data.genres||[]).map(g=>g.description), ...(data.categories||[]).map(c=>c.description)]),
-                trend_score: trendScore,
-                twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
-                chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
-                price_info: priceInfo, 
-                pc_requirements: data.pc_requirements || { minimum: "", recommended: "" },
-                releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월|일/g, '-')) : new Date(),
-                screenshots: data.screenshots?.map(s=>s.path_full)||[],
-                trailers: data.movies?.map(m=>m.webm?.max)||[],
-                metacritic_score: data.metacritic?.score || 0,
-                play_time: playTime, 
-            }, { upsert: true });
+                    // 4. DB Save
+                    await Game.findOneAndUpdate({ steam_appid: appid }, {
+                        slug: `steam-${appid}`,
+                        steam_appid: appid,
+                        title: data.name,
+                        title_ko: categoryData?.chzzk?.categoryValue || data.name,
+                        main_image: data.header_image,
+                        description: data.short_description,
+                        smart_tags: translateTags([...(data.genres||[]).map(g=>g.description), ...(data.categories||[]).map(c=>c.description)]),
+                        trend_score: trendScore,
+                        twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
+                        chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
+                        price_info: priceInfo, 
+                        pc_requirements: data.pc_requirements || { minimum: "", recommended: "" },
+                        releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월|일/g, '-')) : new Date(),
+                        screenshots: data.screenshots?.map(s=>s.path_full)||[],
+                        trailers: data.movies?.map(m=>m.webm?.max)||[],
+                        metacritic_score: data.metacritic?.score || 0,
+                        play_time: playTime, 
+                    }, { upsert: true });
 
-            count++;
-            console.log(`✅ [${count}/${targetAppIds.length}] ${data.name} | Time: ${playTime}`);
+                    totalCount++;
+                    console.log(`✅ [${totalCount}/${metadatas.length}] ${data.name} | Time: ${playTime}`);
 
-        } catch (e) { console.error(`❌ Error ${appid}: ${e.message}`); }
+                } catch (e) { console.error(`❌ Error ${appid}: ${e.message}`); }
+            }
+        } catch (err) {
+            console.error("🚨 Batch Error:", err);
+        } finally {
+            await browser.close(); 
+        }
     }
 
-    await browser.close();
     console.log("🎉 수집 완료");
     process.exit(0);
 }
