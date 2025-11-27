@@ -1,419 +1,104 @@
-// backend/collector.js (최종 완성본: 깔끔한 이름 우선 저장 + HLTB 최적화)
+// backend/routes/recoRoutes.js
 
-require('dotenv').config();
-const mongoose = require('mongoose');
-const axios = require('axios');
-const puppeteer = require('puppeteer-core');
-const fs = require('fs');
-const os = require('os');
+const express = require('express');
+const router = express.Router();
+const Game = require('../models/Game'); // ★ DB 모델 연결
 
-const Game = require('./models/Game');
-const GameCategory = require('./models/GameCategory'); 
-const GameMetadata = require('./models/GameMetadata'); 
-
-const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
-
-if (!ITAD_API_KEY) { console.error("🚨 ITAD_API_KEY 누락"); process.exit(1); }
-
-const STEAM_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-};
-
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-// --- [0. 유틸리티] ---
-function findChromePath() {
-    const platform = os.platform();
-    if (platform === 'win32') {
-        const paths = [
-            "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-            "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-            `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`
-        ];
-        for (const p of paths) if (fs.existsSync(p)) return p;
-    } else if (platform === 'linux') {
-        const paths = ["/usr/bin/google-chrome", "/usr/bin/chromium-browser"];
-        for (const p of paths) if (fs.existsSync(p)) return p;
-    } else if (platform === 'darwin') {
-        return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-    }
-    return null;
-}
-
-function cleanGameTitle(title) {
-    if (!title) return "";
-    let clean = title;
+// 태그 유사도 계산 함수
+function calculateTagScore(gameTags, userTags) {
+    if (!gameTags || !userTags || userTags.length === 0) return 0;
     
-    // 상표권 기호 제거
-    clean = clean.replace(/[™®©]/g, '');
+    const gameSet = new Set((gameTags || []).map(t => t.toLowerCase()));
+    let matchCount = 0;
     
-    // 에디션/버전 제거
-    const removePatterns = [
-        /Game of the Year Edition/gi, /GOTY/gi, /Definitive Edition/gi, /Enhanced Edition/gi, 
-        /Director's Cut/gi, /The Final Cut/gi, /Complete Edition/gi, /Bonus Edition/gi,
-        /Anniversary Edition/gi, /Remastered/gi, /Digital Deluxe/gi, /Standard Edition/gi,
-        /Legendary Edition/gi, /Special Edition/gi, /Collector's Edition/gi, /Legacy/gi
-    ];
-    removePatterns.forEach(regex => { clean = clean.replace(regex, ''); });
-    
-    // 끝에 남은 특수문자(:, -) 및 공백 제거
-    clean = clean.replace(/[\s\:\-]+$/g, '');
-    
-    // 끝에 남은 관사(The) 제거
-    if (clean.toLowerCase().endsWith(' the')) {
-        clean = clean.substring(0, clean.length - 4);
-    }
-    
-    return clean.trim();
-}
-
-function chunkArray(array, size) {
-    const chunked = [];
-    for (let i = 0; i < array.length; i += size) {
-        chunked.push(array.slice(i, i + size));
-    }
-    return chunked;
-}
-
-// --- [1. Twitch Token] ---
-let twitchToken = null;
-async function getTwitchToken() {
-    if (!TWITCH_CLIENT_ID) return;
-    try {
-        const res = await axios.post('https://id.twitch.tv/oauth2/token', null, {
-            params: { client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET, grant_type: 'client_credentials' }
-        });
-        twitchToken = res.data.access_token;
-    } catch (e) { console.error("⚠️ Twitch Token Error"); }
-}
-
-const TAG_MAP = {
-  'rpg': 'RPG', 'role-playing': 'RPG', 'action': '액션', 'fps': 'FPS', 'simulation': '시뮬레이션', 
-  'strategy': '전략', 'sports': '스포츠', 'racing': '레이싱', 'puzzle': '퍼즐', 'survival': '생존', 
-  'horror': '공포', 'adventure': '어드벤처', 'open world': '오픈 월드', 'co-op': '협동',
-  'multiplayer': '멀티플레이', 'roguelike': '로그라이크', 'souls-like': '소울라이크', 'story rich': '스토리 중심'
-};
-function translateTags(tags) {
-    if (!tags) return [];
-    const myTags = new Set();
-    tags.forEach(t => {
-        const lower = t.toLowerCase();
-        for (const key in TAG_MAP) { if (lower.includes(key)) myTags.add(TAG_MAP[key]); }
+    userTags.forEach(tag => {
+        if (gameSet.has(tag.toLowerCase())) matchCount++;
     });
-    return Array.from(myTags);
+
+    const unionSize = new Set([...(gameTags || []), ...userTags]).size;
+    return unionSize === 0 ? 0 : matchCount / unionSize;
 }
 
-// --- [2. Trend Stats] ---
-async function getTrendStats(steamAppId, categoryData) {
-    let twitch = { value: 0, status: 'fail' }; 
-    let chzzk = { value: 0, status: 'fail' };
-
-    if (categoryData?.twitch?.id) {
-        if (!twitchToken) await getTwitchToken();
-        try {
-            const res = await axios.get('https://api.twitch.tv/helix/streams', {
-                headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${twitchToken}` },
-                params: { game_id: categoryData.twitch.id, first: 100 }
-            });
-            const viewers = res.data.data.reduce((acc, s) => acc + s.viewer_count, 0);
-            twitch = { value: viewers, status: 'ok' };
-        } catch (e) {}
+// 가격 포맷팅 헬퍼 (무료 게임 처리 강화)
+function formatPrice(priceInfo) {
+    if (!priceInfo) return "가격 정보 없음";
+    // 무료 플래그가 있거나 가격이 0원이면 "무료"로 표시
+    if (priceInfo.isFree || priceInfo.current_price === 0) return "무료";
+    if (priceInfo.current_price !== undefined) {
+        return `₩${priceInfo.current_price.toLocaleString()}`;
     }
-
-    if (categoryData?.chzzk?.categoryValue) {
-        try {
-            const keyword = encodeURIComponent(categoryData.chzzk.categoryValue);
-            const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${keyword}&offset=0&size=50&sortType=POPULAR`, {
-                headers: { 'User-Agent': 'Mozilla/5.0', ...(CHZZK_CLIENT_ID && { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET }) }
-            });
-            const lives = res.data?.content?.data || [];
-            const target = categoryData.chzzk.categoryValue.replace(/\s/g, ''); 
-            let viewers = 0;
-            lives.forEach(item => {
-                const live = item.live;
-                if (!live) return;
-                const cat = (live.liveCategoryValue || "").replace(/\s/g, '');
-                if (cat.includes(target) || target.includes(cat)) viewers += live.concurrentUserCount || 0;
-            });
-            chzzk = { value: viewers, status: 'ok' };
-        } catch (e) {}
-    }
-    return { twitch, chzzk };
+    return "가격 정보 없음";
 }
 
-function calculateWeightedScore(trends) {
-    const { twitch, chzzk } = trends;
-    let score = 0;
-    if (twitch.status === 'ok') score += twitch.value;
-    if (chzzk.status === 'ok') score += chzzk.value * 2;
-    return score;
-}
+// 추천 API 엔드포인트
+router.post('/reco', async (req, res) => {
+    const { term, liked = [], k = 12, strict = false } = req.body; 
 
-// --- [3. Price Helpers] ---
-async function getITADPrice(metadata) {
-    if (!metadata?.itad?.uuid) return null;
     try {
-        const pricesRes = await axios.post(`https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR`, 
-            [metadata.itad.uuid], { headers: { 'Content-Type': 'application/json' }, timeout: 5000 });
-        const itadGame = pricesRes.data?.[0];
-        if (itadGame) {
-            const deals = (itadGame.deals || []).sort((a, b) => a.price.amount - b.price.amount);
-            const dealsMapped = deals.map(d => ({ shopName: d.shop?.name, price: d.price?.amount, regularPrice: d.regular?.amount, discount: d.cut, url: d.url }));
-            const bestDeal = deals[0];
-            if (bestDeal) {
-                return {
-                    regular_price: bestDeal.regular.amount,
-                    current_price: bestDeal.price.amount,
-                    discount_percent: bestDeal.cut,
-                    historical_low: itadGame.historyLow?.price?.amount || 0,
-                    deals: dealsMapped,
-                    store_name: bestDeal.shop?.name || 'ITAD Deal',
-                    store_url: bestDeal.url 
-                };
+        let filter = {};
+
+        // 1. 검색어 필터
+        if (term) {
+            const q = term.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+            filter.$or = [
+                { title: { $regex: q, $options: 'i' } },
+                { title_ko: { $regex: q, $options: 'i' } }
+            ];
+        }
+
+        // 2. 태그 필터
+        if (strict && liked.length > 0) {
+            filter.smart_tags = { $all: liked };
+        }
+
+        // 3. DB 조회 (최대 1000개까지만 조회하여 속도 최적화)
+        const candidates = await Game.find(filter)
+            .select('steam_appid title title_ko main_image price_info smart_tags metacritic_score trend_score slug play_time')
+            .limit(1000)
+            .lean();
+
+        // 4. 점수 계산
+        const scoredGames = candidates.map(game => {
+            let tagScore = 0;
+            if (liked.length > 0) {
+                tagScore = calculateTagScore(game.smart_tags, liked);
+            } else {
+                tagScore = 0; // 태그 선택 안 했으면 0점
             }
-        }
-    } catch (e) {}
-    return null;
-}
-
-async function getSteamPackagePrice(packageId) {
-    try {
-        const pkgRes = await axios.get(`https://store.steampowered.com/api/packagedetails`, {
-            params: { packageids: packageId, l: 'korean', cc: 'kr' },
-            headers: STEAM_HEADERS
-        });
-        const pkgData = pkgRes.data[packageId]?.data;
-        if (pkgData?.price) {
-            return {
-                regular_price: pkgData.price.initial / 100,
-                current_price: pkgData.price.final / 100,
-                discount_percent: pkgData.price.discount_percent,
-                store_name: 'Steam',
-                store_url: `https://store.steampowered.com/sub/${packageId}`
-            };
-        }
-    } catch (e) {}
-    return null;
-}
-
-async function fetchPriceInfo(originalAppId, initialSteamData, metadata) {
-    const candidateIds = [originalAppId, ...(metadata?.aliasAppIds || [])].filter(id => id); 
-    let steamData = initialSteamData;
-
-    for (const currentAppId of candidateIds) {
-        if (currentAppId !== originalAppId) {
-            try {
-                const res = await axios.get(`https://store.steampowered.com/api/appdetails`, {
-                    params: { appids: currentAppId, l: 'korean', cc: 'kr' },
-                    headers: STEAM_HEADERS
-                });
-                steamData = res.data?.[currentAppId]?.data || steamData;
-            } catch (e) {}
-        }
-        
-        const itadPrice = await getITADPrice(metadata);
-        if (itadPrice) return { ...itadPrice, store_url: itadPrice.store_url || `https://store.steampowered.com/app/${originalAppId}`, isFree: false };
-
-        if (steamData.price_overview) {
-            return {
-                regular_price: steamData.price_overview.initial / 100,
-                current_price: steamData.price_overview.final / 100,
-                discount_percent: steamData.price_overview.discount_percent,
-                historical_low: 0, deals: [], 
-                store_name: 'Steam',
-                store_url: `https://store.steampowered.com/app/${originalAppId}`,
-                isFree: false
-            };
-        } 
-        
-        const pkgId = steamData.packages?.[0];
-        if (pkgId) {
-            const pkgPrice = await getSteamPackagePrice(pkgId);
-            if (pkgPrice) return { ...pkgPrice, historical_low: 0, deals: [], store_name: 'Steam', store_url: `https://store.steampowered.com/app/${originalAppId}`, isFree: false };
-        }
-    }
-    
-    return {
-        regular_price: 0, current_price: 0, discount_percent: 0,
-        store_name: 'Steam', store_url: `https://store.steampowered.com/app/${originalAppId}`,
-        isFree: initialSteamData.is_free === true,
-        deals: [], historical_low: 0
-    };
-}
-
-// --- [4. 메인 수집 루프 (배치 처리 + 이름 저장 개선)] ---
-async function collectGamesData() {
-    if (!MONGODB_URI) return;
-    await mongoose.connect(MONGODB_URI);
-    console.log("✅ DB Connected. 수집 시작...");
-
-    const metadatas = await GameMetadata.find({});
-    const chromePath = findChromePath();
-    if (!chromePath) { console.error("❌ 크롬 경로 없음"); process.exit(1); }
-
-    // 배치 사이즈 5 (메모리 안정성)
-    const BATCH_SIZE = 5; 
-    const batches = chunkArray(metadatas, BATCH_SIZE);
-
-    console.log(`🎯 총 ${metadatas.length}개 게임을 ${batches.length}개 배치로 나누어 수집합니다.`);
-
-    let totalCount = 0;
-
-    for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        console.log(`\n🔄 Batch ${i + 1}/${batches.length} 시작...`);
-
-        // 브라우저 최적화 옵션 (백그라운드 실행, 메모리 절약)
-        const browser = await puppeteer.launch({ 
-            executablePath: chromePath,
-            headless: "new", 
-            protocolTimeout: 180000, 
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox', 
-                '--disable-features=site-per-process',
-                '--disable-dev-shm-usage',
-                '--disable-gpu'
-            ] 
-        });
-
-        try {
-            const page = await browser.newPage();
-            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
             
-            // 이미지/폰트 차단
-            await page.setRequestInterception(true);
-            page.on('request', (req) => {
-                if (['image', 'stylesheet', 'font'].includes(req.resourceType())) req.abort();
-                else req.continue();
-            });
+            // 트렌드 점수 정규화
+            const trendVal = game.trend_score || 0;
+            const trendScore = Math.log10(trendVal + 1) / 5; 
+            const metaScore = (game.metacritic_score || 0) / 100;
 
-            // HLTB 접속
-            await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
+            // 최종 점수 (태그 비중 조절)
+            const weightTag = liked.length > 0 ? 0.6 : 0;
+            const weightTrend = liked.length > 0 ? 0.2 : 0.5;
+            const weightMeta = liked.length > 0 ? 0.2 : 0.5;
 
-            for (const metadata of batch) {
-                const appid = metadata.steamAppId;
-                try {
-                    await sleep(1000); 
+            const finalScore = (tagScore * weightTag) + (trendScore * weightTrend) + (metaScore * weightMeta);
 
-                    // 1. Steam Data
-                    const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, {
-                        params: { appids: appid, l: 'korean', cc: 'kr' },
-                        headers: STEAM_HEADERS 
-                    });
-                    const data = steamRes.data[appid]?.data; 
-                    if (!data) continue; 
-                    
-                    // 2. Trend & Price
-                    const categoryData = await GameCategory.findOne({ steamAppId: appid });
-                    const trends = await getTrendStats(appid, categoryData);
-                    const trendScore = calculateWeightedScore(trends);
-                    const priceInfo = await fetchPriceInfo(appid, data, metadata);
-                    
-                    // 3. HLTB Playtime
-                    let playTime = "정보 없음";
-                    try {
-                        // HLTB 검색어는 항상 ITAD의 '깔끔한 영어 제목'을 사용
-                        const searchName = cleanGameTitle(metadata.title || data.name);
-                        const searchUrl = `https://howlongtobeat.com/?q=${encodeURIComponent(searchName)}`;
-                        
-                        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-                        
-                        try {
-                            await page.waitForFunction(
-                                () => document.body.innerText.includes("Main Story") || 
-                                      document.body.innerText.includes("All Styles") || 
-                                      document.body.innerText.includes("Co-Op") ||
-                                      document.body.innerText.includes("No results"),
-                                { timeout: 10000 }
-                            );
-                        } catch(e) {}
+            return {
+                appid: game.steam_appid,
+                name: game.title_ko || game.title,
+                thumb: game.main_image,
+                price: formatPrice(game.price_info),
+                playtime: game.play_time || "정보 없음",
+                score: Math.round(finalScore * 100),
+                trend: trendVal,
+                slug: game.slug,
+                hiddenGem: (game.metacritic_score >= 85 && trendVal < 1000)
+            };
+        });
 
-                        const hltbData = await page.evaluate(() => {
-                            const items = Array.from(document.querySelectorAll('li'));
-                            const IGNORE_LIST = ["Forum", "Stats", "Submit", "Login", "Join", "Discord", "Facebook", "Twitter"];
+        // 5. 정렬 및 상위 k개 반환
+        scoredGames.sort((a, b) => b.score - a.score);
+        res.json({ items: scoredGames.slice(0, k) });
 
-                            for (const li of items) {
-                                const title = li.querySelector('h3')?.innerText.trim() || li.querySelector('a[title]')?.innerText.trim();
-                                if (!title || IGNORE_LIST.includes(title) || title.length < 2) continue;
-
-                                const text = li.innerText;
-                                if (!text.includes('Hours') && !text.includes('Mins')) continue;
-
-                                const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-                                const parseTime = (labels) => {
-                                    for (let i = 0; i < lines.length; i++) {
-                                        if (labels.some(l => lines[i].includes(l))) {
-                                            if (lines[i+1] && /[0-9]/.test(lines[i+1])) return lines[i+1];
-                                            const match = lines[i].match(/([0-9½\.]+)\s*(Hours|Mins|h)/i);
-                                            if (match) return `${match[1]} ${match[2]}`;
-                                        }
-                                    }
-                                    return null;
-                                };
-
-                                const time = parseTime(['Main Story', 'Main']) || 
-                                             parseTime(['Main + Extra', 'Main + Sides']) || 
-                                             parseTime(['All Styles', 'All PlayStyles']) || 
-                                             parseTime(['Co-Op', 'Multiplayer']) ||
-                                             parseTime(['Single-Player', 'Solo']) ||
-                                             parseTime(['Completionist', '100%']);
-                                
-                                if (time) return time;
-                            }
-                            return null;
-                        });
-
-                        if (hltbData) playTime = hltbData;
-
-                    } catch(e) {}
-
-                    // ★ [핵심] 제목 저장 로직 개선
-                    // 1순위: ITAD에서 가져온 깔끔한 영어 제목 (metadata.title)
-                    // 2순위: 스팀 공식 제목 (data.name)
-                    // 'Legacy' 같은 단어가 포함되어 있으면 무조건 정제된 영어 제목 사용
-                    let finalTitle = metadata.title || data.name;
-                    if (data.name && !data.name.toLowerCase().includes('legacy')) {
-                        // 스팀 제목이 깔끔하면 한글 표시를 위해 스팀 제목 사용
-                        // 단, 스팀 제목이 'Grand Theft Auto V Legacy' 같으면 안 씀
-                        finalTitle = data.name;
-                    }
-
-                    // 4. DB Save
-                    await Game.findOneAndUpdate({ steam_appid: appid }, {
-                        slug: `steam-${appid}`,
-                        steam_appid: appid,
-                        title: finalTitle, // 깔끔한 제목 저장
-                        title_ko: categoryData?.chzzk?.categoryValue || data.name, // 한글 제목은 보조 필드에
-                        main_image: data.header_image,
-                        description: data.short_description,
-                        smart_tags: translateTags([...(data.genres||[]).map(g=>g.description), ...(data.categories||[]).map(c=>c.description)]),
-                        trend_score: trendScore,
-                        twitch_viewers: trends.twitch.status === 'ok' ? trends.twitch.value : 0,
-                        chzzk_viewers: trends.chzzk.status === 'ok' ? trends.chzzk.value : 0,
-                        price_info: priceInfo, 
-                        pc_requirements: data.pc_requirements || { minimum: "", recommended: "" },
-                        releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월|일/g, '-')) : new Date(),
-                        screenshots: data.screenshots?.map(s=>s.path_full)||[],
-                        trailers: data.movies?.map(m=>m.webm?.max)||[],
-                        metacritic_score: data.metacritic?.score || 0,
-                        play_time: playTime, 
-                    }, { upsert: true });
-
-                    totalCount++;
-                    console.log(`✅ [${totalCount}/${metadatas.length}] ${finalTitle} | Time: ${playTime}`);
-
-                } catch (e) { console.error(`❌ Error ${appid}: ${e.message}`); }
-            }
-        } catch (err) {
-            console.error("🚨 Batch Error:", err);
-        } finally {
-            await browser.close(); 
-        }
+    } catch (err) {
+        console.error("추천 API 에러:", err);
+        res.status(500).json({ error: "데이터 조회 실패" });
     }
+});
 
-    console.log("🎉 수집 완료");
-    process.exit(0);
-}
-
-collectGamesData();
+module.exports = router;
