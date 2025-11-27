@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from 'axios'; 
-import "./RecommendPage.css"; 
+import "./RecommendPage.css"; // 스타일 파일 연결
 
+// 🔥 모든 태그 카테고리 정의
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '탑다운', '사이드뷰', '쿼터뷰'],
@@ -34,7 +35,9 @@ function PersonalRecoPage({ user }) {
   useEffect(() => {
     if (user) checkSteamConnection();
     else setSteamStatus('GUEST');
-    fetchReco(); // 자동 로딩
+    
+    // ★ 페이지 접속 시 자동으로 추천 데이터 로딩
+    fetchReco();
   }, [user, urlSteamId]);
 
   const checkSteamConnection = async () => {
@@ -74,7 +77,7 @@ function PersonalRecoPage({ user }) {
   };
 
   const handleLinkSteam = () => { window.location.href = `${API_BASE}/api/auth/steam?link=true`; };
-  const formatTime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
+  const formatPlaytime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
 
   return (
     <div className="reco-container">
@@ -105,7 +108,7 @@ function PersonalRecoPage({ user }) {
                                         <img src={`http://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`} className="steam-game-icon" alt="" onError={(e)=>e.target.src="https://via.placeholder.com/32"}/>
                                         <div className="steam-info-col">
                                             <div className="steam-game-name" title={g.name}>{g.name}</div>
-                                            <div className="steam-playtime">{formatTime(g.playtime_forever)}</div>
+                                            <div className="steam-playtime">{formatPlaytime(g.playtime_forever)}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -118,7 +121,7 @@ function PersonalRecoPage({ user }) {
 
         <div className="search-row">
           <input className="search-input" value={term} onChange={(e)=>setTerm(e.target.value)} placeholder="게임 제목 검색..." onKeyPress={(e)=>e.key==='Enter'&&fetchReco()}/>
-          <button className="search-btn" onClick={fetchReco}>검색</button>
+          <button className="search-btn" onClick={fetchReco}>추천 받기</button>
         </div>
         
         <div className="tags-panel">
