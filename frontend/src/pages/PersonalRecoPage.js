@@ -1,84 +1,102 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link, useSearchParams } from 'react-router-dom';
-import Skeleton from '../Skeleton';
+import React, { useState, useRef, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import axios from 'axios'; 
+import "./RecommendPage.css"; 
 
-// 태그 카테고리 정의
+// 🔥 모든 태그 카테고리 포함
 const TAG_CATEGORIES = {
-  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '로그라이크', '소울라이크', '액션', '어드벤처'],
-  '특징': ['오픈 월드', '협동', '스토리 중심', '경쟁', '멀티플레이', '싱글플레이', '판타지', 'SF']
+  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
+  '시점': ['1인칭', '3인칭', '탑다운', '사이드뷰', '쿼터뷰'],
+  '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '애니메이션', '귀여운'],
+  '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
+  '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
 };
 
+const API_BASE = "http://localhost:8000";
+
 function PersonalRecoPage({ user }) {
-  const [games, setGames] = useState([]); 
-  const [loading, setLoading] = useState(false);
-  const [selectedTags, setSelectedTags] = useState([]);
+  const [term, setTerm] = useState("");
+  const [picked, setPicked] = useState(new Set());
+  const pickedRef = useRef(new Set());
+  const [strict, setStrict] = useState(false);
+  const [k, setK] = useState(12);
   
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // 스팀 연동 상태
   const [steamGames, setSteamGames] = useState([]); 
   const [topGames, setTopGames] = useState([]);     
   const [steamStatus, setSteamStatus] = useState('LOADING'); 
-
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
 
-  // 1. 로그인 유저 확인 및 스팀 연동 상태 체크
+  // 초기화
   useEffect(() => {
     if (user) {
         checkSteamConnection();
     } else {
-        setSteamStatus('GUEST'); // 게스트 모드
+        setSteamStatus('GUEST'); 
     }
+    // 페이지 접속 시 기본 추천(트렌드순) 자동 로딩
+    fetchReco();
   }, [user, urlSteamId]);
-
-  // 2. 태그 변경 시 추천 리스트 갱신
-  useEffect(() => {
-      fetchRecommendations(); 
-  }, [selectedTags, steamStatus]);
 
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
-        const res = await axios.get('http://localhost:8000/api/user/games', { withCredentials: true });
+        const res = await axios.get(`${API_BASE}/api/user/games`, { withCredentials: true });
         const allGames = res.data || [];
         setSteamGames(allGames);
+        
         const sorted = [...allGames]
             .filter(g => g && g.name && g.playtime_forever > 0) 
-            .sort((a, b) => (b.playtime_forever || 0) - (a.playtime_forever || 0))
+            .sort((a, b) => b.playtime_forever - a.playtime_forever)
             .slice(0, 5);
         setTopGames(sorted);
         setSteamStatus('LINKED');
     } catch (err) {
-        console.error("스팀 연동 확인 실패:", err);
         if (err.response?.status === 403) setSteamStatus('PRIVATE');
         else setSteamStatus('NOT_LINKED');
     }
   };
 
-  const fetchRecommendations = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.post('http://localhost:8000/api/ai-recommend/personal', { 
-            userId: user?.id || user?._id || null, // 게스트는 null
-            tags: selectedTags,
-            steamId: (steamStatus === 'LINKED') ? 'LINKED' : '' 
-        });
-        
-        const recoGames = Array.isArray(res.data) ? res.data : (res.data.games || []);
-        setGames(recoGames); 
-      } catch (err) { 
-          console.error("추천 실패:", err); 
-          setGames([]); 
-      } finally { 
-          setLoading(false); 
-      }
+  const toggle = (t) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
+      pickedRef.current = next;
+      return next;
+    });
   };
 
-  const toggleTag = (tag) => {
-      setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  const fetchReco = async () => {
+    if (loading) return;
+    setErr("");
+    setLoading(true);
+
+    try {
+      const liked = Array.from(pickedRef.current);
+      console.log("요청:", { term, liked, strict, k });
+
+      const res = await axios.post(`${API_BASE}/api/steam/reco`, {
+        term, liked, strict, k
+      });
+
+      setData(res.data);
+      if (!res.data.items?.length) setErr("조건에 맞는 게임이 없습니다.");
+    } catch (e) {
+      console.error(e);
+      setErr("추천 데이터를 가져오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLinkSteam = () => {
-      window.location.href = 'http://localhost:8000/api/auth/steam?link=true';
+      window.location.href = `${API_BASE}/api/auth/steam?link=true`;
   };
 
   const formatPlaytime = (minutes) => {
@@ -87,153 +105,122 @@ function PersonalRecoPage({ user }) {
   };
 
   return (
-    <div className="net-panel">
-        <h2 className="net-section-title" style={{borderLeftColor:'#E50914', fontSize:'28px', marginBottom:'30px'}}>
-            🤖 AI 맞춤 추천
-        </h2>
+    <div className="reco-container">
+      
+      <div className="search-panel">
+        <h1>🤖 AI 맞춤 추천</h1>
 
-        {/* 1. 스팀 연동 상태 섹션 (게스트일 땐 안내문구, 로그인이면 상태 표시) */}
-        <div style={{marginBottom:'50px'}}>
+        {/* 스팀 대시보드 */}
+        <div className="steam-dashboard">
             {!user ? (
-                <div style={styles.ctaBox}>
-                    <div style={{flex:1}}>
-                        <h3 style={{margin:'0 0 10px 0', color:'#fff'}}>로그인하고 스팀 계정을 연동해보세요!</h3>
-                        <p style={{margin:0, color:'#aaa', lineHeight:'1.5'}}>
-                            로그인하면 내 스팀 플레이 기록을 분석하여 더 정교한 추천을 받을 수 있습니다.<br/>
-                            (현재는 태그 기반 추천만 가능합니다)
-                        </p>
-                    </div>
-                    <Link to="/login" style={{...styles.steamButton, backgroundColor:'#E50914', textDecoration:'none', display:'inline-block', textAlign:'center'}}>
-                        로그인하기
-                    </Link>
+                <div className="steam-guest-msg">
+                    <span>로그인하고 내 스팀 게임 기록을 분석받아보세요!</span>
+                    <Link to="/login" className="search-btn steam-btn">로그인하기</Link>
                 </div>
             ) : (
                 <>
-                    {steamStatus === 'LOADING' && (
-                        <div style={styles.statusBox}><div style={{fontSize:'24px', marginBottom:'10px'}}>🔄</div><div>스팀 라이브러리를 분석하고 있습니다...</div></div>
-                    )}
+                    {steamStatus === 'LOADING' && <div className="steam-msg">🔄 스팀 라이브러리 분석 중...</div>}
                     {steamStatus === 'NOT_LINKED' && (
-                        <div style={styles.ctaBox}>
-                            <div style={{flex:1}}>
-                                <h3 style={{margin:'0 0 10px 0', color:'#fff'}}>스팀 계정을 연동해보세요!</h3>
-                                <p style={{margin:0, color:'#aaa', lineHeight:'1.5'}}>플레이 기록을 분석하여 취향 저격 게임을 찾아드립니다.</p>
-                            </div>
-                            <button onClick={handleLinkSteam} style={styles.steamButton}>🎮 Steam 연동하기</button>
+                        <div className="steam-connect-box">
+                            <span>스팀 계정을 연동하면 더 정확한 추천을 받을 수 있습니다.</span>
+                            <button onClick={handleLinkSteam} className="search-btn steam-btn">🎮 Steam 연동</button>
                         </div>
                     )}
-                    {steamStatus === 'PRIVATE' && (
-                        <div style={{...styles.statusBox, borderColor:'#ff4444', backgroundColor:'#3a1d1d'}}>
-                            <div style={{fontSize:'24px', marginBottom:'10px'}}>🔒</div>
-                            <h3 style={{color:'#ff4444', marginTop:0}}>스팀 프로필이 비공개 상태입니다</h3>
-                            <a href="https://steamcommunity.com/my/edit/settings" target="_blank" rel="noreferrer" style={styles.linkButton}>공개 설정하러 가기 &gt;</a>
-                            <button onClick={checkSteamConnection} style={{...styles.textButton, marginTop:'15px'}}>다시 시도 ⟳</button>
-                        </div>
-                    )}
+                    {steamStatus === 'PRIVATE' && <div className="steam-error">🔒 스팀 프로필이 비공개 상태입니다.</div>}
                     {steamStatus === 'LINKED' && (
-                        <div style={styles.dashboard}>
-                            <div style={{marginBottom:'20px', borderBottom:'1px solid #444', paddingBottom:'15px'}}>
-                                <h3 style={{margin:0, color:'#66c0f4'}}>📊 {user?.username}님의 게임 성향 분석</h3>
+                        <>
+                            <div className="steam-header">
+                                <h3 style={{margin:0, color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3>
                             </div>
-                            {/* ... (상위 게임 리스트 렌더링 코드 유지) ... */}
-                            {topGames.length > 0 ? (
-                                <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                                    {topGames.map((game, index) => {
-                                        const maxTime = topGames[0].playtime_forever || 1;
-                                        const percent = (game.playtime_forever / maxTime) * 100;
-                                        const iconUrl = game.img_icon_url ? `https://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg` : 'https://via.placeholder.com/32?text=?';
-                                        return (
-                                            <div key={game.appid} style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                                                <div style={{width:'20px', color: index===0?'#E50914':'#888', fontWeight:'bold'}}>{index+1}</div>
-                                                <img src={iconUrl} alt="" style={{width:'32px', height:'32px', borderRadius:'4px'}} onError={(e)=>e.target.style.display='none'}/>
-                                                <div style={{flex:1}}>
-                                                    <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', marginBottom:'5px'}}>
-                                                        <span style={{color:'#fff'}}>{game.name}</span>
-                                                        <span style={{color:'#aaa'}}>{formatPlaytime(game.playtime_forever)}</span>
-                                                    </div>
-                                                    <div style={{width:'100%', height:'6px', background:'rgba(255,255,255,0.1)', borderRadius:'3px', overflow:'hidden'}}>
-                                                        <div style={{width:`${percent}%`, height:'100%', background: index===0 ? '#E50914' : '#66c0f4'}}></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : <div style={{textAlign:'center', color:'#666'}}>분석할 게임 기록이 없습니다.</div>}
-                        </div>
+                            <div className="steam-list">
+                                {topGames.map((g, idx) => (
+                                    <div key={g.appid || idx} className="steam-card">
+                                        <img 
+                                            src={`http://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`}
+                                            alt={g.name} 
+                                            className="steam-game-icon"
+                                            onError={(e) => e.target.src = "https://via.placeholder.com/80x37?text=No+Img"}
+                                        />
+                                        <div className="steam-info-col">
+                                            <div className="steam-game-name" title={g.name}>{g.name}</div>
+                                            <div className="steam-playtime">⏳ {formatPlaytime(g.playtime_forever)}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </>
             )}
         </div>
 
-        {/* 2. 필터 및 추천 결과 섹션 (항상 표시) */}
-        <div>
-            <h3 style={{marginBottom:'15px'}}>🎯 태그로 추천 좁히기</h3>
-            <div style={{marginBottom:'30px', display:'flex', gap:'8px', flexWrap:'wrap'}}>
-                {Object.entries(TAG_CATEGORIES).map(([catName, tags]) => (
-                    <React.Fragment key={catName}>
-                        {tags.map(tag => (
-                            <button key={tag} onClick={() => toggleTag(tag)}
-                                style={{
-                                    padding:'8px 16px', borderRadius:'20px', border:'1px solid #444',
-                                    background: selectedTags.includes(tag) ? '#E50914' : '#222',
-                                    color: selectedTags.includes(tag) ? '#fff' : '#ccc', 
-                                    cursor:'pointer', transition:'all 0.2s', fontSize:'14px'
-                                }}
-                            >
-                                {tag}
-                            </button>
-                        ))}
-                    </React.Fragment>
-                ))}
-            </div>
-
-            <h3 style={{marginBottom:'20px'}}>
-                {selectedTags.length > 0 ? `'${selectedTags.join(', ')}' 관련 추천` : '✨ 당신을 위한 추천'}
-            </h3>
-
-            {loading ? (
-                <div className="net-cards">
-                    {[1,2,3,4,5].map(n => <Skeleton key={n} height="250px" />)}
-                </div>
-            ) : (
-                <div className="net-cards">
-                    {games && games.length > 0 ? games.map(g => (
-                        <Link to={`/game/${g.slug}`} key={g.slug} className="net-card">
-                            <div className="net-card-thumb">
-                                <img src={g.main_image} alt={g.title} style={{width:'100%', height:'100%', objectFit:'cover'}} />
-                                {g.score && (
-                                    <div style={{position:'absolute', top:'10px', right:'10px', background:'rgba(0,0,0,0.8)', color:'#46d369', padding:'4px 8px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold', border:'1px solid #46d369'}}>
-                                        {Math.round(g.score * 100)}% 매칭
-                                    </div>
-                                )}
-                            </div>
-                            <div className="net-card-body">
-                                <div className="net-card-title" style={{fontSize:'16px', marginBottom:'5px'}}>
-                                    {g.title_ko || g.title}
-                                </div>
-                            </div>
-                        </Link>
-                    )) : (
-                        <div style={{gridColumn:'1/-1', textAlign:'center', padding:'60px', color:'#666', border:'1px dashed #444', borderRadius:'8px'}}>
-                            <div style={{fontSize:'40px', marginBottom:'20px'}}>🤔</div>
-                            <h3>추천할 게임을 찾지 못했습니다.</h3>
-                        </div>
-                    )}
-                </div>
-            )}
+        {/* 검색창 */}
+        <div className="search-row">
+          <input
+            className="search-input"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder="게임 제목 검색..."
+            onKeyPress={(e) => e.key === 'Enter' && fetchReco()}
+          />
+          <button className="search-btn" onClick={fetchReco}>추천 받기</button>
         </div>
+        
+        <div className="options-row">
+          <label className="checkbox-label">
+            <input type="checkbox" checked={strict} onChange={(e) => setStrict(e.target.checked)} />
+            엄격한 태그 매칭
+          </label>
+          <select className="select-k" value={k} onChange={(e) => setK(Number(e.target.value))}>
+            {[8, 12, 16, 20].map(n => <option key={n} value={n}>{n}개 보기</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* 태그 패널 */}
+      <div className="tags-panel">
+        <h2>🎯 취향 태그 선택</h2>
+        {Object.entries(TAG_CATEGORIES).map(([group, list]) => (
+          <div className="tag-group" key={group}>
+            <div className="tag-label">{group}</div>
+            <div className="tag-list">
+              {list.map(t => (
+                <div key={t} className={`tag-chip ${picked.has(t) ? "on" : ""}`} onClick={() => toggle(t)}>
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {err && <div className="error-box">{err}</div>}
+      
+      {/* 추천 결과 리스트 (세로 카드 배치) */}
+      {!loading && data?.items && (
+        <div className="result-panel">
+          <h2>✨ 추천 결과 ({data.items.length}개)</h2>
+          <div className="game-grid">
+            {data.items.map((g, index) => (
+              <Link to={`/game/${g.slug || `steam-${g.appid}`}`} key={g._id || index} className="game-card">
+                <img src={g.thumb} alt={g.name} className="thumb" onError={(e) => e.target.src = "https://via.placeholder.com/300x169?text=No+Image"} />
+                <div className="card-info">
+                  <div className="game-title">{g.name}</div>
+                  <div className="game-meta-row">
+                    <span className="game-price">{g.price}</span>
+                    <span className="game-playtime">⏳ {g.playtime}</span>
+                  </div>
+                  <div className="score-bar"><div style={{ width: `${g.score}%` }}></div></div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {loading && <div className="loading-box">🔮 분석 중...</div>}
     </div>
   );
 }
-
-// 스타일 정의
-const styles = {
-    statusBox: { backgroundColor:'#181818', padding:'40px', borderRadius:'8px', textAlign:'center', color:'#aaa', border:'1px solid #333' },
-    ctaBox: { backgroundColor:'#1b2838', padding:'30px', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'space-between', border:'1px solid #333', boxShadow:'0 4px 12px rgba(0,0,0,0.3)' },
-    steamButton: { backgroundColor:'#66c0f4', border:'none', padding:'12px 24px', borderRadius:'4px', fontWeight:'bold', cursor:'pointer', color:'#fff', display:'flex', alignItems:'center' },
-    dashboard: { backgroundColor:'#1b2838', padding:'30px', borderRadius:'8px', border:'1px solid #2a475e' },
-    linkButton: { color:'#66c0f4', textDecoration:'none', fontSize:'14px', marginTop:'10px', display:'inline-block' },
-    textButton: { background:'none', border:'1px solid #555', color:'#ccc', padding:'8px 16px', borderRadius:'4px', cursor:'pointer', fontSize:'13px' }
-};
 
 export default PersonalRecoPage;
