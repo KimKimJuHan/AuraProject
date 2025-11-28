@@ -1,117 +1,227 @@
-// backend/metadata_seeder.js
+/**
+ * metadata_seeder.js (완전 개정판)
+ * 역할:
+ *  - ITAD 인기 게임 300개 가져오기
+ *  - Steam AppID 후보 찾기
+ *  - DLC/Legacy/패키지 제거
+ *  - 검증/스코어링 후 "메인 게임"을 자동 선택
+ */
 
-require('dotenv').config();
-const mongoose = require('mongoose');
-const axios = require('axios');
-const GameMetadata = require('./models/GameMetadata');
+require("dotenv").config();
+const mongoose = require("mongoose");
+const axios = require("axios");
+const GameMetadata = require("./models/GameMetadata");
 
 const { MONGODB_URI, ITAD_API_KEY } = process.env;
 
 if (!ITAD_API_KEY) {
-    console.error("🚨 ITAD_API_KEY 누락");
-    process.exit(1);
+  console.error("🚨 ITAD_API_KEY 누락");
+  process.exit(1);
 }
 
-const MANUAL_OVERRIDES = [
-    { id: 271590, title: "Grand Theft Auto V", itad: "game_v2_f80169116c4f877f24022421713d6d03f0b21a8d" },
-];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-// 스팀 상점 검증
-async function verifySteamStore(appId) {
-    try {
-        const res = await axios.get(`https://store.steampowered.com/api/appdetails`, {
-            params: { appids: appId, filters: 'basic,price_overview,release_date', cc: 'us' } // cc=us로 영어 정보 확인
-        });
-        
-        const data = res.data[appId];
-        if (!data || !data.success) return false;
-        
-        const details = data.data;
-        if (details.type !== 'game') return false;
-
-        // 무료이거나 가격 정보가 있어야 함
-        const isPlayable = details.is_free === true || (details.price_overview && details.price_overview.final !== undefined);
-        
-        return isPlayable; 
-    } catch (e) { return false; }
+/**
+ * ❗ 스팀 이름 필터
+ *    DLC, Legacy, Demo, Pack, Bundle 등 제거
+ */
+function isBadSteamName(name) {
+  if (!name) return true;
+  const x = name.toLowerCase();
+  const badWords = [
+    "legacy",
+    "dlc",
+    "soundtrack",
+    "ost",
+    "bundle",
+    "pack",
+    "demo",
+    "test",
+    "beta",
+    "prologue",
+    "trailer"
+  ];
+  return badWords.some(w => x.includes(w));
 }
 
+/**
+ * ❗ Steam Search 후보 가져오기
+ */
+async function searchSteamApps(term) {
+  try {
+    const res = await axios.get(
+      `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`
+    );
+    if (!res.data?.items) return [];
+
+    return res.data.items
+      .filter(item => item.type === "game")
+      .filter(item => !isBadSteamName(item.name));
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * ❗ Steam App ID 상세 정보 가져오기
+ */
+async function getSteamDetails(appId) {
+  try {
+    const res = await axios.get("https://store.steampowered.com/api/appdetails", {
+      params: { appids: appId, l: "english", cc: "us" }
+    });
+
+    const d = res.data?.[appId];
+    if (!d || !d.success) return null;
+    const data = d.data;
+
+    if (data.type !== "game") return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 🎯 후보 스코어링 알고리즘
+ */
+function scoreCandidate(data, originalTitle) {
+  if (!data || !data.name) return -9999;
+
+  const name = data.name.toLowerCase();
+  const t = originalTitle.toLowerCase();
+
+  let score = 0;
+
+  // 제목 유사도 (부분 포함)
+  if (name.includes(t)) score += 40;
+  if (t.includes(name)) score += 40;
+
+  // Legacy 제거 효과
+  if (isBadSteamName(name)) score -= 200;
+
+  // 가격 정보 = 판매 중
+  if (data.price_overview?.final !== undefined) score += 50;
+
+  // 패키지라도 있으면 가점
+  if (data.packages?.length > 0) score += 20;
+
+  // 최신 릴리즈일수록 가점
+  if (data.release_date?.date) {
+    const year = parseInt(data.release_date.date.split(" ")[2]);
+    if (!isNaN(year)) score += year;
+  }
+
+  return score;
+}
+
+/**
+ * 🎯 메인 함수: 최적의 Steam AppID 선택
+ */
+async function findBestSteamAppId(originalAppId, title) {
+  const candidates = [];
+
+  // 1) ITAD가 준 AppID → 검증해보고 괜찮으면 후보
+  const mainDetail = await getSteamDetails(originalAppId);
+  if (mainDetail) candidates.push({ appId: originalAppId, data: mainDetail });
+
+  // 2) Steam Search 결과들 후보 추가
+  const searched = await searchSteamApps(title);
+  for (const item of searched) {
+    const d = await getSteamDetails(item.id);
+    if (d) candidates.push({ appId: item.id, data: d });
+  }
+
+  if (candidates.length === 0) return null;
+
+  // 3) 스코어링
+  const scored = candidates
+    .map(c => ({
+      ...c,
+      score: scoreCandidate(c.data, title)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  console.log(`\n🎯 Steam Best Pick: ${best.data.name} (${best.appId}) | Score=${best.score}`);
+  return best;
+}
+
+/**
+ * 🎯 메타데이터 시딩 (메인)
+ */
 async function seedMetadata() {
-    if (!MONGODB_URI) { console.error("❌ DB URI 없음"); process.exit(1); }
-    
-    await mongoose.connect(MONGODB_URI);
-    console.log("✅ DB 연결됨. 족보 갱신 시작...");
+  await mongoose.connect(MONGODB_URI);
+  console.log("📌 DB 연결됨. ITAD → Steam AppID 동적 최적화 시작...");
 
-    // 1. 수동 데이터
-    for (const manual of MANUAL_OVERRIDES) {
-        await GameMetadata.findOneAndUpdate({ steamAppId: manual.id }, {
-            steamAppId: manual.id,
-            title: manual.title,
-            itad: { uuid: manual.itad, manualOverride: true },
-            lastUpdated: Date.now()
-        }, { upsert: true });
+  let popular = [];
+  try {
+    const res = await axios.get(`https://api.isthereanydeal.com/stats/most-popular/v1`, {
+      params: { key: ITAD_API_KEY, limit: 300 }
+    });
+    popular = res.data || [];
+  } catch (e) {
+    console.error("🚨 ITAD 불러오기 실패");
+    process.exit(1);
+  }
+
+  console.log(`🔥 ITAD 인기 게임 ${popular.length}개 가져옴`);
+  let saved = 0,
+    skipped = 0;
+
+  for (const game of popular) {
+    const title = game.title;
+    const rawItadId = game.id;
+
+    // 제목에서 Legacy 계열 먼저 필터링
+    if (isBadSteamName(title)) {
+      skipped++;
+      continue;
     }
 
-    // 2. ITAD 인기 게임 조회
+    // ITAD → Steam AppID 가져오기
+    let appId = null;
     try {
-        console.log("🚀 ITAD 인기 게임 300개 조회 중...");
-        const popularRes = await axios.get(`https://api.isthereanydeal.com/stats/most-popular/v1`, {
-            params: { key: ITAD_API_KEY, limit: 300 } 
-        });
-        const popularList = popularRes.data || [];
-        
-        console.log(`📦 후보 ${popularList.length}개 확보. 검증 시작...`);
+      const infoRes = await axios.get(`https://api.isthereanydeal.com/games/info/v2`, {
+        params: { key: ITAD_API_KEY, id: rawItadId }
+      });
 
-        let count = 0;
-        let skipped = 0;
+      if (infoRes.data?.appid) appId = infoRes.data.appid;
+    } catch {}
 
-        for (const game of popularList) {
-            // 불량 키워드 필터링
-            const titleLower = game.title.toLowerCase();
-            if (titleLower.includes('legacy') || titleLower.includes('soundtrack') || titleLower.includes(' dlc')) {
-                skipped++;
-                continue;
-            }
+    if (!appId) {
+      skipped++;
+      continue;
+    }
 
-            const exists = await GameMetadata.findOne({ 'itad.uuid': game.id });
-            if (exists && exists.itad.manualOverride) continue;
+    // Steam 최적 후보 검색
+    const best = await findBestSteamAppId(appId, title);
+    if (!best) {
+      skipped++;
+      continue;
+    }
 
-            await sleep(300); 
+    // DB 저장
+    await GameMetadata.findOneAndUpdate(
+      { steamAppId: best.appId },
+      {
+        steamAppId: best.appId,
+        title: title, // 정제된 ITAD 제목 (HLTB 검색용)
+        itad: { uuid: rawItadId },
+        lastUpdated: Date.now()
+      },
+      { upsert: true }
+    );
 
-            try {
-                // ITAD 정보 조회 -> 여기서 얻은 'game.title'은 깔끔한 영어 제목임
-                const infoRes = await axios.get(`https://api.isthereanydeal.com/games/info/v2`, {
-                    params: { key: ITAD_API_KEY, id: game.id } 
-                });
-                const foundGame = infoRes.data;
-                
-                if (foundGame && foundGame.appid) {
-                    const isValid = await verifySteamStore(foundGame.appid);
-                    
-                    if (isValid) {
-                        // ★ 핵심: 스팀 제목 대신 ITAD의 깔끔한 영어 제목(foundGame.title)을 저장
-                        await GameMetadata.findOneAndUpdate({ steamAppId: foundGame.appid }, {
-                            steamAppId: foundGame.appid,
-                            title: foundGame.title, 
-                            itad: { uuid: foundGame.id },
-                            lastUpdated: Date.now()
-                        }, { upsert: true });
-                        process.stdout.write(`.`); 
-                        count++;
-                    } else {
-                        process.stdout.write(`x`); 
-                        skipped++;
-                    }
-                }
-            } catch (e) {}
-        }
-        console.log(`\n🎉 갱신 완료! (저장: ${count} / 제외: ${skipped})`);
+    saved++;
+    process.stdout.write(".");
+    await sleep(500);
+  }
 
-    } catch (e) { console.error("\n🚨 오류:", e.message); }
-
-    process.exit(0);
+  console.log(`\n\n🎉 시딩 완료`);
+  console.log(`  ➕ 저장됨: ${saved}`);
+  console.log(`  ➖ 제외됨: ${skipped}`);
+  process.exit(0);
 }
 
 seedMetadata();
