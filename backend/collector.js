@@ -8,8 +8,8 @@ const fs = require('fs');
 const os = require('os');
 
 const Game = require('./models/Game');
-const GameCategory = require('./models/GameCategory'); 
-const GameMetadata = require('./models/GameMetadata'); 
+const GameCategory = require('./models/GameCategory');
+const GameMetadata = require('./models/GameMetadata');
 
 const { MONGODB_URI, ITAD_API_KEY, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
@@ -50,6 +50,57 @@ function chunkArray(array, size) {
     const chunked = [];
     for (let i = 0; i < array.length; i += size) chunked.push(array.slice(i, i + size));
     return chunked;
+}
+
+async function fetchSteamAppDetails(appId) {
+    try {
+        const res = await axios.get(`https://store.steampowered.com/api/appdetails`, { params: { appids: appId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS });
+        return res.data?.[appId]?.data || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function findBestSteamAppId(term) {
+    try {
+        const encodedTerm = encodeURIComponent(term);
+        const res = await axios.get(`https://store.steampowered.com/api/storesearch/?term=${encodedTerm}&l=english&cc=us`);
+        if (res.data?.items?.length) {
+            const bestMatch = res.data.items.find(item => item.type === 'app' || item.type === 'game');
+            if (bestMatch) return { id: bestMatch.id, name: bestMatch.name };
+        }
+    } catch (e) {}
+    return null;
+}
+
+function isLegacyTitle(title = '') {
+    return title.toLowerCase().includes('legacy');
+}
+
+function isPlayableSteamGame(data) {
+    if (!data || data.type !== 'game') return false;
+    return data.is_free === true || !!data.price_overview || (Array.isArray(data.packages) && data.packages.length > 0);
+}
+
+async function resolveSteamApp(metadata) {
+    let appid = metadata.steamAppId;
+    let steamData = await fetchSteamAppDetails(appid);
+
+    if (!isPlayableSteamGame(steamData) || isLegacyTitle(steamData?.name)) {
+        const searchName = cleanGameTitle(metadata.title || steamData?.name || '');
+        const bestMatch = await findBestSteamAppId(searchName);
+        if (bestMatch && bestMatch.id !== appid) {
+            const replacementData = await fetchSteamAppDetails(bestMatch.id);
+            if (isPlayableSteamGame(replacementData) && !isLegacyTitle(replacementData.name)) {
+                appid = bestMatch.id;
+                steamData = replacementData;
+                metadata.steamAppId = appid;
+                try { await metadata.save(); } catch (e) {}
+            }
+        }
+    }
+
+    return { appid, steamData };
 }
 
 // --- [Twitch & Trend Logic] ---
@@ -184,12 +235,9 @@ async function collectGamesData() {
 
             for (const metadata of batch) {
                 try {
-                    const appid = metadata.steamAppId;
+                    const { appid, steamData: data } = await resolveSteamApp(metadata);
                     await sleep(500);
-                    
-                    // Steam Data
-                    const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, { params: { appids: appid, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS });
-                    const data = steamRes.data[appid]?.data;
+
                     if (!data) continue;
 
                     const categoryData = await GameCategory.findOne({ steamAppId: appid });
