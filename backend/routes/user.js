@@ -1,59 +1,70 @@
-const express = require('express');
-const axios = require('axios');
+// backend/routes/user.js
+const express = require("express");
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth'); 
+const User = require("../models/User");
+const { authenticateToken } = require("../middleware/auth");
 
-const STEAM_WEB_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
+// 헬퍼 함수
+function getUserId(req) {
+  return req.user?.userId || req.user?._id || req.user?.id || null;
+}
 
-// GET /api/user/games
-router.get('/games', authenticateToken, async (req, res) => {
-    // 1. DB에 저장된 steamId 확인
-    const steamId = req.user.steamId; 
+// ---------- GET /api/user/info ----------
+router.get("/info", authenticateToken, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not logged in" });
 
-    if (!steamId) {
-        // 이 에러가 뜬다면 "연동이 저장되지 않은 것"입니다. (User.js 수정 후 재연동 필수)
-        console.error(`[Steam Error] User ${req.user.username} has no steamId linked.`);
-        return res.status(400).json({ message: "Steam 계정이 연동되지 않았습니다." });
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json(user);
+  } catch (e) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ---------- GET /api/user/steam-library ----------
+router.get("/steam-library", authenticateToken, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "NOT_LOGGED_IN" });
+
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (!user.steamId) {
+      return res.status(401).json({ error: "STEAM_NOT_LINKED" });
     }
 
-    if (!STEAM_WEB_API_KEY) {
-        return res.status(500).json({ message: "서버 설정 오류: Steam API Key 누락" });
-    }
+    return res.json(user.steamGames || []);
+  } catch (e) {
+    console.error("Steam library fetch error:", e);
+    res.status(500).json({ error: "INTERNAL_ERROR" });
+  }
+});
 
-    // ★ 가이드에 맞춘 API 엔드포인트 및 파라미터 설정 ★
-    const url = `http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/`;
+// ---------- POST /api/user/wishlist ----------
+router.post("/wishlist", authenticateToken, async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not logged in" });
 
-    try {
-        const steamRes = await axios.get(url, {
-            params: {
-                key: STEAM_WEB_API_KEY,
-                steamid: steamId,
-                format: 'json',
-                include_appinfo: true,       // 게임 이름, 아이콘 등 상세 정보
-                include_played_free_games: true // 무료 게임(플레이 기록 있는) 포함
-            }
-        });
+    const { slug } = req.body;
+    if (!slug) return res.status(400).json({ error: "slug is required" });
 
-        const responseData = steamRes.data?.response;
-        
-        // 데이터가 없거나 games 배열이 없으면 '비공개 프로필'일 가능성이 높음
-        if (!responseData || !responseData.games) {
-            console.warn(`[Steam Warning] Private profile detected for ${steamId}`);
-            return res.status(403).json({ 
-                errorCode: "PRIVATE_PROFILE",
-                message: "스팀 프로필이 비공개 상태입니다." 
-            });
-        }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-        const games = responseData.games;
-        // console.log(`[Steam Success] Fetched ${games.length} games for ${steamId}`);
-        
-        return res.json(games);
-        
-    } catch (error) {
-        console.error("Steam Web API Error:", error.message);
-        return res.status(500).json({ message: "Steam API 호출 실패" });
-    }
+    if (!Array.isArray(user.wishlist)) user.wishlist = [];
+    if (!user.wishlist.includes(slug)) user.wishlist.push(slug);
+
+    await user.save();
+    res.json({ wishlist: user.wishlist });
+  } catch (e) {
+    console.error("/api/user/wishlist error:", e);
+    res.status(500).json({ error: "Error updating wishlist" });
+  }
 });
 
 module.exports = router;
