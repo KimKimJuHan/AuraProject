@@ -242,3 +242,122 @@ body, html, #root {
 @keyframes pulse {
   0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; }
 }
+/* ==== 로그인/회원가입 페이지 스타일 ==== */
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh; /* 화면 중앙 배치 */
+  background-color: #141414;
+  color: #fff;
+}
+
+.auth-box {
+  background-color: rgba(0, 0, 0, 0.75);
+  padding: 60px 68px 40px;
+  border-radius: 4px;
+  width: 100%;
+  max-width: 450px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-box h2 {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 28px;
+}
+
+.auth-input {
+  background: #333;
+  border-radius: 4px;
+  border: 0;
+  color: #fff;
+  height: 50px;
+  line-height: 50px;
+  padding: 0 20px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+
+.auth-input:focus {
+  background: #454545;
+  outline: none;
+}
+
+.auth-btn {
+  background-color: #e50914;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  margin: 24px 0 12px;
+  padding: 16px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+.auth-btn:hover {
+  background-color: #f40612;
+}
+
+.auth-link {
+  color: #737373;
+  font-size: 16px;
+  margin-top: 16px;
+}
+
+.auth-link a {
+  color: #fff;
+  text-decoration: none;
+  margin-left: 5px;
+}
+
+.auth-link a:hover {
+  text-decoration: underline;
+}
+
+/* 구분선 */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: #737373;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #333;
+}
+.divider span {
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+/* 스팀 버튼 */
+.steam-btn {
+  background-color: #171a21; /* 스팀 고유색 */
+  color: #c5c3c0;
+  border: 1px solid #171a21;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 14px;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.steam-btn:hover {
+  background-color: #2a475e;
+  border-color: #66c0f4;
+  color: #fff;
+}

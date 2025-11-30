@@ -1,11 +1,13 @@
-// backend/category_seeder.js (최종 개선 버전)
+// backend/scripts/category_seeder.js
 
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' }); // .env 경로 명시 권장
 const mongoose = require('mongoose');
 const axios = require('axios');
-const GameCategory = require('./models/GameCategory');
-const GameMetadata = require('./models/GameMetadata');
-const Game = require('./models/Game'); 
+
+// ★ 경로 수정됨 (../ 추가)
+const GameCategory = require('../models/GameCategory');
+const GameMetadata = require('../models/GameMetadata');
+const Game = require('../models/Game'); 
 
 const { MONGODB_URI, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
@@ -41,25 +43,22 @@ async function getTwitchToken() {
     } catch (e) { console.error("❌ Twitch Token 실패"); }
 }
 
-// ★★★ Twitch 검색 함수: 3단계 지능형 검색 적용 ★★★
 async function searchTwitch(gameName) {
     if (!twitchToken) await getTwitchToken();
     if (!TWITCH_CLIENT_ID || !twitchToken) return null; 
 
-    // 검색어 변형 목록 생성
     const searchQueries = [
-        gameName, // 1. 원본
-        gameName.replace(/[®™©]/g, '').trim(), // 2. 상표 기호만 제거
-        gameName.replace(/[®™©:.\-]/g, ' ').replace(/\s+/g, ' ').trim(), // 3. 특수문자 전체 제거
-        gameName.split(':')[0].trim(), // 4. 콜론 앞부분만 (핵심 타이틀)
-        gameName.split('-')[0].trim()  // 5. 하이픈 앞부분만 (핵심 타이틀)
+        gameName,
+        gameName.replace(/[®™©]/g, '').trim(),
+        gameName.replace(/[®™©:.\-]/g, ' ').replace(/\s+/g, ' ').trim(),
+        gameName.split(':')[0].trim(),
+        gameName.split('-')[0].trim()
     ];
 
-    // 중복 제거
     const uniqueQueries = [...new Set(searchQueries)];
 
     for (const query of uniqueQueries) {
-        if (query.length < 2) continue; // 너무 짧은 검색어 건너뜀
+        if (query.length < 2) continue;
 
         try {
             const res = await axios.get('https://api.twitch.tv/helix/search/categories', {
@@ -69,8 +68,6 @@ async function searchTwitch(gameName) {
             const data = res.data?.data?.[0];
             
             if (data) {
-                // 검색된 이름이 원본과 너무 다르면(다른 게임일 수 있음) 주의 필요하지만,
-                // 일단 검색 결과가 있으면 성공으로 간주합니다.
                 console.log(`   💜 Twitch Match: "${query}" -> "${data.name}"`);
                 return { id: data.id, name: data.name, boxArt: data.box_art_url };
             }
@@ -149,7 +146,7 @@ async function seedCategories() {
         console.log(`   💜 Twitch: ${twitchData ? twitchData.name : "❌ 실패"}`);
         console.log(`   💚 Chzzk : ${chzzkData ? chzzkData.categoryValue : "❌ 실패"} (최종 매핑)`);
         
-        await new Promise(r => setTimeout(r, 1000)); // API Rate Limit 준수
+        await new Promise(r => setTimeout(r, 1000)); 
     }
 
     console.log("\n🎉 매핑 완료!");
