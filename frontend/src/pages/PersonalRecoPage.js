@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from 'axios'; 
-import "./RecommendPage.css"; // 스타일 파일 연결
+import "./RecommendPage.css"; 
 
-// 태그 카테고리 정의 (모두 포함)
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '탑다운', '사이드뷰', '쿼터뷰'],
@@ -13,6 +12,53 @@ const TAG_CATEGORIES = {
 };
 
 const API_BASE = "http://localhost:8000";
+
+// ★ [추가] 게임 카드 컴포넌트 (찜 기능 포함)
+function GameCard({ game }) {
+    const [isWishlisted, setIsWishlisted] = useState(false);
+
+    useEffect(() => {
+        const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+        setIsWishlisted(wishlist.includes(game.slug));
+    }, [game.slug]);
+
+    const toggleWishlist = (e) => {
+        e.preventDefault();
+        const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+        let newWishlist;
+        if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
+        else newWishlist = [...wishlist, game.slug];
+        localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+        setIsWishlisted(!isWishlisted);
+    };
+
+    const isFree = game.price === "무료";
+
+    return (
+        <Link to={`/game/${game.slug || `steam-${game.appid}`}`} className="game-card">
+            <div className="thumb-wrapper">
+                <img src={game.thumb} className="thumb" alt="" onError={(e)=>e.target.src="https://via.placeholder.com/300x169?text=No+Image"}/>
+                <div className="net-card-gradient"></div>
+                {/* ★ 찜 버튼 추가 */}
+                <button className="heart-btn" onClick={toggleWishlist}>
+                    {isWishlisted ? '❤️' : '🤍'}
+                </button>
+            </div>
+            
+            <div className="card-info">
+                <div className="game-title">{game.name}</div>
+                <div className="game-meta-row">
+                    <span className="game-price" style={{color: isFree ? '#46d369' : '#fff'}}>
+                        {game.price}
+                    </span>
+                    <span className="game-playtime">⏳ {game.playtime}</span>
+                </div>
+                <div style={{fontSize:'11px', color:'#888', marginBottom:'4px'}}>일치도 {game.score}%</div>
+                <div className="score-bar"><div style={{width:`${game.score}%`}}></div></div>
+            </div>
+        </Link>
+    );
+}
 
 function PersonalRecoPage({ user }) {
   const [term, setTerm] = useState("");
@@ -25,7 +71,6 @@ function PersonalRecoPage({ user }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 스팀 연동 상태
   const [steamGames, setSteamGames] = useState([]); 
   const [topGames, setTopGames] = useState([]);     
   const [steamStatus, setSteamStatus] = useState('LOADING'); 
@@ -35,7 +80,7 @@ function PersonalRecoPage({ user }) {
   useEffect(() => {
     if (user) checkSteamConnection();
     else setSteamStatus('GUEST');
-    fetchReco(); // 기본 추천 로딩
+    fetchReco();
   }, [user, urlSteamId]);
 
   const checkSteamConnection = async () => {
@@ -75,11 +120,10 @@ function PersonalRecoPage({ user }) {
   };
 
   const handleLinkSteam = () => { window.location.href = `${API_BASE}/api/auth/steam?link=true`; };
-  const formatTime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
+  const formatPlaytime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
 
   return (
     <div className="reco-container">
-      
       <div className="search-panel">
         <h1>🤖 AI 맞춤 추천</h1>
         
@@ -98,60 +142,30 @@ function PersonalRecoPage({ user }) {
                             <button onClick={handleLinkSteam} className="search-btn">🎮 Steam 연동</button>
                         </div>
                     )}
-
-                    {steamStatus === 'PRIVATE' && (
-                        <div className="steam-error">🔒 스팀 프로필이 비공개 상태입니다.</div>
-                    )}
-
+                    {steamStatus === 'PRIVATE' && <div className="steam-error">🔒 스팀 프로필이 비공개 상태입니다.</div>}
                     {steamStatus === 'LINKED' && (
                         <>
-                            <div className="steam-header">
-                                <h3 style={{color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3>
-                            </div>
-
-                            {/* 🔥 여기만 수정됨 — 기존 steam-list → 새 UI 적용 */}
+                            <div className="steam-header"><h3 style={{margin:0, color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3></div>
                             <div className="steam-list">
-                                {topGames.map((g, idx) => {
-                                    const maxPlaytime = topGames[0]?.playtime_forever || 1;
+                                {topGames.map((g, i) => {
+                                    const maxPlaytime = topGames[0].playtime_forever || 1;
                                     const percent = Math.min(100, (g.playtime_forever / maxPlaytime) * 100);
-
                                     return (
-                                      <div key={idx} className="steam-card">
-
-                                        <img 
-                                            src={`http://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`}
-                                            alt={g.name}
-                                            className="steam-game-icon"
-                                            onError={(e) => e.target.src = "https://via.placeholder.com/80x37?text=No+Img"}
-                                        />
-
-                                        <div className="steam-info-col">
-
-                                          {/* 제목 + 플레이 타임 */}
-                                          <div className="steam-row-top">
-                                              <span className="steam-game-name" title={g.name}>{g.name}</span>
-                                              <span className="steam-playtime">{formatTime(g.playtime_forever)}</span>
-                                          </div>
-
-                                          {/* 플레이 타임 그래프 */}
-                                          <div className="steam-playtime-bar">
-                                              <div style={{ width: `${percent}%` }}></div>
-                                          </div>
-
-                                          {/* 스마트 태그 (백엔드 적용 후 정상 표시됨) */}
-                                          <div className="steam-tags">
-                                              {g.smart_tags && g.smart_tags.length > 0 ? (
-                                                  g.smart_tags.slice(0, 3).map((t, i) => (
-                                                      <span key={i} className="steam-tag">{t}</span>
-                                                  ))
-                                              ) : (
-                                                  <span className="steam-tag-empty">태그 분석 중...</span>
-                                              )}
-                                          </div>
-
+                                        <div key={i} className="steam-card">
+                                            <img src={`http://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`} className="steam-game-icon" alt="" onError={(e)=>e.target.src="https://via.placeholder.com/32"}/>
+                                            <div className="steam-info-col">
+                                                <div className="steam-row-top">
+                                                    <span className="steam-game-name" title={g.name}>{g.name}</span>
+                                                    <span className="steam-playtime">{formatPlaytime(g.playtime_forever)}</span>
+                                                </div>
+                                                <div className="steam-playtime-bar"><div style={{ width: `${percent}%` }}></div></div>
+                                                <div className="steam-tags">
+                                                    {g.smart_tags && g.smart_tags.length > 0 ? (
+                                                        g.smart_tags.slice(0, 3).map((t, idx) => (<span key={idx} className="steam-tag">{t}</span>))
+                                                    ) : (<span className="steam-tag-empty">태그 정보 없음</span>)}
+                                                </div>
+                                            </div>
                                         </div>
-
-                                      </div>
                                     );
                                 })}
                             </div>
@@ -161,13 +175,11 @@ function PersonalRecoPage({ user }) {
             )}
         </div>
 
-        {/* 검색 */}
         <div className="search-row">
           <input className="search-input" value={term} onChange={(e)=>setTerm(e.target.value)} placeholder="게임 제목 검색..." onKeyPress={(e)=>e.key==='Enter'&&fetchReco()}/>
-          <button className="search-btn" onClick={fetchReco}>검색</button>
+          <button className="search-btn" onClick={fetchReco}>추천 받기</button>
         </div>
         
-        {/* 태그 선택 */}
         <div className="tags-panel">
             {Object.entries(TAG_CATEGORIES).map(([group, list]) => (
                 <div className="tag-group" key={group}>
@@ -182,42 +194,19 @@ function PersonalRecoPage({ user }) {
         </div>
       </div>
 
-      {err && <div className="error-box">{err}</div>}
-      
-      {/* 추천 결과 */}
+      {/* 결과 리스트 */}
       {!loading && data?.items && (
         <div className="result-panel">
           <h2>✨ 추천 결과 ({data.items.length}개)</h2>
           <div className="game-grid">
-            {data.items.map((g, i) => {
-                const isFree = g.price === "무료";
-                return (
-                  <Link to={`/game/${g.slug || `steam-${g.appid}`}`} key={g._id || i} className="game-card" style={{textDecoration:'none', color:'inherit'}}>
-                    
-                    <div className="thumb-container" style={{position:'relative'}}>
-                        <img src={g.thumb} className="thumb" alt="" onError={(e) => e.target.src = "https://via.placeholder.com/300x169?text=No+Image"}/>
-                    </div>
-                    
-                    <div className="card-info">
-                      <div className="game-title">{g.name}</div>
-                      
-                      <div className="game-meta-row" style={{display:'flex', flexDirection:'column'}}>
-                        <span className="game-price" style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>{g.price}</span>
-                        <span className="game-playtime" style={{fontSize:'12px', color:'#aaa', marginTop:'4px'}}>⏳ {g.playtime}</span>
-                      </div>
-                      
-                      <div style={{fontSize:'11px', color:'#888', marginTop:'8px', marginBottom:'4px'}}>일치도 {g.score}%</div>
-                      <div className="score-bar"><div style={{width:`${g.score}%`}}></div></div>
-                    </div>
-
-                  </Link>
-                );
-            })}
+            {data.items.map((g, i) => (
+              <GameCard key={g._id || i} game={g} />
+            ))}
           </div>
         </div>
       )}
-
       {loading && <div className="loading-box">🔮 분석 중...</div>}
+      {err && <div className="error-box">{err}</div>}
     </div>
   );
 }

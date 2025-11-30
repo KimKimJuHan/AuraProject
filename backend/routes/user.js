@@ -1,7 +1,9 @@
+// backend/routes/user.js
+
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
-const Game = require("../models/Game"); // [추가] 스마트 태그 조회용
+const Game = require("../models/Game"); // ★ 스마트 태그 조회용
 const axios = require("axios");
 const { authenticateToken } = require("../middleware/auth");
 
@@ -20,8 +22,7 @@ router.get("/info", authenticateToken, async (req, res) => {
 });
 
 // =========================
-// 🎮 스팀 라이브러리 조회
-// 경로: /api/user/games
+// 🎮 스팀 라이브러리 조회 + 스마트 태그 통합 (개선됨)
 // =========================
 router.get('/games', authenticateToken, async (req, res) => {
     const steamId = req.user.steamId;
@@ -32,7 +33,7 @@ router.get('/games', authenticateToken, async (req, res) => {
     }
 
     try {
-        // 🔥 실시간 스팀 라이브러리 조회
+        // 1. Steam API 호출
         const response = await axios.get(
             "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/",
             {
@@ -48,9 +49,10 @@ router.get('/games', authenticateToken, async (req, res) => {
 
         const games = response.data?.response?.games || [];
 
-        // [수정 시작] 플레이 타임 정렬 및 태그 병합 로직
+        // 2. 플레이 타임 순 정렬
         const sortedGames = games.sort((a, b) => b.playtime_forever - a.playtime_forever);
 
+        // 3. 상위 50개의 태그 정보를 우리 DB에서 조회
         const topGames = sortedGames.slice(0, 50);
         const appIds = topGames.map(g => g.appid);
 
@@ -58,6 +60,7 @@ router.get('/games', authenticateToken, async (req, res) => {
             .select("steam_appid smart_tags")
             .lean();
 
+        // 4. 스팀 데이터 + 스마트 태그 병합
         const enrichedGames = sortedGames.map(g => {
             if (appIds.includes(g.appid)) {
                 const match = localGames.find(lg => lg.steam_appid === g.appid);
@@ -67,7 +70,6 @@ router.get('/games', authenticateToken, async (req, res) => {
         });
 
         return res.json(enrichedGames);
-        // [수정 끝]
 
     } catch (error) {
         console.error("[Steam API Error]:", error.message);
@@ -84,7 +86,7 @@ router.get('/games', authenticateToken, async (req, res) => {
 });
 
 // =========================
-// 찜 목록 조회
+// ❤️ 찜 목록 조회
 // =========================
 router.get("/wishlist", authenticateToken, async (req, res) => {
     try {
@@ -97,7 +99,7 @@ router.get("/wishlist", authenticateToken, async (req, res) => {
 });
 
 // =========================
-// 찜 추가
+// ❤️ 찜 추가
 // =========================
 router.post("/wishlist", authenticateToken, async (req, res) => {
     const { slug } = req.body;
@@ -121,7 +123,7 @@ router.post("/wishlist", authenticateToken, async (req, res) => {
 });
 
 // =========================
-// 찜 삭제
+// ❤️ 찜 삭제
 // =========================
 router.delete("/wishlist/:slug", authenticateToken, async (req, res) => {
     const { slug } = req.params;
