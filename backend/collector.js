@@ -1,10 +1,6 @@
 // backend/collector.js
-// 역할: GameMetadata(족보)를 기준으로
-//  - Steam 메타데이터
-//  - ITAD 가격 정보
-//  - Twitch / Chzzk 트렌드
-//  - HLTB 플레이타임
-// 을 모아서 Game 컬렉션에 upsert
+// 역할: GameMetadata(족보)를 기준으로 상세 정보를 모아서 Game 컬렉션에 upsert
+// 포함 기능: Steam, ITAD 가격, Twitch/Chzzk 트렌드, HLTB 플레이타임, ★Steam CCU, ★Review(전체/최근)
 
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -16,6 +12,7 @@ const fs = require('fs');
 const Game = require('./models/Game');
 const GameCategory = require('./models/GameCategory');
 const GameMetadata = require('./models/GameMetadata');
+const TrendHistory = require('./models/TrendHistory'); // ★ 히스토리 모델
 const { mapSteamTags } = require('./utils/tagMapper');
 
 const {
@@ -109,6 +106,64 @@ async function getTwitchToken() {
   } catch {}
 }
 
+// 스팀 동시 접속자 수
+async function getSteamCCU(appId) {
+  try {
+    const res = await axios.get(
+      `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${appId}`,
+      { timeout: 5000 }
+    );
+    if (res.data?.response?.result === 1) {
+      return res.data.response.player_count || 0;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+// ★ [수정] 스팀 리뷰 정보 (전체 / 최근 분리 수집)
+async function getSteamReviews(appId) {
+  const result = {
+    overall: { summary: "정보 없음", positive: 0, total: 0, percent: 0 },
+    recent: { summary: "정보 없음", positive: 0, total: 0, percent: 0 }
+  };
+
+  try {
+    // 1. 전체 평가
+    const resOverall = await axios.get(
+      `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&purchase_type=all`,
+      { timeout: 5000 }
+    );
+    const summary = resOverall.data?.query_summary;
+    if (summary) {
+      result.overall = {
+        summary: summary.review_score_desc || "정보 없음",
+        positive: summary.total_positive || 0,
+        total: summary.total_reviews || 0,
+        percent: summary.total_reviews > 0 ? Math.round((summary.total_positive / summary.total_reviews) * 100) : 0
+      };
+    }
+
+    // 2. 최근 평가 (지난 30일)
+    const resRecent = await axios.get(
+      `https://store.steampowered.com/appreviews/${appId}?json=1&language=all&purchase_type=all&day_range=30`,
+      { timeout: 5000 }
+    );
+    const recentSummary = resRecent.data?.query_summary;
+    if (recentSummary) {
+      result.recent = {
+        summary: recentSummary.review_score_desc || "정보 없음",
+        positive: recentSummary.total_positive || 0,
+        total: recentSummary.total_reviews || 0,
+        percent: recentSummary.total_reviews > 0 ? Math.round((recentSummary.total_positive / recentSummary.total_reviews) * 100) : 0
+      };
+    }
+
+  } catch (e) {
+    // console.log("Review fetch failed");
+  }
+  return result;
+}
+
 async function getTrendStats(steamAppId, categoryData) {
   let twitch = { value: 0, status: 'fail' };
   let chzzk = { value: 0, status: 'fail' };
@@ -168,11 +223,12 @@ async function getTrendStats(steamAppId, categoryData) {
   return { twitch, chzzk };
 }
 
-function calculateTrendScore(trends) {
+function calculateTrendScore(trends, steamCCU = 0) {
   const { twitch, chzzk } = trends;
   let score = 0;
   if (twitch.status === 'ok') score += twitch.value;
   if (chzzk.status === 'ok') score += chzzk.value * 2;
+  score += Math.round(steamCCU * 0.1); 
   return score;
 }
 
@@ -355,85 +411,68 @@ async function collectGamesData() {
             steamAppId: metadata.steamAppId,
           }).lean();
 
+          // 1. 트렌드(방송) 데이터
           const trends = await getTrendStats(metadata.steamAppId, categoryData);
-          const trendScore = calculateTrendScore(trends);
+          // 2. 스팀 동접자
+          const steamCCU = await getSteamCCU(metadata.steamAppId);
+          // 3. 점수 계산
+          const trendScore = calculateTrendScore(trends, steamCCU);
+          // 4. 가격 정보
+          const priceInfo = await fetchPriceInfo(metadata.steamAppId, data, metadata);
+          // 5. ★ 스팀 리뷰 (전체/최근)
+          const steamReviews = await getSteamReviews(metadata.steamAppId);
 
-          const priceInfo = await fetchPriceInfo(
-            metadata.steamAppId,
-            data,
-            metadata
-          );
-
+          // HLTB (플레이타임)
           let playTime = '정보 없음';
           try {
             const searchName = cleanGameTitle(metadata.title || data.name || '');
-
             if (searchName) {
               await page.goto(
                 `https://howlongtobeat.com/?q=${encodeURIComponent(searchName)}`,
                 { waitUntil: 'domcontentloaded', timeout: 30000 }
               );
-
               try {
                 await page.waitForFunction(
                   () =>
                     document.body.innerText.includes('Main Story') ||
                     document.body.innerText.includes('All Styles') ||
-                    document.body.innerText.includes('Co-Op') ||
-                    document.body.innerText.includes('No results') ||
-                    document.body.innerText.includes('Main + Extra'),
+                    document.body.innerText.includes('No results'),
                   { timeout: 8000 }
                 );
               } catch {}
 
               const hltbText = await page.evaluate(() => {
                 const items = Array.from(document.querySelectorAll('li'));
-
                 function pickScore(label) {
                   for (const li of items) {
                     const text = li.innerText || '';
                     if (
                       text.includes(label) &&
-                      (text.includes('Hours') ||
-                        text.includes('Hour') ||
-                        text.includes('Mins'))
+                      (text.includes('Hours') || text.includes('Hour') || text.includes('Mins'))
                     ) {
-                      const m = text.match(
-                        /([0-9½\.]+)\s*(Hours|Hour|Mins|h)/i
-                      );
+                      const m = text.match(/([0-9½\.]+)\s*(Hours|Hour|Mins|h)/i);
                       if (m) return `${m[1]} ${m[2]}`;
                     }
                   }
                   return null;
                 }
-
-                return (
-                  pickScore('Main Story') ||
-                  pickScore('Main + Extra') ||
-                  pickScore('All Styles') ||
-                  pickScore('Co-Op')
-                );
+                return (pickScore('Main Story') || pickScore('Main + Extra') || pickScore('All Styles') || pickScore('Co-Op'));
               });
-
               if (hltbText) playTime = hltbText;
             }
           } catch {}
 
           let finalTitle = data.name || metadata.title;
-          const cleanedMetaTitle = cleanGameTitle(
-            metadata.title || data.name
-          );
-
+          const cleanedMetaTitle = cleanGameTitle(metadata.title || data.name);
           if (
             /legacy/i.test(finalTitle) ||
             /bundle/i.test(finalTitle) ||
-            /soundtrack/i.test(finalTitle) ||
-            /ost/i.test(finalTitle) ||
             finalTitle.includes('_')
           ) {
             finalTitle = cleanedMetaTitle || finalTitle;
           }
 
+          // A. Game 정보 업데이트 (최신 상태 유지)
           await Game.findOneAndUpdate(
             { steam_appid: metadata.steamAppId },
             {
@@ -449,7 +488,6 @@ async function collectGamesData() {
 
               main_image: data.header_image,
               description: data.short_description,
-
               smart_tags: mapSteamTags([
                 ...(data.genres || []).map((g) => g.description),
                 ...(data.categories || []).map((c) => c.description),
@@ -458,26 +496,35 @@ async function collectGamesData() {
               trend_score: trendScore,
               twitch_viewers: trends.twitch.value || 0,
               chzzk_viewers: trends.chzzk.value || 0,
+              steam_ccu: steamCCU,
+
+              // ★ 리뷰 저장 (구조 변경됨)
+              steam_reviews: steamReviews,
 
               price_info: priceInfo,
               play_time: playTime,
 
               releaseDate: data.release_date?.date
-                ? new Date(
-                    data.release_date.date
-                      .replace(/년|월/g, '-')
-                      .replace(/일/g, '')
-                  )
+                ? new Date(data.release_date.date.replace(/년|월/g, '-').replace(/일/g, ''))
                 : undefined,
-
               metacritic_score: data.metacritic?.score || 0,
             },
             { upsert: true }
           );
 
+          // B. TrendHistory에 기록 추가 (그래프용 과거 데이터 쌓기)
+          await new TrendHistory({
+            steam_appid: metadata.steamAppId,
+            trend_score: trendScore,
+            twitch_viewers: trends.twitch.value || 0,
+            chzzk_viewers: trends.chzzk.value || 0,
+            steam_ccu: steamCCU,
+            recordedAt: new Date()
+          }).save();
+
           totalCount++;
           console.log(
-            `✅ [${totalCount}] ${finalTitle} | ₩${priceInfo.current_price} | Trend=${trendScore} | HLTB=${playTime}`
+            `✅ [${totalCount}] ${finalTitle} | Review(All)=${steamReviews.overall.summary} | CCU=${steamCCU}`
           );
         } catch (e) {
           console.error(
