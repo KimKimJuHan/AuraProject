@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
+import { API_BASE_URL } from './config'; // ★ API 주소 가져오기
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션'],
@@ -112,7 +113,8 @@ function MainPage({ user }) {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('http://localhost:8000/api/recommend', {
+            // ★ API 주소 변수 사용
+            const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })

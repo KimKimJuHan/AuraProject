@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from './config'; // ★ API 주소 가져오기
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
@@ -9,7 +10,6 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PersonalRecoPage from './pages/PersonalRecoPage';
 
-// 스타일 정의 (기존 유지)
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
@@ -55,7 +55,8 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const fetchSuggestions = async (query) => {
     if (query.length < 1) { setSuggestions([]); return; }
     try {
-      const response = await fetch(`http://localhost:8000/api/search/autocomplete?q=${query}`);
+      // ★ API 주소 변수 사용
+      const response = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${query}`);
       const data = await response.json();
       setSuggestions(data);
       setSelectedIndex(-1); 
@@ -139,11 +140,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     setIsFocused(true); 
   };
 
-  // ★★★ [수정] 로그아웃 시 gameWishlist는 삭제하지 않음 (게스트 모드 지원)
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    // localStorage.removeItem('gameWishlist'); // <-- 이 줄 삭제됨
     sessionStorage.clear();
     
     document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
@@ -212,7 +211,6 @@ function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
 
-  // 자동 로그인 체크 로직
   useEffect(() => {
     const sessionUser = sessionStorage.getItem('user');
     const localUser = localStorage.getItem('user');

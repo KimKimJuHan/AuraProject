@@ -1,62 +1,73 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
+import { API_BASE_URL } from "../config"; // ★ 설정 파일 import
 
 function SignupPage() {
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({ username: '', email: '', password: '' });
-  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState(1); // 1:입력, 2:인증
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleChange = (e) => { setFormData({ ...formData, [e.target.name]: e.target.value }); };
-
-  const requestOtp = async (e) => {
+  const handleSendOtp = async (e) => {
     e.preventDefault();
+    if (password !== confirmPassword) return alert("비밀번호가 일치하지 않습니다.");
+    
     try {
-      await axios.post('http://localhost:8000/api/auth/signup', formData);
-      alert("인증코드가 발송되었습니다. (백엔드 콘솔 확인)");
+      // ★ API 주소 변수 사용
+      await axios.post(`${API_BASE_URL}/api/auth/send-otp`, { email });
+      alert("인증번호가 발송되었습니다. 이메일을 확인해주세요.");
       setStep(2);
-    } catch (err) { alert(err.response?.data?.error || "인증 요청 실패"); }
+    } catch (err) {
+      alert("인증번호 발송 실패: " + (err.response?.data?.message || err.message));
+    }
   };
 
-  const verifyAndRegister = async (e) => {
+  const handleVerifyAndRegister = async (e) => {
     e.preventDefault();
     try {
-      // ★★★ 수정된 부분: { withCredentials: true } 추가 ★★★
-      await axios.post('http://localhost:8000/api/auth/verify', 
-        { ...formData, code: otp },
-        { withCredentials: true }
-      );
+      // 1. 인증번호 검증
+      await axios.post(`${API_BASE_URL}/api/auth/verify-otp`, { email, otp });
       
-      alert("가입 완료! 로그인해주세요.");
-      navigate('/login');
-    } catch (err) { alert(err.response?.data?.error || "가입 실패"); }
+      // 2. 회원가입 진행
+      await axios.post(`${API_BASE_URL}/api/auth/register`, { username, email, password });
+      
+      alert("회원가입 성공! 로그인해주세요.");
+      navigate("/login");
+    } catch (err) {
+      alert("오류 발생: " + (err.response?.data?.message || err.message));
+    }
   };
 
   return (
-    <div className="net-app auth-wrapper">
-      <div className="auth-container">
-        <h1 className="auth-title">회원가입</h1>
+    <div className="auth-container">
+      <div className="auth-box">
+        <h2>회원가입</h2>
         {step === 1 ? (
-          <form className="auth-form" onSubmit={requestOtp}>
-            <input className="auth-input" name="username" placeholder="닉네임" value={formData.username} onChange={handleChange} required />
-            <input className="auth-input" name="email" type="email" placeholder="이메일 주소" value={formData.email} onChange={handleChange} required />
-            <input className="auth-input" name="password" type="password" placeholder="비밀번호 (6자 이상)" value={formData.password} onChange={handleChange} required />
-            <button className="auth-btn" type="submit">인증코드 받기</button>
-          </form>
+            <form onSubmit={handleSendOtp}>
+                <input className="auth-input" type="text" placeholder="닉네임" value={username} onChange={(e)=>setUsername(e.target.value)} required />
+                <input className="auth-input" type="email" placeholder="이메일" value={email} onChange={(e)=>setEmail(e.target.value)} required />
+                <input className="auth-input" type="password" placeholder="비밀번호" value={password} onChange={(e)=>setPassword(e.target.value)} required />
+                <input className="auth-input" type="password" placeholder="비밀번호 확인" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} required />
+                <button className="auth-btn" type="submit">인증번호 받기</button>
+            </form>
         ) : (
-          <form className="auth-form" onSubmit={verifyAndRegister}>
-            <p style={{color:'#bbb', fontSize:'14px'}}>이메일로 전송된 인증코드를 입력하세요.</p>
-            <input className="auth-input" placeholder="인증코드 6자리" value={otp} onChange={(e)=>setOtp(e.target.value)} required />
-            <button className="auth-btn" type="submit">가입 완료</button>
-            <button type="button" onClick={()=>setStep(1)} style={{background:'transparent', border:'none', color:'#bbb', cursor:'pointer', textDecoration:'underline', marginTop:'10px'}}>다시 입력하기</button>
-          </form>
+            <form onSubmit={handleVerifyAndRegister}>
+                <div style={{marginBottom:'15px', color:'#ccc'}}>이메일: {email}</div>
+                <input className="auth-input" type="text" placeholder="인증번호 6자리" value={otp} onChange={(e)=>setOtp(e.target.value)} required />
+                <button className="auth-btn" type="submit">인증 확인 및 가입 완료</button>
+                <button type="button" className="text-btn" onClick={()=>setStep(1)} style={{marginTop:'10px', color:'#888', background:'none', border:'none', cursor:'pointer'}}>뒤로가기</button>
+            </form>
         )}
-        <div className="auth-subtext">
-          이미 계정이 있으신가요? <Link to="/login" className="auth-link">로그인하기</Link>
-        </div>
+        <p className="auth-link">
+          이미 계정이 있으신가요? <Link to="/login">로그인</Link>
+        </p>
       </div>
     </div>
   );
 }
+
 export default SignupPage;

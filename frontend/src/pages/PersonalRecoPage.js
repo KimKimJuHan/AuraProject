@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react"; // useRef 제거
+import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from 'axios'; 
-import "./RecommendPage.css"; 
+import "../styles/Recommend.css"; // ★ 경로 수정됨
+import { API_BASE_URL } from '../config'; 
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
@@ -10,8 +11,6 @@ const TAG_CATEGORIES = {
   '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
   '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
 };
-
-const API_BASE = "http://localhost:8000";
 
 function GameCard({ game }) {
     const [isWishlisted, setIsWishlisted] = useState(false);
@@ -61,8 +60,6 @@ function GameCard({ game }) {
 function PersonalRecoPage({ user }) {
   const [term, setTerm] = useState("");
   const [picked, setPicked] = useState(new Set());
-  
-  // 사용하지 않는 strict, k 제거 (필요하면 복구 가능하나 경고 제거를 위해 삭제)
   const strict = false;
   const k = 12;
   
@@ -70,20 +67,15 @@ function PersonalRecoPage({ user }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 사용하지 않는 steamGames 제거
   const [topGames, setTopGames] = useState([]);     
   const [steamStatus, setSteamStatus] = useState('LOADING'); 
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
 
-  // fetchReco를 useCallback으로 감싸거나 useEffect 안으로 이동해야 합니다.
-  // 여기서는 useEffect 안에서 호출하도록 구조를 유지하되 의존성 경고를 해결합니다.
-  
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
-        const res = await axios.get(`${API_BASE}/api/user/games`, { withCredentials: true });
-        // setSteamGames(res.data || []); // 제거됨
+        const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
         const sorted = (res.data || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
         setTopGames(sorted);
         setSteamStatus('LINKED');
@@ -92,28 +84,31 @@ function PersonalRecoPage({ user }) {
     }
   };
 
-  // 1. 유저 정보나 스팀 ID 변경 시
   useEffect(() => {
     if (user) checkSteamConnection();
     else setSteamStatus('GUEST');
     // eslint-disable-next-line
   }, [user, urlSteamId]);
 
-  // 2. 추천 데이터 로딩 (picked, strict, k, term 변경 시)
   useEffect(() => {
     const fetchReco = async () => {
         setErr("");
         setLoading(true);
         try {
           const liked = Array.from(picked);
-          const res = await axios.post(`${API_BASE}/api/steam/reco`, { term, liked, strict, k });
+          const res = await axios.post(`${API_BASE_URL}/api/steam/reco`, { term, liked, strict, k });
           setData(res.data);
           if (!res.data.items?.length) setErr("조건에 맞는 게임이 없습니다.");
         } catch (e) { setErr("데이터 로딩 실패"); } 
         finally { setLoading(false); }
     };
-    fetchReco();
-  }, [picked, term]); // strict, k는 상수라 의존성 제거 가능
+
+    const timer = setTimeout(() => {
+        fetchReco();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [picked, term]); 
 
   const toggle = (t) => {
     setPicked((prev) => {
@@ -124,7 +119,7 @@ function PersonalRecoPage({ user }) {
     });
   };
 
-  const handleLinkSteam = () => { window.location.href = `${API_BASE}/api/auth/steam?link=true`; };
+  const handleLinkSteam = () => { window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; };
   const formatPlaytime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
 
   return (
@@ -181,8 +176,6 @@ function PersonalRecoPage({ user }) {
 
         <div className="search-row">
           <input className="search-input" value={term} onChange={(e)=>setTerm(e.target.value)} placeholder="게임 제목 검색..." />
-          {/* fetchReco는 useEffect에서 자동 호출되므로 버튼은 term을 바꾸지 않음. 
-              검색 버튼을 눌렀을 때만 검색하고 싶다면 로직을 바꿔야 하지만, 현재는 자동완성 UX를 유지합니다. */}
         </div>
         
         <div className="tags-panel">
@@ -200,7 +193,10 @@ function PersonalRecoPage({ user }) {
       </div>
 
       {loading ? (
-          <div className="loading-box"><div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>분석 중...</div>
+          <div className="loading-box">
+              <div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>
+              분석 중...
+          </div>
       ) : (
         data?.items && (
             <div className="result-panel">
