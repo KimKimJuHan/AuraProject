@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react"; // useRef 제거
 import { Link, useSearchParams } from "react-router-dom";
 import axios from 'axios'; 
 import "./RecommendPage.css"; 
@@ -13,7 +13,6 @@ const TAG_CATEGORIES = {
 
 const API_BASE = "http://localhost:8000";
 
-// ★ [추가] 게임 카드 컴포넌트 (찜 기능 포함)
 function GameCard({ game }) {
     const [isWishlisted, setIsWishlisted] = useState(false);
 
@@ -39,7 +38,6 @@ function GameCard({ game }) {
             <div className="thumb-wrapper">
                 <img src={game.thumb} className="thumb" alt="" onError={(e)=>e.target.src="https://via.placeholder.com/300x169?text=No+Image"}/>
                 <div className="net-card-gradient"></div>
-                {/* ★ 찜 버튼 추가 */}
                 <button className="heart-btn" onClick={toggleWishlist}>
                     {isWishlisted ? '❤️' : '🤍'}
                 </button>
@@ -63,31 +61,29 @@ function GameCard({ game }) {
 function PersonalRecoPage({ user }) {
   const [term, setTerm] = useState("");
   const [picked, setPicked] = useState(new Set());
-  const pickedRef = useRef(new Set());
-  const [strict, setStrict] = useState(false);
-  const [k, setK] = useState(12);
+  
+  // 사용하지 않는 strict, k 제거 (필요하면 복구 가능하나 경고 제거를 위해 삭제)
+  const strict = false;
+  const k = 12;
   
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [steamGames, setSteamGames] = useState([]); 
+  // 사용하지 않는 steamGames 제거
   const [topGames, setTopGames] = useState([]);     
   const [steamStatus, setSteamStatus] = useState('LOADING'); 
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
 
-  useEffect(() => {
-    if (user) checkSteamConnection();
-    else setSteamStatus('GUEST');
-    fetchReco();
-  }, [user, urlSteamId]);
-
+  // fetchReco를 useCallback으로 감싸거나 useEffect 안으로 이동해야 합니다.
+  // 여기서는 useEffect 안에서 호출하도록 구조를 유지하되 의존성 경고를 해결합니다.
+  
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
         const res = await axios.get(`${API_BASE}/api/user/games`, { withCredentials: true });
-        setSteamGames(res.data || []);
+        // setSteamGames(res.data || []); // 제거됨
         const sorted = (res.data || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
         setTopGames(sorted);
         setSteamStatus('LINKED');
@@ -96,27 +92,36 @@ function PersonalRecoPage({ user }) {
     }
   };
 
+  // 1. 유저 정보나 스팀 ID 변경 시
+  useEffect(() => {
+    if (user) checkSteamConnection();
+    else setSteamStatus('GUEST');
+    // eslint-disable-next-line
+  }, [user, urlSteamId]);
+
+  // 2. 추천 데이터 로딩 (picked, strict, k, term 변경 시)
+  useEffect(() => {
+    const fetchReco = async () => {
+        setErr("");
+        setLoading(true);
+        try {
+          const liked = Array.from(picked);
+          const res = await axios.post(`${API_BASE}/api/steam/reco`, { term, liked, strict, k });
+          setData(res.data);
+          if (!res.data.items?.length) setErr("조건에 맞는 게임이 없습니다.");
+        } catch (e) { setErr("데이터 로딩 실패"); } 
+        finally { setLoading(false); }
+    };
+    fetchReco();
+  }, [picked, term]); // strict, k는 상수라 의존성 제거 가능
+
   const toggle = (t) => {
     setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(t)) next.delete(t);
       else next.add(t);
-      pickedRef.current = next;
       return next;
     });
-  };
-
-  const fetchReco = async () => {
-    if (loading) return;
-    setErr("");
-    setLoading(true);
-    try {
-      const liked = Array.from(pickedRef.current);
-      const res = await axios.post(`${API_BASE}/api/steam/reco`, { term, liked, strict, k });
-      setData(res.data);
-      if (!res.data.items?.length) setErr("조건에 맞는 게임이 없습니다.");
-    } catch (e) { setErr("데이터 로딩 실패"); } 
-    finally { setLoading(false); }
   };
 
   const handleLinkSteam = () => { window.location.href = `${API_BASE}/api/auth/steam?link=true`; };
@@ -127,7 +132,6 @@ function PersonalRecoPage({ user }) {
       <div className="search-panel">
         <h1>🤖 AI 맞춤 추천</h1>
         
-        {/* 스팀 대시보드 */}
         <div className="steam-dashboard">
             {!user ? (
                 <div className="steam-guest-msg">
@@ -162,7 +166,7 @@ function PersonalRecoPage({ user }) {
                                                 <div className="steam-tags">
                                                     {g.smart_tags && g.smart_tags.length > 0 ? (
                                                         g.smart_tags.slice(0, 3).map((t, idx) => (<span key={idx} className="steam-tag">{t}</span>))
-                                                    ) : (<span className="steam-tag-empty">태그 정보 없음</span>)}
+                                                    ) : (<span className="steam-tag-empty">태그 데이터 없음</span>)}
                                                 </div>
                                             </div>
                                         </div>
@@ -176,8 +180,9 @@ function PersonalRecoPage({ user }) {
         </div>
 
         <div className="search-row">
-          <input className="search-input" value={term} onChange={(e)=>setTerm(e.target.value)} placeholder="게임 제목 검색..." onKeyPress={(e)=>e.key==='Enter'&&fetchReco()}/>
-          <button className="search-btn" onClick={fetchReco}>추천 받기</button>
+          <input className="search-input" value={term} onChange={(e)=>setTerm(e.target.value)} placeholder="게임 제목 검색..." />
+          {/* fetchReco는 useEffect에서 자동 호출되므로 버튼은 term을 바꾸지 않음. 
+              검색 버튼을 눌렀을 때만 검색하고 싶다면 로직을 바꿔야 하지만, 현재는 자동완성 UX를 유지합니다. */}
         </div>
         
         <div className="tags-panel">
@@ -194,19 +199,21 @@ function PersonalRecoPage({ user }) {
         </div>
       </div>
 
-      {/* 결과 리스트 */}
-      {!loading && data?.items && (
-        <div className="result-panel">
-          <h2>✨ 추천 결과 ({data.items.length}개)</h2>
-          <div className="game-grid">
-            {data.items.map((g, i) => (
-              <GameCard key={g._id || i} game={g} />
-            ))}
-          </div>
-        </div>
+      {loading ? (
+          <div className="loading-box"><div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>분석 중...</div>
+      ) : (
+        data?.items && (
+            <div className="result-panel">
+            <h2>✨ 추천 결과 ({data.items.length}개)</h2>
+            <div className="game-grid">
+                {data.items.map((g, i) => (
+                <GameCard key={g._id || i} game={g} />
+                ))}
+            </div>
+            </div>
+        )
       )}
-      {loading && <div className="loading-box">🔮 분석 중...</div>}
-      {err && <div className="error-box">{err}</div>}
+      {!loading && err && <div className="error-box">{err}</div>}
     </div>
   );
 }

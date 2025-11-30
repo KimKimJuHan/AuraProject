@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 
 const TAG_CATEGORIES = {
@@ -47,7 +47,6 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
 
 function GameListItem({ game, user }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
@@ -56,8 +55,6 @@ function GameListItem({ game, user }) {
 
   const toggleWishlist = (e) => {
     e.preventDefault(); e.stopPropagation();
-
-    // ★★★ [수정] 로그인 여부 상관없이 로컬 스토리지에 저장 (게스트 모드)
     const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
