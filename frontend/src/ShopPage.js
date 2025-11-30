@@ -3,18 +3,16 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
+import { API_BASE_URL } from './config'; 
 
-// ★ Recharts
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const styles = {
-  // ... (기존 스타일 유지)
   buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
   wishlistButton: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   wishlistButtonActive: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: '#fff', color: '#000', borderWidth:'1px', borderStyle:'solid', borderColor:'#fff', borderRadius: '4px', fontWeight: 'bold' },
   thumbButton: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#555', borderRadius: '4px', background: 'transparent', color: '#fff' },
   thumbButtonActive: { padding: '10px 15px', fontSize: '16px', cursor: 'pointer', borderWidth:'1px', borderStyle:'solid', borderColor:'#E50914', borderRadius: '4px', background: '#E50914', color: '#fff' },
-  
   galleryContainer: { display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '40px' },
   mainMediaDisplay: { width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '4px', overflow: 'hidden', border: '1px solid #333', position: 'relative' },
   mediaStrip: { display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', scrollBehavior: 'smooth' },
@@ -22,14 +20,11 @@ const styles = {
   thumbItemActive: { border: '2px solid #E50914', opacity: 1 },
   videoIconSmall: { position: 'absolute', bottom: '5px', left: '5px', fontSize: '12px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.6)', padding: '2px 4px', borderRadius: '2px', pointerEvents: 'none' },
   playButtonOverlay: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '60px', color: 'rgba(255,255,255,0.8)', cursor: 'pointer', textShadow: '0 0 10px rgba(0,0,0,0.5)', zIndex: 10 },
-
   storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: '#fff', transition: 'background 0.2s', cursor: 'pointer', width: '100%', boxSizing: 'border-box' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
-  
-  // ★ 그래프 박스에 minWidth: 0 추가 (필수)
   chartsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '40px' },
   chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', minWidth: 0 }
 };
@@ -88,19 +83,24 @@ function ShopPage({ region }) {
   useEffect(() => {
     const fetchDetails = async () => {
         try {
-            const res = await axios.get(`http://localhost:8000/api/games/${id}`);
+            const res = await axios.get(`${API_BASE_URL}/api/games/${id}`);
             const data = res.data;
             setGameData(data);
             setLoading(false);
 
             try {
-                const historyRes = await axios.get(`http://localhost:8000/api/games/${id}/history`);
-                const formattedHistory = historyRes.data.map(item => ({
-                    time: new Date(item.recordedAt).toLocaleTimeString('ko-KR', { month: 'numeric', day:'numeric', hour: '2-digit', minute:'2-digit'}),
-                    twitch: item.twitch_viewers || 0,
-                    chzzk: item.chzzk_viewers || 0,
-                    steam: item.steam_ccu || 0
-                }));
+                const historyRes = await axios.get(`${API_BASE_URL}/api/games/${id}/history`);
+                const formattedHistory = historyRes.data.map(item => {
+                    // ★ [수정] 날짜 포맷팅 (시간 제거, MM.DD 형식)
+                    const d = new Date(item.recordedAt);
+                    const dateStr = `${d.getMonth() + 1}.${d.getDate()}`; 
+                    return {
+                        time: dateStr,
+                        twitch: item.twitch_viewers || 0,
+                        chzzk: item.chzzk_viewers || 0,
+                        steam: item.steam_ccu || 0
+                    };
+                });
                 setHistoryData(formattedHistory);
             } catch (e) { console.log("히스토리 없음"); }
 
@@ -128,7 +128,7 @@ function ShopPage({ region }) {
             setDislikes(data.dislikes_count || 0);
             
             try {
-                const ipRes = await axios.get('http://localhost:8000/api/user/ip');
+                const ipRes = await axios.get(`${API_BASE_URL}/api/user/ip`);
                 const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
                 if(myVoteData) setMyVote(myVoteData.type);
             } catch(e) {}
@@ -159,7 +159,7 @@ function ShopPage({ region }) {
 
   const handleVote = async (type) => {
       try {
-        const response = await axios.post(`http://localhost:8000/api/games/${id}/vote`, { type });
+        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { type });
         setLikes(response.data.likes);
         setDislikes(response.data.dislikes);
         setMyVote(response.data.userVote); 
@@ -305,7 +305,6 @@ function ShopPage({ region }) {
             <div style={styles.chartsGrid}>
                 <div style={styles.chartBox}>
                     <h3 className="net-section-title">📡 방송 시청자 트렌드</h3>
-                    {/* ★ width 100%와 함께 부모에 minWidth: 0을 줘서 Grid 오류 해결 */}
                     <div style={{ width: '100%', height: 250 }}>
                         <ResponsiveContainer>
                             <LineChart data={historyData}>

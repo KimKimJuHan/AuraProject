@@ -1,150 +1,149 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE_URL } from './config'; // ★ 설정 파일 import
 
 const styles = {
-  container: { padding: '40px 20px', minHeight: '100vh', backgroundColor: '#011526', color: '#FFFFFF' },
-  titleWrapper: { textAlign: 'center', marginBottom: '30px' },
-  title: { fontSize: '2rem', fontWeight: 'bold', color: '#ffffff', borderLeft: '4px solid #E50914', paddingLeft: '12px', display: 'inline-block' },
-  tableContainer: { maxWidth: '1200px', margin: '0 auto', overflowX: 'auto', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' },
-  table: { width: '100%', borderCollapse: 'collapse', backgroundColor: '#181818', borderRadius: '10px', overflow: 'hidden' },
-  th: { padding: '18px', backgroundColor: '#222', color: '#FFFFFF', textAlign: 'left', fontWeight: 'bold', fontSize: '1.1rem', borderBottom: '2px solid #E50914' },
-  td: { padding: '20px', borderBottom: '1px solid #333', verticalAlign: 'middle' },
-  img: { width: '100px', borderRadius: '6px', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' },
-  gameTitle: { fontSize: '1.2rem', fontWeight: 'bold', color: '#FFFFFF', textDecoration: 'none', display: 'block', marginBottom: '5px' },
-  price: { color: '#A24CD9', fontWeight: 'bold', fontSize: '1.2rem' },
-  discountBadge: { display: 'inline-block', backgroundColor: '#E50914', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem', marginLeft: '8px', fontWeight: 'bold' },
-  storeName: { fontSize: '0.9rem', color: '#999', marginTop: '4px' },
-  score: { fontWeight: 'bold', color: '#F2B705' },
-  playtime: { fontSize: '0.9rem', color: '#5FCDD9', marginTop: '5px' },
-  removeBtn: { padding: '8px 16px', backgroundColor: '#333', color: 'white', border: '1px solid #555', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', transition: 'background 0.2s' },
-  emptyMsg: { textAlign: 'center', marginTop: '100px', fontSize: '1.5rem', color: '#888' },
-  homeLink: { display: 'inline-block', marginTop: '20px', color: '#E50914', textDecoration: 'none', fontSize: '1.2rem', fontWeight: 'bold', border: '1px solid #E50914', padding: '10px 20px', borderRadius: '999px' },
-  tag: { fontSize: '11px', color: '#ddd', marginRight: '5px', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '999px' }
+  // ... (기존 스타일 유지, 필요시 PersonalRecoPage.css 등과 통합 고려)
+  container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
+  header: { fontSize: '28px', fontWeight: 'bold', marginBottom: '30px', borderLeft: '5px solid #E50914', paddingLeft: '15px' },
+  searchRow: { display: 'flex', gap: '10px', marginBottom: '30px', position: 'relative' },
+  searchInput: { flex: 1, padding: '12px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#222', color: '#fff', fontSize: '16px' },
+  dropdown: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#222', border: '1px solid #444', zIndex: 100, maxHeight: '200px', overflowY: 'auto' },
+  dropdownItem: { padding: '10px', borderBottom: '1px solid #333', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' },
+  card: { backgroundColor: '#181818', borderRadius: '8px', border: '1px solid #333', overflow: 'hidden', position: 'relative' },
+  cardHeader: { padding: '15px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { fontWeight: 'bold', fontSize: '16px' },
+  removeBtn: { background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '18px' },
+  cardBody: { padding: '15px' },
+  row: { display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' },
+  label: { color: '#888' },
+  val: { fontWeight: 'bold' },
+  scoreBar: { height: '6px', backgroundColor: '#333', borderRadius: '3px', marginTop: '5px', overflow: 'hidden' },
+  emptyMsg: { textAlign: 'center', color: '#666', marginTop: '50px', fontSize: '18px' }
 };
 
-// ★ [수정] user prop 제거 (로그인 여부 상관없이 작동)
-function ComparisonPage({ region }) {
-  const [wishlistGames, setWishlistGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+function ComparisonPage({ region, user }) {
+  const [wishlistSlugs, setWishlistSlugs] = useState([]);
+  const [games, setGames] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
 
+  // 1. 로컬 스토리지에서 찜 목록 로드
   useEffect(() => {
-    // ★★★ [수정] 로그인 체크 제거. 로컬 스토리지 기반 조회
-    const slugs = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    
-    if (slugs.length === 0) { 
-        setWishlistGames([]);
-        setLoading(false); 
-        return; 
-    }
-
-    fetch('http://localhost:8000/api/wishlist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slugs })
-    })
-    .then(res => res.json())
-    .then(data => { setWishlistGames(data); setLoading(false); })
-    .catch(err => { console.error(err); setLoading(false); });
+    const stored = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    setWishlistSlugs(stored);
   }, []);
 
-  const handleRemove = (slug) => {
-    const newSlugs = wishlistGames.filter(g => g.slug !== slug).map(g => g.slug);
-    localStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
-    setWishlistGames(prev => prev.filter(g => g.slug !== slug));
+  // 2. 찜 목록 게임 데이터 가져오기
+  useEffect(() => {
+    if (wishlistSlugs.length === 0) {
+        setGames([]);
+        return;
+    }
+    const fetchGames = async () => {
+        try {
+            // ★ API 주소 변수 사용
+            const res = await fetch(`${API_BASE_URL}/api/wishlist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slugs: wishlistSlugs })
+            });
+            const data = await res.json();
+            setGames(data);
+        } catch (e) { console.error(e); }
+    };
+    fetchGames();
+  }, [wishlistSlugs]);
+
+  // 3. 검색어 자동완성
+  useEffect(() => {
+    if (searchTerm.length < 1) { setSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+        try {
+            // ★ API 주소 변수 사용
+            const res = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${searchTerm}`);
+            const data = await res.json();
+            setSuggestions(data);
+        } catch(e){}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const addGame = (game) => {
+      if (!wishlistSlugs.includes(game.slug)) {
+          const newSlugs = [...wishlistSlugs, game.slug];
+          setWishlistSlugs(newSlugs);
+          localStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
+      }
+      setSearchTerm("");
+      setSuggestions([]);
   };
 
-  const getPriceDisplay = (price) => {
-    if (price === null) return "정보 없음";
-    if (region === 'US') return `$${(price / 1400).toFixed(2)}`; 
-    if (region === 'JP') return `¥${(price / 9).toFixed(0)}`;    
-    return `₩${price.toLocaleString()}`; 
+  const removeGame = (slug) => {
+      const newSlugs = wishlistSlugs.filter(s => s !== slug);
+      setWishlistSlugs(newSlugs);
+      localStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
   };
 
-  if (loading) return <div className="net-panel" style={{textAlign:'center', paddingTop:'100px'}}>로딩 중...</div>;
-
-  if (wishlistGames.length === 0) {
-    return (
-      <div style={styles.container}>
-        <h2 style={styles.title}>찜한 게임 비교</h2>
-        <div style={styles.emptyMsg}>
-          <p>찜한 게임이 없습니다.</p>
-          <Link to="/" style={styles.homeLink}>게임 구경하러 가기</Link>
-        </div>
-      </div>
-    );
-  }
+  const getPrice = (g) => {
+      if (g.price_info?.isFree) return "무료";
+      return g.price_info?.current_price ? `₩${g.price_info.current_price.toLocaleString()}` : "정보 없음";
+  };
 
   return (
     <div style={styles.container}>
-      <div style={styles.titleWrapper}>
-        <h2 style={styles.title}>찜한 게임 비교 ({wishlistGames.length})</h2>
-      </div>
+      <h1 style={styles.header}>⚖️ 게임 비교함</h1>
       
-      <div style={styles.tableContainer}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>게임</th>
-              <th style={styles.th}>가격 / 스토어</th>
-              <th style={styles.th}>평가 / 시간</th>
-              <th style={styles.th}>출시일</th>
-              <th style={{...styles.th, textAlign:'center'}}>관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {wishlistGames.map(game => (
-              <tr key={game.slug}>
-                <td style={styles.td}>
-                  <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
-                    <img src={game.main_image} alt={game.title} style={styles.img} onError={(e) => e.target.src = "https://via.placeholder.com/120x67?text=No+Image"} />
-                    <div>
-                        <Link to={`/game/${game.slug}`} style={styles.gameTitle}>{game.title_ko || game.title}</Link>
-                        <div style={{marginTop: '8px'}}>
-                            {game.smart_tags?.slice(0, 2).map(tag => (
-                            <span key={tag} style={styles.tag}>#{tag}</span>
-                            ))}
-                        </div>
-                    </div>
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  <div>
-                    {game.price_info?.isFree ? (
-                      <span style={{color:'#04BFAD', fontWeight:'bold', fontSize:'1.2rem'}}>무료</span>
-                    ) : (
-                      <>
-                        <div>
-                          <span style={styles.price}>{getPriceDisplay(game.price_info?.current_price)}</span>
-                          {game.price_info?.discount_percent > 0 && (
-                            <span style={styles.discountBadge}>-{game.price_info.discount_percent}%</span>
-                          )}
-                        </div>
-                        <div style={styles.storeName}>{game.price_info?.store_name || '정보 없음'}</div>
-                      </>
-                    )}
-                  </div>
-                </td>
-                <td style={styles.td}>
-                  {game.metacritic_score > 0 ? (
-                      <div style={styles.score}>M: {game.metacritic_score}점</div>
-                  ) : (
-                      <div style={{color:'#666', fontSize:'0.9rem'}}>평점 없음</div>
-                  )}
-                  <div style={styles.playtime}>⏳ {game.play_time}</div>
-                </td>
-                <td style={styles.td}>
-                    <div style={{color:'#ddd', fontSize:'0.9rem'}}>
-                        {game.releaseDate ? new Date(game.releaseDate).toLocaleDateString() : '-'}
-                    </div>
-                </td>
-                <td style={{...styles.td, textAlign: 'center'}}>
-                  <button style={styles.removeBtn} onClick={() => handleRemove(game.slug)}>삭제</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div style={styles.searchRow}>
+          <input 
+            style={styles.searchInput} 
+            placeholder="비교할 게임을 검색해서 추가하세요..." 
+            value={searchTerm} 
+            onChange={e => setSearchTerm(e.target.value)} 
+          />
+          {suggestions.length > 0 && (
+              <div style={styles.dropdown}>
+                  {suggestions.map((s, i) => (
+                      <div key={i} style={styles.dropdownItem} onClick={() => addGame(s)}>
+                          <span>{s.title}</span>
+                          <span style={{fontSize:'12px', color:'#888'}}>{s.title_ko}</span>
+                      </div>
+                  ))}
+              </div>
+          )}
       </div>
+
+      {games.length === 0 ? (
+          <div style={styles.emptyMsg}>비교할 게임이 없습니다. 검색해서 추가해보세요!</div>
+      ) : (
+          <div style={styles.grid}>
+              {games.map(g => (
+                  <div key={g._id} style={styles.card}>
+                      <img src={g.main_image} alt="" style={{width:'100%', height:'150px', objectFit:'cover'}} />
+                      <div style={styles.cardHeader}>
+                          <Link to={`/game/${g.slug}`} style={{...styles.cardTitle, color:'#fff', textDecoration:'none'}}>
+                              {g.title_ko || g.title}
+                          </Link>
+                          <button style={styles.removeBtn} onClick={() => removeGame(g.slug)}>✕</button>
+                      </div>
+                      <div style={styles.cardBody}>
+                          <div style={styles.row}><span style={styles.label}>가격</span> <span style={{...styles.val, color:'#46d369'}}>{getPrice(g)}</span></div>
+                          <div style={styles.row}><span style={styles.label}>메타스코어</span> <span style={styles.val}>{g.metacritic_score || '-'}</span></div>
+                          <div style={styles.row}><span style={styles.label}>플레이타임</span> <span style={styles.val}>{g.play_time}</span></div>
+                          <div style={styles.row}><span style={styles.label}>출시일</span> <span style={styles.val}>{g.releaseDate ? g.releaseDate.substring(0,10) : '-'}</span></div>
+                          
+                          <div style={{marginTop:'15px'}}>
+                              <span style={styles.label}>트렌드 점수</span>
+                              <div style={styles.scoreBar}>
+                                  <div style={{width: `${Math.min(g.trend_score / 20, 100)}%`, height:'100%', backgroundColor:'#E50914'}}></div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              ))}
+          </div>
+      )}
     </div>
   );
 }
