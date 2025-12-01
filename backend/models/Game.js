@@ -5,19 +5,19 @@ const mongoose = require('mongoose');
 const gameSchema = new mongoose.Schema({
   slug: { type: String, required: true, unique: true },
   steam_appid: { type: Number, required: true },
-  title: { type: String, required: true },
-  title_ko: { type: String, default: "" },
+  title: { type: String, required: true, index: true },
+  title_ko: { type: String, default: "", index: true },
   main_image: { type: String },
   description: { type: String },
-  smart_tags: [String], 
+  
+  // ★ 태그 검색을 위한 인덱스 추가 (성능 향상)
+  smart_tags: { type: [String], index: true },
 
-  // 트렌드
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
   chzzk_viewers: { type: Number, default: 0 },
   steam_ccu: { type: Number, default: 0 },
 
-  // ★ [수정] 리뷰 스키마 구조 변경 (전체 / 최근)
   steam_reviews: {
     overall: {
       summary: { type: String, default: "정보 없음" }, 
@@ -33,10 +33,10 @@ const gameSchema = new mongoose.Schema({
     }
   },
 
-  // ... (아래는 기존과 동일)
   pc_requirements: { minimum: String, recommended: String },
   popularity: { type: Number, default: 0 },
   releaseDate: { type: Date },
+
   price_info: {
     regular_price: Number,
     current_price: Number,
@@ -56,10 +56,15 @@ const gameSchema = new mongoose.Schema({
       }
     ]
   },
+
   screenshots: [String],
   trailers: [String],
   play_time: { type: String, default: "정보 없음" },
+  
+  // ★ 평점 필드
   metacritic_score: { type: Number, default: 0 },
+  igdb_score: { type: Number, default: 0 }, // 새로 추가
+
   votes: [{ identifier: String, type: { type: String, enum: ['like', 'dislike'] }, date: { type: Date, default: Date.now } }],
   likes_count: { type: Number, default: 0 },
   dislikes_count: { type: Number, default: 0 }
