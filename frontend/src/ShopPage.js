@@ -5,7 +5,21 @@ import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config'; 
 
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+// ResponsiveContainer 제거 (오류 원인 방지), 직접 Chart 컴포넌트 사용
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+
+const REVIEW_KO_MAP = {
+    "Overwhelmingly Positive": "압도적으로 긍정적",
+    "Very Positive": "매우 긍정적",
+    "Positive": "긍정적",
+    "Mostly Positive": "대체로 긍정적",
+    "Mixed": "복합적",
+    "Mostly Negative": "대체로 부정적",
+    "Negative": "부정적",
+    "Very Negative": "매우 부정적",
+    "Overwhelmingly Negative": "압도적으로 부정적",
+    "정보 없음": "정보 없음"
+};
 
 const styles = {
   buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
@@ -25,8 +39,13 @@ const styles = {
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
-  chartsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '40px' },
-  chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', minWidth: 0 }
+  
+  // 차트 그리드 레이아웃
+  chartsGrid: { display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '40px', justifyContent: 'center' },
+  chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  
+  reqTabButton: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #333', color: '#888', fontWeight: 'bold', fontSize: '16px' },
+  reqTabButtonActive: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #E50914', color: '#fff', fontWeight: 'bold', fontSize: '16px' }
 };
 
 const InfoWithTooltip = ({ text, icon, tooltipText }) => {
@@ -61,8 +80,9 @@ function useCountdown(expiryTimestamp) {
 
 function getReviewColor(summary) {
     if (!summary) return '#ccc';
-    if (summary.includes('Positive')) return '#66c0f4';
-    if (summary.includes('Negative')) return '#a34c25';
+    const koSummary = REVIEW_KO_MAP[summary] || summary;
+    if (koSummary.includes('긍정적')) return '#66c0f4';
+    if (koSummary.includes('부정적')) return '#a34c25';
     return '#b9a074';
 }
 
@@ -78,6 +98,7 @@ function ShopPage({ region }) {
   const [dislikes, setDislikes] = useState(0);
   const [myVote, setMyVote] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [reqTab, setReqTab] = useState('minimum'); 
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -90,32 +111,30 @@ function ShopPage({ region }) {
 
             try {
                 const historyRes = await axios.get(`${API_BASE_URL}/api/games/${id}/history`);
-                const formattedHistory = historyRes.data.map(item => {
-                    // ★ [수정] 날짜 포맷팅 (시간 제거, MM.DD 형식)
+                const dailyMap = {};
+                historyRes.data.forEach(item => {
                     const d = new Date(item.recordedAt);
-                    const dateStr = `${d.getMonth() + 1}.${d.getDate()}`; 
-                    return {
+                    const dateStr = `${d.getMonth() + 1}.${d.getDate()}`;
+                    dailyMap[dateStr] = {
                         time: dateStr,
                         twitch: item.twitch_viewers || 0,
                         chzzk: item.chzzk_viewers || 0,
                         steam: item.steam_ccu || 0
                     };
                 });
-                setHistoryData(formattedHistory);
+                setHistoryData(Object.values(dailyMap));
             } catch (e) { console.log("히스토리 없음"); }
 
-            const videos = [];
-            if (data.trailers?.length > 0) {
-                data.trailers.forEach(url => videos.push({ type: 'video', url: url, thumb: data.main_image })); 
-            }
-            const images = [];
-            if (data.screenshots?.length > 0) {
-                data.screenshots.forEach(url => images.push({ type: 'image', url: url, thumb: url }));
-            } else if (data.main_image) {
-                images.push({ type: 'image', url: data.main_image, thumb: data.main_image });
-            }
+            const videos = (data.trailers || []).map(url => ({ type: 'video', url: url, thumb: data.main_image }));
+            const images = (data.screenshots || []).map(url => ({ type: 'image', url: url, thumb: url }));
+            if(images.length === 0 && data.main_image) images.push({ type: 'image', url: data.main_image, thumb: data.main_image });
 
-            const combinedList = [...videos.slice(0, 2), ...images, ...videos.slice(2)];
+            const combinedList = [
+                ...videos.slice(0, 2), 
+                ...images, 
+                ...videos.slice(2)
+            ];
+            
             setMediaList(combinedList);
             if (combinedList.length > 0) {
                 setSelectedMedia(combinedList[0]);
@@ -174,6 +193,30 @@ function ShopPage({ region }) {
   };
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
+
+  // ★ [핵심] HTML 가공 함수: 구조 잡기 및 줄바꿈 강제 적용
+  const formatRequirements = (html) => {
+      if (!html || html === "정보 없음") return "정보 없음";
+      
+      let safeHtml = cleanHTML(html);
+
+      // 1. 리스트 태그(ul, li)가 있는 경우 div로 변환
+      safeHtml = safeHtml.replace(/<ul[^>]*>/g, '<div class="req-list">');
+      safeHtml = safeHtml.replace(/<\/ul>/g, '</div>');
+      safeHtml = safeHtml.replace(/<li[^>]*>/g, '<div class="req-item">');
+      safeHtml = safeHtml.replace(/<\/li>/g, '</div>');
+      
+      // 2. 텍스트가 뭉쳐있는 경우를 대비해 <strong> 태그 앞에서 줄바꿈 강제
+      safeHtml = safeHtml.replace(/<br\s*\/?>/gi, ''); // 기존의 지저분한 br 제거
+      safeHtml = safeHtml.replace(/(<strong[^>]*>)/gi, '<br>$1'); // strong 태그 앞에 br 추가
+      
+      // 맨 앞에 생긴 불필요한 br 태그 제거
+      if (safeHtml.startsWith('<br>')) {
+          safeHtml = safeHtml.substring(4);
+      }
+
+      return safeHtml;
+  };
 
   if (loading) return <div className="net-panel"><Skeleton height="500px" /></div>;
   if (!gameData) return <div className="net-panel net-empty">게임을 찾을 수 없습니다.</div>;
@@ -247,7 +290,7 @@ function ShopPage({ region }) {
             <div style={styles.mainMediaDisplay}>
                 {selectedMedia?.type === 'video' ? (
                     <>
-                        <video ref={videoRef} src={selectedMedia.url} controls={isPlaying} muted={false} style={{width:'100%', height:'100%', objectFit:'contain', display: isPlaying ? 'block' : 'none'}} />
+                        <video ref={videoRef} src={selectedMedia.url} controls={isPlaying} muted={false} playsInline style={{width:'100%', height:'100%', objectFit:'contain', display: isPlaying ? 'block' : 'none'}} />
                         {!isPlaying && (
                             <>
                                 <img src={selectedMedia.thumb} alt="Trailer Poster" style={{width:'100%', height:'100%', objectFit:'cover', opacity:0.7}} />
@@ -271,19 +314,25 @@ function ShopPage({ region }) {
 
         <div style={{display:'flex', gap:'10px', marginBottom:'40px', flexWrap:'wrap', alignItems:'center'}}>
             <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
-            {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점" icon="Ⓜ️" />}
+            {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점 (메타크리틱)" icon="Ⓜ️" />}
             <InfoWithTooltip text={gameData.play_time !== "정보 없음" ? `⏳ ${gameData.play_time}` : "⏳ 시간 정보 없음"} tooltipText="플레이 타임" icon="" />
             
             <div style={{display:'flex', flexDirection:'column', gap:'5px', minWidth:'250px', marginLeft:'10px', paddingLeft:'10px', borderLeft:'1px solid #444'}}>
                 <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}>
                     <span>모든 평가 ({overall.total.toLocaleString()})</span>
-                    <span style={{color: getReviewColor(overall.summary), fontWeight:'bold'}}>{overall.summary}</span>
+                    <span style={{color: getReviewColor(overall.summary), fontWeight:'bold'}}>
+                        {REVIEW_KO_MAP[overall.summary] || overall.summary}
+                    </span>
                 </div>
-                {recent.total > 0 && (
+                {recent.total > 0 ? (
                     <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}>
                         <span>최근 평가 ({recent.total.toLocaleString()})</span>
-                        <span style={{color: getReviewColor(recent.summary), fontWeight:'bold'}}>{recent.summary}</span>
+                        <span style={{color: getReviewColor(recent.summary), fontWeight:'bold'}}>
+                            {REVIEW_KO_MAP[recent.summary] || recent.summary}
+                        </span>
                     </div>
+                ) : (
+                    <div style={{fontSize:'12px', color:'#555', marginTop:'2px'}}>최근 평가 데이터 없음</div>
                 )}
             </div>
         </div>
@@ -305,33 +354,29 @@ function ShopPage({ region }) {
             <div style={styles.chartsGrid}>
                 <div style={styles.chartBox}>
                     <h3 className="net-section-title">📡 방송 시청자 트렌드</h3>
-                    <div style={{ width: '100%', height: 250 }}>
-                        <ResponsiveContainer>
-                            <LineChart data={historyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                <XAxis dataKey="time" stroke="#888" style={{fontSize:'11px'}} />
-                                <YAxis stroke="#888" style={{fontSize:'11px'}} />
-                                <Tooltip contentStyle={{backgroundColor:'#222', borderColor:'#555'}} />
-                                <Legend />
-                                <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />
-                                <Line type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />
-                            </LineChart>
-                        </ResponsiveContainer>
+                    <div style={{ width: '500px', height: '250px', overflowX: 'auto', overflowY:'hidden' }}> 
+                        <LineChart width={500} height={250} data={historyData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                            <XAxis dataKey="time" stroke="#888" style={{fontSize:'11px'}} />
+                            <YAxis stroke="#888" style={{fontSize:'11px'}} />
+                            <Tooltip contentStyle={{backgroundColor:'#222', borderColor:'#555'}} />
+                            <Legend />
+                            <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />
+                            <Line type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />
+                        </LineChart>
                     </div>
                 </div>
 
                 <div style={styles.chartBox}>
                     <h3 className="net-section-title">👥 스팀 동접자 추이</h3>
-                    <div style={{ width: '100%', height: 250 }}>
-                        <ResponsiveContainer>
-                            <AreaChart data={historyData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                                <XAxis dataKey="time" stroke="#888" style={{fontSize:'11px'}} />
-                                <YAxis stroke="#888" style={{fontSize:'11px'}} domain={['auto', 'auto']} />
-                                <Tooltip contentStyle={{backgroundColor:'#222', borderColor:'#555'}} />
-                                <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                    <div style={{ width: '500px', height: '250px', overflowX: 'auto', overflowY:'hidden' }}>
+                        <AreaChart width={500} height={250} data={historyData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                            <XAxis dataKey="time" stroke="#888" style={{fontSize:'11px'}} />
+                            <YAxis stroke="#888" style={{fontSize:'11px'}} domain={['auto', 'auto']} />
+                            <Tooltip contentStyle={{backgroundColor:'#222', borderColor:'#555'}} />
+                            <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
+                        </AreaChart>
                     </div>
                 </div>
             </div>
@@ -342,11 +387,52 @@ function ShopPage({ region }) {
                 <h3 className="net-section-title">가격 비교</h3>
                 <div style={{border:'1px solid #333', borderRadius:'8px', overflow:'hidden'}}>{renderStoreList()}</div>
             </div>
+            
             <div>
                 <h3 className="net-section-title">시스템 요구 사항</h3>
-                <div style={{fontSize:'14px', lineHeight:'1.6', color:'#ccc'}}>
-                    <strong style={{color:'#fff', display:'block', marginBottom:'10px'}}>최소 사양</strong>
-                    <div dangerouslySetInnerHTML={{ __html: cleanHTML(gameData.pc_requirements?.minimum || "정보 없음") }} />
+                <div style={{display:'flex', marginBottom:'15px', borderBottom:'1px solid #333'}}>
+                    <button onClick={() => setReqTab('minimum')} style={reqTab === 'minimum' ? styles.reqTabButtonActive : styles.reqTabButton}>최소 사양</button>
+                    <button onClick={() => setReqTab('recommended')} style={reqTab === 'recommended' ? styles.reqTabButtonActive : styles.reqTabButton}>권장 사양</button>
+                </div>
+                {/* ★ [CSS 주입] 사양 정보 스타일 수정 */}
+                <style>{`
+                    .req-content {
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #acb2b8;
+                    }
+                    .req-content .req-list { margin-top: 10px; }
+                    
+                    /* 각 항목이 블록으로 잡히도록 설정 */
+                    .req-content .req-item { 
+                        margin-bottom: 8px; 
+                        display: block; 
+                    }
+                    
+                    /* 항목 제목 (예: 운영체제, 그래픽 등) 스타일 */
+                    .req-content strong { 
+                        color: #66c0f4; /* 스팀 스타일 하늘색 */
+                        font-weight: bold; 
+                        margin-right: 6px; 
+                    }
+                    
+                    /* 줄바꿈 태그가 확실히 작동하고 간격을 갖도록 설정 */
+                    .req-content br { 
+                        display: block; 
+                        content: ""; 
+                        margin-bottom: 6px; 
+                    }
+                    
+                    /* 리스트 태그 초기화 */
+                    .req-content ul { padding: 0; margin: 0; list-style: none; }
+                    .req-content li { margin-bottom: 8px; display: block; }
+                `}</style>
+                <div className="req-content" style={{minHeight:'200px'}}>
+                    {reqTab === 'minimum' ? (
+                         <div dangerouslySetInnerHTML={{ __html: formatRequirements(gameData.pc_requirements?.minimum) }} />
+                    ) : (
+                         <div dangerouslySetInnerHTML={{ __html: formatRequirements(gameData.pc_requirements?.recommended) }} />
+                    )}
                 </div>
             </div>
         </div>
