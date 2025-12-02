@@ -40,7 +40,7 @@ const styles = {
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
   
-  // 차트 그리드 레이아웃
+  // 차트 그리드 레이아웃 (반응형 문제 해결을 위해 Flex 사용)
   chartsGrid: { display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '40px', justifyContent: 'center' },
   chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   
@@ -194,23 +194,27 @@ function ShopPage({ region }) {
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
 
-  // ★ [핵심] HTML 가공 함수: 구조 잡기 및 줄바꿈 강제 적용
+  // ★ [핵심] 정규식을 사용하여 키워드 앞 줄바꿈 강제 적용 (텍스트 뭉침 해결)
   const formatRequirements = (html) => {
       if (!html || html === "정보 없음") return "정보 없음";
       
       let safeHtml = cleanHTML(html);
 
-      // 1. 리스트 태그(ul, li)가 있는 경우 div로 변환
+      // 1. 리스트 태그(ul, li)가 있는 경우 div로 변환 (기존 유지)
       safeHtml = safeHtml.replace(/<ul[^>]*>/g, '<div class="req-list">');
       safeHtml = safeHtml.replace(/<\/ul>/g, '</div>');
       safeHtml = safeHtml.replace(/<li[^>]*>/g, '<div class="req-item">');
       safeHtml = safeHtml.replace(/<\/li>/g, '</div>');
       
-      // 2. 텍스트가 뭉쳐있는 경우를 대비해 <strong> 태그 앞에서 줄바꿈 강제
-      safeHtml = safeHtml.replace(/<br\s*\/?>/gi, ''); // 기존의 지저분한 br 제거
-      safeHtml = safeHtml.replace(/(<strong[^>]*>)/gi, '<br>$1'); // strong 태그 앞에 br 추가
+      // 2. [강력한 해결책] 키워드(운영체제, 프로세서 등)를 찾아 앞에서 줄바꿈(<br>) 강제
+      // 한국어 및 영어 키워드 패턴 정의
+      const keywordsPattern = /(운영\s*체제|프로세서|메모리|그래픽|저장\s*공간|DirectX|사운드\s*카드|네트워크|추가\s*사항|OS|Processor|Memory|Graphics|Storage|Network|Sound Card|Additional Notes)/gi;
+
+      // 키워드 발견 시 줄바꿈(<br>) 후 강조 스타일(span.req-title) 적용
+      safeHtml = safeHtml.replace(keywordsPattern, '<br><span class="req-title">$1</span>');
       
-      // 맨 앞에 생긴 불필요한 br 태그 제거
+      // 3. 불필요한 태그 및 중복 줄바꿈 정리
+      safeHtml = safeHtml.replace(/<br>\s*<br>/g, '<br>'); 
       if (safeHtml.startsWith('<br>')) {
           safeHtml = safeHtml.substring(4);
       }
@@ -352,6 +356,7 @@ function ShopPage({ region }) {
 
         {historyData.length > 0 && (
             <div style={styles.chartsGrid}>
+                {/* ★ [차트] ResponsiveContainer 제거하고 고정 크기 사용 (오류 원천 차단) */}
                 <div style={styles.chartBox}>
                     <h3 className="net-section-title">📡 방송 시청자 트렌드</h3>
                     <div style={{ width: '500px', height: '250px', overflowX: 'auto', overflowY:'hidden' }}> 
@@ -394,6 +399,7 @@ function ShopPage({ region }) {
                     <button onClick={() => setReqTab('minimum')} style={reqTab === 'minimum' ? styles.reqTabButtonActive : styles.reqTabButton}>최소 사양</button>
                     <button onClick={() => setReqTab('recommended')} style={reqTab === 'recommended' ? styles.reqTabButtonActive : styles.reqTabButton}>권장 사양</button>
                 </div>
+                
                 {/* ★ [CSS 주입] 사양 정보 스타일 수정 */}
                 <style>{`
                     .req-content {
@@ -409,11 +415,13 @@ function ShopPage({ region }) {
                         display: block; 
                     }
                     
-                    /* 항목 제목 (예: 운영체제, 그래픽 등) 스타일 */
-                    .req-content strong { 
+                    /* ★ [디자인] 항목 제목 (예: 운영체제, 그래픽 등) 스타일 */
+                    .req-content .req-title { 
                         color: #66c0f4; /* 스팀 스타일 하늘색 */
                         font-weight: bold; 
                         margin-right: 6px; 
+                        display: inline-block;
+                        margin-top: 5px;
                     }
                     
                     /* 줄바꿈 태그가 확실히 작동하고 간격을 갖도록 설정 */
@@ -427,6 +435,7 @@ function ShopPage({ region }) {
                     .req-content ul { padding: 0; margin: 0; list-style: none; }
                     .req-content li { margin-bottom: 8px; display: block; }
                 `}</style>
+
                 <div className="req-content" style={{minHeight:'200px'}}>
                     {reqTab === 'minimum' ? (
                          <div dangerouslySetInnerHTML={{ __html: formatRequirements(gameData.pc_requirements?.minimum) }} />

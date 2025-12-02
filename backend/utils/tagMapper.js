@@ -82,24 +82,36 @@ const TAG_MAPPING = {
   "Souls-like": "소울라이크"
 };
 
+// 역방향 매핑 (한글 -> [영어1, 영어2, ...])
+const REVERSE_MAP = {};
+Object.keys(TAG_MAPPING).forEach(eng => {
+    const kor = TAG_MAPPING[eng];
+    if (!REVERSE_MAP[kor]) REVERSE_MAP[kor] = [];
+    REVERSE_MAP[kor].push(eng);
+});
+
+// 스팀 태그를 한글로 변환
 function mapSteamTags(steamTags) {
   if (!steamTags || !Array.isArray(steamTags)) return [];
-  
   const mapped = new Set();
-  
   steamTags.forEach(tag => {
-    // 1. 직접 매핑
     if (TAG_MAPPING[tag]) {
       mapped.add(TAG_MAPPING[tag]);
-    }
-    // 2. 대소문자 무시 매핑 (안전장치)
-    else {
+    } else {
         const key = Object.keys(TAG_MAPPING).find(k => k.toLowerCase() === tag.toLowerCase());
         if (key) mapped.add(TAG_MAPPING[key]);
     }
   });
-
   return Array.from(mapped);
 }
 
-module.exports = { mapSteamTags };
+// ★ [핵심] 한글 태그를 넣으면 대소문자 구분 없는 정규식 배열 반환
+function getQueryTags(koreanTag) {
+    const originals = REVERSE_MAP[koreanTag] || [];
+    // 한글 자체와 매핑된 영어 태그들을 모두 정규식으로 변환 (정확한 매칭)
+    const allTags = [koreanTag, ...originals];
+    // 예: /^Action$/i (대소문자 무시, 정확히 Action인 것)
+    return allTags.map(t => new RegExp(`^${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+}
+
+module.exports = { mapSteamTags, getQueryTags };

@@ -1,4 +1,4 @@
-// backend/scripts/collector.js (Windows EBUSY 에러 방지 및 안정화 버전)
+// backend/scripts/collector.js (기존 기능 100% 유지 + 태그/HLTB 수정)
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -26,9 +26,8 @@ if (!MONGODB_URI) { console.error('❌ MONGODB_URI 누락'); process.exit(1); }
 if (!ITAD_API_KEY) { console.error('❌ ITAD_API_KEY 누락'); process.exit(1); }
 
 const STEAM_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0;'
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=english;' // ★ 태그 매핑을 위해 영어 강제 설정
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -294,6 +293,7 @@ async function collectGamesData() {
       const page = await browser.newPage();
       await page.setUserAgent(STEAM_HEADERS['User-Agent']);
       
+      // HLTB 접속 워밍업
       let hltbLoaded = false;
       for(let k=0; k<3; k++) {
           try {
@@ -306,6 +306,8 @@ async function collectGamesData() {
       for (const metadata of batch) {
         try {
           await sleep(2000); 
+          
+          // 1. Steam API 데이터 조회 (기본 정보)
           const steamRes = await axios.get(
             'https://store.steampowered.com/api/appdetails',
             { params: { appids: metadata.steamAppId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS, timeout: 10000 }
@@ -316,6 +318,33 @@ async function collectGamesData() {
           const lowerName = (data.name || '').toLowerCase();
           if (lowerName.includes('soundtrack') || lowerName.includes('ost') || lowerName.includes('dlc') || lowerName.includes('bundle')) continue;
 
+          // 2. ★ 스팀 상점 페이지 크롤링 (태그 수집용)
+          let scrapedTags = [];
+          try {
+              // 태그 매핑을 위해 영문 쿠키 설정 (중요!)
+              await page.setCookie({ name: 'Steam_Language', value: 'english', domain: 'store.steampowered.com', path: '/' });
+              await page.setCookie({ name: 'wants_mature_content', value: '1', domain: 'store.steampowered.com', path: '/' });
+              await page.setCookie({ name: 'birthtime', value: '0', domain: 'store.steampowered.com', path: '/' });
+              await page.setCookie({ name: 'lastagecheckage', value: '1-0-1900', domain: 'store.steampowered.com', path: '/' });
+
+              await page.goto(`https://store.steampowered.com/app/${metadata.steamAppId}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+              
+              // 연령 제한 확인 클릭 (혹시 몰라 추가)
+              const ageGate = await page.$('#ageYear');
+              if (ageGate) {
+                  await page.select('#ageYear', '2000');
+                  const btn = await page.$('.btnv6_blue_hoverfade_btn');
+                  if (btn) { await btn.click(); await page.waitForNavigation(); }
+              }
+
+              scrapedTags = await page.evaluate(() => {
+                  return Array.from(document.querySelectorAll('.app_tag')).map(el => el.innerText.trim());
+              });
+          } catch (e) {
+              // 상점 페이지 로딩 실패 시 API 장르 데이터로 폴백
+          }
+
+          // 3. 부가 정보 수집 (트렌드, 가격, 리뷰 등)
           const categoryData = await GameCategory.findOne({ steamAppId: metadata.steamAppId }).lean();
           const trends = await getTrendStats(metadata.steamAppId, categoryData);
           const steamCCU = await getSteamCCU(metadata.steamAppId);
@@ -323,14 +352,23 @@ async function collectGamesData() {
           const priceInfo = await fetchPriceInfo(metadata.steamAppId, data, metadata);
           const steamReviews = await getSteamReviews(metadata.steamAppId);
 
+          // 4. HLTB 플레이타임 (개선된 버전 적용)
           let playTime = '정보 없음';
           if (hltbLoaded) {
               try {
                 const searchName = cleanGameTitle(metadata.title || data.name || '');
                 if (searchName) {
                   await page.goto(`https://howlongtobeat.com/?q=${encodeURIComponent(searchName)}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+                  
+                  // [수정 1] 로딩 대기 조건 완화
                   try {
-                    await page.waitForFunction(() => document.body.innerText.includes('Main Story') || document.body.innerText.includes('No results'), { timeout: 15000 });
+                    await page.waitForFunction(
+                      () => {
+                        const text = document.body.innerText;
+                        return (text.includes('Main Story') || text.includes('All Styles') || text.includes('Co-Op') || text.includes('Multiplayer') || text.includes('No results'));
+                      },
+                      { timeout: 15000 }
+                    );
                   } catch {}
                   
                   const hltbText = await page.evaluate(() => {
@@ -340,18 +378,19 @@ async function collectGamesData() {
                         const text = li.innerText || '';
                         if (text.includes(label) && (text.includes('Hours') || text.includes('Mins'))) {
                           const m = text.match(/([0-9½\.]+)\s*(Hours|Hour|Mins|h)/i);
-                          if (m) return `${m[1]} ${m[2]}`.replace('Hours', '시간').replace('Hour', '시간');
+                          if (m) {
+                             let val = m[1].replace('½', '.5');
+                             return `${val} ${m[2]}`.replace('Hours', '시간').replace('Hour', '시간').replace('Mins', '분').replace('h', '시간');
+                          }
                         }
                       } return null;
                     }
-                    return (pickScore('Main Story') || pickScore('Main + Extra') || pickScore('All Styles'));
+                    // [수정 2] 멀티/협동/기타 스타일도 찾도록 우선순위 확장
+                    return (pickScore('Main Story') || pickScore('Main + Extra') || pickScore('Co-Op') || pickScore('Multiplayer') || pickScore('Versus') || pickScore('All Styles'));
                   });
                   if (hltbText) playTime = hltbText;
                 }
-              } catch (e) { 
-                  // HLTB 에러는 전체 프로세스를 멈추지 않도록 로그만 찍고 넘어감
-                  // console.log(`⚠️ HLTB 검색 실패 (${metadata.title})`); 
-              }
+              } catch (e) { }
           }
 
           let finalTitle = data.name || metadata.title;
@@ -385,6 +424,11 @@ async function collectGamesData() {
               pcRequirements.recommended = data.pc_requirements.recommended || "정보 없음";
           }
 
+          // ★ 태그 병합: 스팀 API 장르 + 직접 긁어온 태그(우선순위)
+          const rawTags = scrapedTags.length > 0 ? scrapedTags : [...(data.genres || []).map((g) => g.description), ...(data.categories || []).map((c) => c.description)];
+          const smart_tags = mapSteamTags(rawTags);
+
+          // DB 저장
           await Game.findOneAndUpdate(
             { steam_appid: metadata.steamAppId },
             {
@@ -392,7 +436,7 @@ async function collectGamesData() {
               title: finalTitle,
               title_ko: (categoryData?.chzzk?.categoryValue || data.name || finalTitle).replace(/_/g, ' '),
               main_image: data.header_image, description: data.short_description,
-              smart_tags: mapSteamTags([...(data.genres || []).map((g) => g.description), ...(data.categories || []).map((c) => c.description)]),
+              smart_tags: smart_tags, // ★ 수정된 태그 저장
               trend_score: trendScore, twitch_viewers: trends.twitch.value || 0, chzzk_viewers: trends.chzzk.value || 0, steam_ccu: steamCCU,
               steam_reviews: steamReviews, price_info: priceInfo, play_time: playTime,
               releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월/g, '-').replace(/일/g, '')) : undefined,
@@ -410,20 +454,16 @@ async function collectGamesData() {
           }).save();
 
           totalCount++;
-          const hasMovies = data.movies && data.movies.length > 0 ? "O" : "X";
-          console.log(`✅ [${totalCount}] ${finalTitle} | All=${steamReviews.overall.summary} | Recent=${steamReviews.recent.summary} | Trailer=${trailers.length}개`);
+          console.log(`✅ [${totalCount}] ${finalTitle} | Tags=${smart_tags.slice(0,3)}... | Time=${playTime}`);
         } catch (e) { console.error(`❌ 개별 게임 수집 실패: ${metadata.steamAppId}`, e.message); }
       }
     } catch (e) { 
         console.error('❌ Batch 에러:', e.message); 
     } finally { 
-        // ★ [핵심] 브라우저 종료 시 에러 무시 및 대기 (Windows EBUSY 해결)
         try {
-            await sleep(2000); // 파일 잠금 해제 대기
+            await sleep(2000); 
             if (browser) await browser.close();
-        } catch (e) {
-            // 종료 중 에러는 무시 (이미 닫혔거나 파일 잠금 등)
-        }
+        } catch (e) {}
     }
   }
   console.log('\n🎉 모든 수집 완료'); process.exit(0);
