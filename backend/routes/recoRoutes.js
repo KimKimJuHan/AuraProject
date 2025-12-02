@@ -6,22 +6,14 @@ const Game = require('../models/Game');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const { getQueryTags } = require('../utils/tagMapper'); // ★ 중요
+const { getQueryTags } = require('../utils/tagMapper'); // ★ 태그 매퍼 연결
 
 const STEAM_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
 
-// 태그 유사도 계산 (자카드 유사도 - 정규식 미적용 단순 비교용)
+// 태그 유사도 계산
 function calculateTagScore(gameTags, userTags) {
     if (!gameTags || !userTags || userTags.length === 0) return 0;
-    // 여기는 단순 문자열 비교 (속도 위해)
     const gameSet = new Set((gameTags || []).map(t => t.toLowerCase().trim()));
-    // userTags(한글)를 영어로 변환해서 비교해야 함
-    let expandedUserTags = [];
-    userTags.forEach(t => {
-        // getQueryTags는 정규식을 반환하므로 여기선 직접 문자열 매핑만 씀 (간소화)
-        // 복잡하면 그냥 패스
-        expandedUserTags.push(t.toLowerCase());
-    });
     
     let matchCount = 0;
     userTags.forEach(tag => {
@@ -47,7 +39,7 @@ function parsePlaytime(playtimeStr) {
 router.post('/reco', async (req, res) => {
     const { term, liked = [], k = 12 } = req.body; 
 
-    // 1. 사용자 토큰 확인
+    // 1. 사용자 토큰 확인 (로그인 여부 및 스팀ID 확인)
     let userSteamId = null;
     const token = req.cookies?.token;
     if (token) {
@@ -61,12 +53,12 @@ router.post('/reco', async (req, res) => {
     try {
         let filter = {};
 
-        // 2. 보유 게임 제외
+        // 2. 보유 게임 제외 ($nin)
         if (userSteamId && STEAM_API_KEY) {
             try {
                 const steamRes = await axios.get("http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/", {
                     params: { key: STEAM_API_KEY, steamid: userSteamId, format: 'json' },
-                    timeout: 3000
+                    timeout: 2000
                 });
                 const ownedGames = steamRes.data?.response?.games || [];
                 const ownedAppIds = ownedGames.map(g => g.appid);
@@ -84,10 +76,13 @@ router.post('/reco', async (req, res) => {
             filter.$or = [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }];
         }
 
-        // 4. ★ 태그 필터 (정규식 확장 적용)
+        // 4. 태그 필터 (AND 조건 - 교집합 검색)
         if (liked && liked.length > 0) {
-            const expandedTags = liked.flatMap(t => getQueryTags(t));
-            filter.smart_tags = { $in: expandedTags };
+            const andConditions = liked.map(tag => {
+                const regexTags = getQueryTags(tag);
+                return { smart_tags: { $in: regexTags } };
+            });
+            filter.$and = andConditions;
         }
 
         // 5. DB 조회
@@ -96,9 +91,17 @@ router.post('/reco', async (req, res) => {
             .limit(1000) 
             .lean();
 
+        // ★ 유효 태그 목록 추출 (동적 비활성화용)
+        const validTagsSet = new Set();
+        candidates.forEach(game => {
+            if (game.smart_tags) {
+                game.smart_tags.forEach(tag => validTagsSet.add(tag));
+            }
+        });
+        const validTags = Array.from(validTagsSet);
+
         // 6. 점수 계산
         const processedGames = candidates.map(game => {
-            // 태그 점수는 기존 자카드 유지 (복잡도 때문)
             const tagScore = calculateTagScore(game.smart_tags, liked);
             const trendVal = game.trend_score || 0;
             const trendScore = Math.log10(trendVal + 1) / 5; 
@@ -120,14 +123,15 @@ router.post('/reco', async (req, res) => {
             };
         });
 
-        // 7. 정렬 및 반환
+        // 7. 4가지 카테고리로 정렬 및 추출
         const limit = k * 2; 
         const overall = [...processedGames].sort((a, b) => b.sortData.overall - a.sortData.overall).slice(0, limit);
         const trend = [...processedGames].sort((a, b) => b.sortData.trend - a.sortData.trend).slice(0, limit);
         const playtime = [...processedGames].sort((a, b) => b.sortData.playtime - a.sortData.playtime).slice(0, limit);
         const tag = [...processedGames].sort((a, b) => b.sortData.tag - a.sortData.tag).slice(0, limit);
 
-        res.json({ overall, trend, playtime, tag });
+        // ★ validTags 포함해서 반환
+        res.json({ overall, trend, playtime, tag, validTags });
 
     } catch (err) {
         console.error("추천 API 에러:", err);

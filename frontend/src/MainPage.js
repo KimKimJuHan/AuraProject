@@ -1,10 +1,12 @@
+// frontend/src/MainPage.js
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
-import { API_BASE_URL } from './config'; // ★ API 주소 가져오기
+import { API_BASE_URL } from './config';
 
 const TAG_CATEGORIES = {
-  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션'],
+  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
   '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
   '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
@@ -24,11 +26,17 @@ const styles = {
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
+  // 비활성화 스타일
+  tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 }
 };
 
-const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
+const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
     const [isOpen, setIsOpen] = useState(false); 
+    
+    // 태그 선택 여부 확인 (하나라도 선택되었는지)
+    const hasSelection = selectedTags.length > 0;
+
     return (
         <div style={styles.filterBox}>
             <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
@@ -37,16 +45,33 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag }) => {
             </div>
             {isOpen && (
                 <div style={styles.filterContent}>
-                    {tags.map(tag => (
-                        <button key={tag} style={selectedTags.includes(tag) ? styles.tagBtnActive : styles.tagBtn} onClick={() => onToggleTag(tag)}>{tag}</button>
-                    ))}
+                    {tags.map(tag => {
+                        const isSelected = selectedTags.includes(tag);
+                        // ★ 유효하지 않은 태그 비활성화 로직
+                        // 선택된 게 있고 + 현재 태그가 선택 안 됐고 + 유효 목록에도 없으면 -> 비활성화
+                        const isDisabled = hasSelection && !isSelected && !validTags.includes(tag);
+
+                        return (
+                            <button 
+                                key={tag} 
+                                style={
+                                    isSelected ? styles.tagBtnActive : 
+                                    isDisabled ? styles.tagBtnDisabled : styles.tagBtn
+                                } 
+                                onClick={() => !isDisabled && onToggleTag(tag)}
+                                disabled={isDisabled}
+                            >
+                                {tag}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
         </div>
     );
 };
 
-function GameListItem({ game, user }) {
+function GameListItem({ game }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   useEffect(() => {
@@ -96,6 +121,7 @@ function MainPage({ user }) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [validTags, setValidTags] = useState([]); // ★ 유효 태그 목록 상태
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
   const [error, setError] = useState(null);
@@ -107,13 +133,14 @@ function MainPage({ user }) {
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
-    if (!hasMore) return; 
+    // hasMore 체크를 처음에 안 하고 일단 요청을 보냄 (필터 변경 시 갱신 위해)
+    // 단, page > 1 일 때는 hasMore가 false면 중단
+    if (page > 1 && !hasMore) return;
     
     const fetchGames = async () => {
         setLoading(true);
         setError(null);
         try {
-            // ★ API 주소 변수 사용
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -122,6 +149,11 @@ function MainPage({ user }) {
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
             
+            // ★ 유효 태그 목록 업데이트
+            if (data.validTags) {
+                setValidTags(data.validTags);
+            }
+
             setGames(prev => {
                 if (page === 1) return data.games;
                 const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
@@ -130,14 +162,14 @@ function MainPage({ user }) {
             setHasMore(page < data.totalPages); 
         } catch (err) {
             console.error(err);
-            setError("서버와 연결할 수 없습니다. (Backend가 켜져 있는지 확인하세요)");
+            setError("서버와 연결할 수 없습니다.");
         } finally {
             setLoading(false);
         }
     };
     
     fetchGames();
-  }, [page, selectedTags, activeTab, hasMore]); 
+  }, [page, selectedTags, activeTab]); // hasMore 제거 (무한루프 방지 및 즉시 갱신)
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -153,7 +185,14 @@ function MainPage({ user }) {
 
       <div style={styles.filterContainer}>
           {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-              <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} />
+              <FilterCategoryBox 
+                key={category} 
+                title={category} 
+                tags={tags} 
+                selectedTags={selectedTags} 
+                onToggleTag={toggleTag} 
+                validTags={validTags} // ★ 유효 태그 전달
+              />
           ))}
       </div>
       
@@ -168,7 +207,7 @@ function MainPage({ user }) {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => <GameListItem key={game.slug} game={game} user={user} />)}
+          {games.map(game => <GameListItem key={game.slug} game={game} />)}
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}
