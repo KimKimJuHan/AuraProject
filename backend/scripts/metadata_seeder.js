@@ -71,6 +71,7 @@ function scoreCandidate(data, originalTitle) {
 
 async function findBestSteamAppId(originalAppId, title) {
   const candidates = [];
+  
   const mainDetail = await getSteamDetails(originalAppId);
   if (mainDetail) candidates.push({ appId: originalAppId, data: mainDetail });
 
@@ -98,17 +99,17 @@ async function seedMetadata() {
 
   let popular = [];
   const TOTAL_LIMIT = 2000;
-  const PAGE_SIZE = 100; // ITAD API 최대 한도
+  const PAGE_SIZE = 100; // ITAD API는 한 번에 최대 100개까지만 줍니다.
 
   try {
-    // ★ [핵심 수정] 100개씩 반복해서 가져오기 (Pagination)
+    // ★ [핵심 수정] 100개씩 20번 반복해서 가져오기 (Pagination)
     for (let offset = 0; offset < TOTAL_LIMIT; offset += PAGE_SIZE) {
         console.log(`📡 ITAD 목록 가져오는 중... (${offset} ~ ${offset + PAGE_SIZE})`);
         
         const res = await axios.get(`https://api.isthereanydeal.com/stats/most-popular/v1`, {
             params: { 
                 key: ITAD_API_KEY, 
-                results: PAGE_SIZE, // limit 대신 results 사용
+                results: PAGE_SIZE, // limit 대신 results 사용 (API 스펙 준수)
                 offset: offset      // 페이지 넘김
             }
         });
@@ -126,7 +127,7 @@ async function seedMetadata() {
 
   console.log(`🔥 ITAD 인기 게임 총 ${popular.length}개 확보 완료. 스팀 매칭 시작...`);
   
-  let saved = 0, skipped = 0, existsCount = 0;
+  let saved = 0, skipped = 0;
 
   for (let i = 0; i < popular.length; i++) {
     const game = popular[i];
@@ -139,7 +140,6 @@ async function seedMetadata() {
     const exists = await GameMetadata.findOne({ title: title });
     if (exists) {
         // console.log(`Pass: ${title}`);
-        existsCount++;
         continue; 
     }
 
@@ -151,8 +151,8 @@ async function seedMetadata() {
       if (infoRes.data?.appid) appId = infoRes.data.appid;
     } catch {}
 
-    if (!appId && !title) { skipped++; continue; }
-
+    // 앱ID가 없어도 제목 검색 시도
+    
     console.log(`[${i+1}/${popular.length}] 신규 발견: ${title}...`);
     
     const best = await findBestSteamAppId(appId, title);
@@ -179,7 +179,7 @@ async function seedMetadata() {
     await sleep(1500);
   }
 
-  console.log(`\n\n🎉 시딩 완료: ${saved}개 신규 저장 (이미 존재: ${existsCount}개, 실패/제외: ${skipped}개)`);
+  console.log(`\n\n🎉 시딩 완료: ${saved}개 신규 저장 (제외됨: ${skipped}개)`);
   process.exit(0);
 }
 
