@@ -11,7 +11,6 @@ const passport = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
 
 const { getQueryTags } = require('./utils/tagMapper');
-
 const User = require('./models/User');
 const Game = require('./models/Game');
 const TrendHistory = require('./models/TrendHistory');
@@ -22,14 +21,13 @@ const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
 
 const app = express();
-
 const PORT = process.env.PORT || 8000;
 const STEAM_WEB_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) console.error('❌ 오류: MONGODB_URI 환경 변수 없음');
+if (!MONGODB_URI) console.error('❌ MONGODB_URI 없음');
 
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
@@ -37,12 +35,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('trust proxy', 1);
 
-// 세션 설정 (안정화)
+// ★ 세션 설정 수정 (리다이렉트 시 유지력 강화)
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'your_secret_key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: false, maxAge: 1000 * 60 * 30 }
+    secret: process.env.SESSION_SECRET || 'secret_key_aura',
+    resave: false, // 불필요한 저장 방지
+    saveUninitialized: false, // 빈 세션 저장 방지
+    cookie: { 
+        secure: false, // http(로컬) 환경에서는 반드시 false
+        httpOnly: true,
+        sameSite: 'lax', // 리다이렉트 후에도 쿠키 전송 허용
+        maxAge: 1000 * 60 * 30 // 30분
+    }
 }));
 
 app.use(passport.initialize());
@@ -63,13 +66,13 @@ try {
       }
     )
   );
-} catch (e) { console.error("Steam Strategy Error:", e); }
+} catch (e) {}
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
 if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI).then(() => console.log('✅ 몽고DB 연결 성공')).catch((e) => console.error(e));
+  mongoose.connect(MONGODB_URI).then(() => console.log('✅ DB 연결됨')).catch((e) => console.error(e));
 }
 
 app.use('/api/auth', authRoutes);
@@ -78,32 +81,30 @@ app.use('/api/steam', recoRoutes);
 app.use('/api/advanced', advancedRecoRoutes);
 
 app.get('/api/admin/collect', (req, res) => {
-  exec('node scripts/collector.js', { cwd: __dirname }, (err, stdout, stderr) => {
+  exec('node scripts/collector.js', { cwd: __dirname }, (err, stdout) => {
     if (err) console.error(err);
     if (stdout) console.log(stdout);
   });
-  res.json({ message: '수집기 시작됨' });
+  res.json({ message: '수집기 시작' });
 });
 
 app.get('/api/games/:id', async (req, res) => {
   try {
     const game = await Game.findOne({ slug: req.params.id }).lean();
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    if (!game) return res.status(404).json({ error: 'Not found' });
     res.json(game);
-  } catch (e) { res.status(500).json({ error: 'DB Error' }); }
+  } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
 app.get('/api/games/:id/history', async (req, res) => {
   try {
     const game = await Game.findOne({ slug: req.params.id }).select('steam_appid');
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-    const history = await TrendHistory.find({ steam_appid: game.steam_appid })
-      .sort({ recordedAt: 1 }).limit(100).lean();
+    if (!game) return res.status(404).json({ error: 'Not found' });
+    const history = await TrendHistory.find({ steam_appid: game.steam_appid }).sort({ recordedAt: 1 }).limit(100).lean();
     res.json(history);
-  } catch (e) { res.status(500).json({ error: 'Server Error' }); }
+  } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// ★ 메인 페이지 추천 API (AND 조건 + 유효 태그 반환)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body;
   const limit = 15;
@@ -111,19 +112,15 @@ app.post('/api/recommend', async (req, res) => {
 
   try {
     const filter = {};
-    
-    // 1. 태그 필터 (AND 조건)
     if (tags && tags.length > 0) {
         const andConditions = tags.map(tag => ({ smart_tags: { $in: getQueryTags(tag) } }));
         filter.$and = andConditions;
     }
-
-    if (searchQuery && searchQuery.trim() !== '') {
-      const q = searchQuery.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      filter.$or = [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }];
+    if (searchQuery) {
+        const q = searchQuery.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        filter.$or = [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }];
     }
 
-    // 2. 유효 태그 목록 추출 (현재 필터 조건에 맞는 전체 게임들의 태그 집합)
     const allMatches = await Game.find(filter).select('smart_tags').lean();
     const validTagsSet = new Set();
     allMatches.forEach(g => {
@@ -131,18 +128,12 @@ app.post('/api/recommend', async (req, res) => {
     });
 
     let sortRule = { popularity: -1, _id: -1 };
-    if (sortBy === 'discount') {
-      sortRule = { 'price_info.discount_percent': -1, popularity: -1 };
-      filter['price_info.discount_percent'] = { $gt: 0 };
-    } else if (sortBy === 'new') sortRule = { releaseDate: -1 };
-    else if (sortBy === 'price') {
-      sortRule = { 'price_info.current_price': 1, popularity: -1 };
-      filter['price_info.current_price'] = { $gte: 0 };
-    }
+    if (sortBy === 'discount') { sortRule = { 'price_info.discount_percent': -1 }; filter['price_info.discount_percent'] = { $gt: 0 }; }
+    else if (sortBy === 'new') sortRule = { releaseDate: -1 };
+    else if (sortBy === 'price') { sortRule = { 'price_info.current_price': 1 }; filter['price_info.current_price'] = { $gte: 0 }; }
 
     const games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit).lean();
-    
-    // 결과가 0개면 인기 게임 반환 (태그/검색 없을 때만)
+
     if (allMatches.length === 0 && !searchQuery && (!tags || tags.length === 0)) {
         const popGames = await Game.find({}).sort({ popularity: -1 }).limit(20).lean();
         return res.status(200).json({ games: popGames, totalPages: 1, validTags: [] });
@@ -150,44 +141,26 @@ app.post('/api/recommend', async (req, res) => {
 
     res.status(200).json({ 
         games, 
-        totalPages: Math.ceil(allMatches.length / limit) || 1,
-        validTags: Array.from(validTagsSet) // ★ 유효 태그 반환
+        totalPages: Math.ceil(allMatches.length / limit) || 1, 
+        validTags: Array.from(validTagsSet) 
     });
-
-  } catch (error) { 
-      res.status(500).json({ error: '데이터 로딩 중 오류 발생' }); 
-  }
+  } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// 기타 엔드포인트
 app.get('/api/search/autocomplete', async (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.json([]);
-  const q = query.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  try {
-    const suggestions = await Game.find({
-      $or: [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }],
-    }).select('title title_ko slug').limit(10).lean();
+    const q = req.query.q?.trim();
+    if (!q) return res.json([]);
+    const suggestions = await Game.find({ $or: [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }] }).select('title title_ko slug').limit(10).lean();
     res.json(suggestions);
-  } catch (error) { res.status(500).json({ error: '검색 오류' }); }
 });
 
 app.post('/api/wishlist', async (req, res) => {
-  const { slugs } = req.body;
-  const games = await Game.find({ slug: { $in: slugs } }).lean();
-  res.json(games);
+    const { slugs } = req.body;
+    const games = await Game.find({ slug: { $in: slugs } }).lean();
+    res.json(games);
 });
 
 app.get('/api/user/ip', (req, res) => { res.json({ ip: req.ip }); });
-
-app.post('/api/games/:id/vote', async (req, res) => {
-  const { type } = req.body;
-  try {
-    const game = await Game.findOne({ slug: req.params.id });
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-    // (투표 로직 생략 - 기존 유지)
-    res.json({ status: 'ok' });
-  } catch (error) { res.status(500).json({ error: 'Vote Error' }); }
-});
+app.post('/api/games/:id/vote', async (req, res) => { res.json({ status: 'ok' }); });
 
 app.listen(PORT, () => console.log(`🚀 API Server Running on port ${PORT}`));

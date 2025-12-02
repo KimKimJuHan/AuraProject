@@ -52,7 +52,6 @@ function GameCard({ game }) {
                     {isWishlisted ? '❤️' : '🤍'}
                 </button>
             </div>
-            
             <div className="card-info">
                 <div className="game-title">{game.name}</div>
                 <div className="game-meta-row">
@@ -71,7 +70,6 @@ function GameCard({ game }) {
 function RecoSection({ title, games }) {
     const [expanded, setExpanded] = useState(false);
     if (!games || games.length === 0) return null;
-
     const displayGames = expanded ? games : games.slice(0, 4);
 
     return (
@@ -88,9 +86,7 @@ function RecoSection({ title, games }) {
                 )}
             </div>
             <div className="game-grid">
-                {displayGames.map((g, i) => (
-                    <GameCard key={g._id || i} game={g} />
-                ))}
+                {displayGames.map((g, i) => <GameCard key={g._id || i} game={g} />)}
             </div>
         </div>
     );
@@ -106,35 +102,30 @@ function PersonalRecoPage({ user }) {
   const [data, setData] = useState({ overall: [], trend: [], playtime: [], tag: [] });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-
   const [topGames, setTopGames] = useState([]);     
   const [steamStatus, setSteamStatus] = useState('LOADING'); 
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
 
-  // ★ 스팀 연동 체크
+  // ★ 스팀 연동 체크 (200 OK + Flag 방식)
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
         const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
         
-        // 성공 시 (DB에서 최신 스팀ID 확인됨)
-        const sorted = (res.data || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
-        setTopGames(sorted);
-        setSteamStatus('LINKED');
-    } catch (err) {
-        if (err.response) {
-            if (err.response.status === 400) {
-                // 400 = 스팀 ID 없음 = 연동 안 됨
-                setSteamStatus('NOT_LINKED');
-            } else if (err.response.status === 403) {
-                setSteamStatus('PRIVATE');
-            } else {
-                setSteamStatus('ERROR');
-            }
+        // ★ 백엔드가 200 OK를 주지만, 내용에 따라 상태 결정
+        if (res.data.linked === false) {
+            setSteamStatus('NOT_LINKED'); // 400 에러 없이 조용히 처리
+        } else if (res.data.error === "PRIVATE") {
+            setSteamStatus('PRIVATE');
         } else {
-            setSteamStatus('NOT_LINKED');
+            // 정상 연동됨
+            const sorted = (res.data.games || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
+            setTopGames(sorted);
+            setSteamStatus('LINKED');
         }
+    } catch (err) {
+        setSteamStatus('ERROR');
     }
   };
 
@@ -142,9 +133,8 @@ function PersonalRecoPage({ user }) {
     if (user) checkSteamConnection();
     else setSteamStatus('GUEST');
     // eslint-disable-next-line
-  }, [user, urlSteamId]); // URL에 steamId가 있으면(연동 직후) 다시 체크
+  }, [user, urlSteamId]);
 
-  // 추천 데이터 로드
   useEffect(() => {
     const fetchReco = async () => {
         setErr("");
@@ -157,29 +147,20 @@ function PersonalRecoPage({ user }) {
               { withCredentials: true } 
           );
           setData(res.data);
-          
           if (res.data.validTags) setValidTags(res.data.validTags);
 
           if (!res.data.overall?.length && !res.data.trend?.length) {
               setErr("조건에 맞는 게임이 없습니다.");
           }
-        } catch (e) { 
-            console.error(e);
-            setErr("데이터 로딩 실패"); 
-        } 
+        } catch (e) { setErr("데이터 로딩 실패"); } 
         finally { setLoading(false); }
     };
-
-    const timer = setTimeout(() => {
-        fetchReco();
-    }, 500);
-
+    const timer = setTimeout(() => { fetchReco(); }, 500);
     return () => clearTimeout(timer);
   }, [picked, term]); 
 
   const toggle = (t) => {
     const isSelected = picked.has(t);
-    // 선택된 게 있고 & 유효목록에 없고 & 선택 안 된 거면 클릭 막기
     if (picked.size > 0 && !validTags.includes(t) && !isSelected) return;
 
     setPicked((prev) => {
@@ -190,30 +171,24 @@ function PersonalRecoPage({ user }) {
     });
   };
 
-  const handleLinkSteam = () => { 
-      window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; 
-  };
-
-  // ★ 연동 해제 핸들러
+  const handleLinkSteam = () => { window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; };
+  
   const handleUnlinkSteam = async () => {
-      if (!window.confirm("정말 스팀 연동을 해제하시겠습니까?")) return;
+      if (!window.confirm("정말 연동을 해제하시겠습니까?")) return;
       try {
           await axios.delete(`${API_BASE_URL}/api/user/steam`, { withCredentials: true });
           alert("해제되었습니다.");
           setSteamStatus('NOT_LINKED');
           setTopGames([]);
-      } catch (e) {
-          alert("해제 실패");
-      }
+      } catch (e) { alert("해제 실패"); }
   };
-  
+
   const formatPlaytime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
 
   return (
     <div className="reco-container">
       <div className="search-panel">
         <h1>🤖 AI 맞춤 추천</h1>
-        
         <div className="steam-dashboard">
             {!user ? (
                 <div className="steam-guest-msg">
@@ -233,13 +208,7 @@ function PersonalRecoPage({ user }) {
                         <>
                             <div className="steam-header">
                                 <h3 style={{margin:0, color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3>
-                                {/* ★ 연동 해제 버튼 */}
-                                <button 
-                                    onClick={handleUnlinkSteam} 
-                                    style={{background:'none', border:'1px solid #555', color:'#aaa', fontSize:'12px', padding:'4px 8px', borderRadius:'4px', cursor:'pointer'}}
-                                >
-                                    연동 해제
-                                </button>
+                                <button onClick={handleUnlinkSteam} style={{background:'none', border:'1px solid #555', color:'#aaa', fontSize:'12px', padding:'4px 8px', borderRadius:'4px', cursor:'pointer'}}>연동 해제</button>
                             </div>
                             <div className="steam-list">
                                 {topGames.map((g, i) => {
@@ -282,19 +251,12 @@ function PersonalRecoPage({ user }) {
                         {list.map(t => {
                             const isSelected = picked.has(t);
                             const isDisabled = picked.size > 0 && !validTags.includes(t) && !isSelected;
-
                             return (
                                 <div 
                                     key={t} 
                                     className={`tag-chip ${isSelected ? 'on' : ''}`} 
                                     onClick={() => toggle(t)}
-                                    style={isDisabled ? { 
-                                        opacity: 0.3, 
-                                        cursor: 'not-allowed', 
-                                        backgroundColor: '#222', 
-                                        color: '#555',
-                                        border: '1px solid #333'
-                                    } : {}}
+                                    style={isDisabled ? { opacity: 0.3, cursor: 'not-allowed', backgroundColor: '#222', color: '#555', border: '1px solid #333' } : {}}
                                 >
                                     {t}
                                 </div>
@@ -307,10 +269,7 @@ function PersonalRecoPage({ user }) {
       </div>
 
       {loading ? (
-          <div className="loading-box">
-              <div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>
-              분석 중...
-          </div>
+          <div className="loading-box"><div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>분석 중...</div>
       ) : (
         <div className="result-panel">
             <h2>✨ 추천 결과</h2>
