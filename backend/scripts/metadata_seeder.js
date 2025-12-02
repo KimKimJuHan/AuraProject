@@ -1,4 +1,5 @@
 // backend/scripts/metadata_seeder.js
+// 기능: ITAD 대량 수집 + 중복 제거 + 특수문자 검색 보정
 
 require("dotenv").config({ path: '../.env' }); 
 const mongoose = require("mongoose");
@@ -23,17 +24,18 @@ function isBadSteamName(name) {
   return badWords.some(w => x.includes(w));
 }
 
+// ★ [핵심] 검색어 정제 (S.T.A.L.K.E.R. -> STALKER)
+function cleanTitleForSearch(title) {
+    return title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 async function searchSteamApps(term) {
   try {
     const res = await axios.get(
       `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`
     );
     if (!res.data?.items) return [];
-
-    // ★ [수정됨] type === 'game' 필터 제거 (검색 정확도 향상)
-    // 상세 조회(getSteamDetails)에서 type을 다시 확인하므로 여기선 이름만 맞으면 가져옵니다.
-    return res.data.items
-      .filter(item => !isBadSteamName(item.name));
+    return res.data.items.filter(item => !isBadSteamName(item.name));
   } catch (e) {
     return [];
   }
@@ -47,8 +49,7 @@ async function getSteamDetails(appId) {
     const d = res.data?.[appId];
     if (!d || !d.success) return null;
     const data = d.data;
-    // 상세 정보에서는 확실하게 게임인지 확인
-    if (data.type !== "game") return null;
+    if (data.type !== "game") return null; 
     return data;
   } catch (e) {
     return null;
@@ -59,8 +60,12 @@ function scoreCandidate(data, originalTitle) {
   if (!data || !data.name) return -9999;
   const name = data.name.toLowerCase();
   const t = originalTitle.toLowerCase();
+  const cleanName = cleanTitleForSearch(name);
+  const cleanT = cleanTitleForSearch(t);
+
   let score = 0;
   if (name === t) score += 100;
+  else if (cleanName === cleanT) score += 95; 
   else if (name.includes(t)) score += 40;
   else if (t.includes(name)) score += 40;
   
@@ -74,12 +79,25 @@ function scoreCandidate(data, originalTitle) {
 async function findBestSteamAppId(originalAppId, title) {
   const candidates = [];
   
+  // 1. ITAD ID 조회
   const mainDetail = await getSteamDetails(originalAppId);
   if (mainDetail) candidates.push({ appId: originalAppId, data: mainDetail });
 
   await sleep(500); 
-  const searched = await searchSteamApps(title);
   
+  // 2. 제목 검색
+  let searched = await searchSteamApps(title);
+  
+  // 3. ★ [핵심] 검색 실패 시 특수문자 제거 후 재검색
+  if (searched.length === 0) {
+      const cleanTitle = cleanTitleForSearch(title);
+      if (cleanTitle !== title && cleanTitle.length > 2) {
+          // console.log(`   [Retry] "${title}" -> "${cleanTitle}"`);
+          await sleep(500);
+          searched = await searchSteamApps(cleanTitle);
+      }
+  }
+
   for (const item of searched) {
     if (item.id == originalAppId) continue;
     const d = await getSteamDetails(item.id);
@@ -97,11 +115,11 @@ async function findBestSteamAppId(originalAppId, title) {
 
 async function seedMetadata() {
   await mongoose.connect(MONGODB_URI);
-  console.log("📌 DB 연결됨. 게임 목록 2000개 확보 시작 (분할 요청)...");
+  console.log("📌 DB 연결됨. 게임 목록 확보 시작...");
 
-  let popular = [];
-  const TOTAL_LIMIT = 2000; // ★ 2000개 목표
-  const PAGE_SIZE = 100;
+  let rawList = [];
+  const TOTAL_LIMIT = 2000; // 목표 수집 개수
+  const PAGE_SIZE = 100; 
 
   try {
     for (let offset = 0; offset < TOTAL_LIMIT; offset += PAGE_SIZE) {
@@ -117,7 +135,7 @@ async function seedMetadata() {
 
         const items = res.data || [];
         if (items.length === 0) break; 
-        popular = popular.concat(items);
+        rawList = rawList.concat(items);
         
         await sleep(1000); 
     }
@@ -126,7 +144,18 @@ async function seedMetadata() {
     process.exit(1);
   }
 
-  console.log(`🔥 ITAD 인기 게임 총 ${popular.length}개 확보 완료. 스팀 매칭 시작...`);
+  // ★ [핵심] 중복 제거 로직 (Set 사용)
+  const popular = [];
+  const seenTitles = new Set();
+  
+  for (const item of rawList) {
+      if (!seenTitles.has(item.title)) {
+          seenTitles.add(item.title);
+          popular.push(item);
+      }
+  }
+
+  console.log(`🔥 중복 제거 후 ${popular.length}개 게임 확보. 스팀 매칭 시작...`);
   
   let saved = 0, skipped = 0, existsCount = 0;
 
@@ -151,14 +180,11 @@ async function seedMetadata() {
       if (infoRes.data?.appid) appId = infoRes.data.appid;
     } catch {}
 
-    if (!appId && !title) { skipped++; continue; }
-
     console.log(`[${i+1}/${popular.length}] 신규 발견: ${title}...`);
     
     const best = await findBestSteamAppId(appId, title);
     
     if (!best) { 
-        // Spec Ops, Rocket League 등은 여기서 실패하는 게 정상입니다 (스팀에 없음)
         console.log(`   ❌ 매칭 실패`);
         skipped++; 
     } else {
@@ -179,7 +205,7 @@ async function seedMetadata() {
     await sleep(1500);
   }
 
-  console.log(`\n\n🎉 시딩 완료: ${saved}개 신규 저장 (이미 존재: ${existsCount}개, 실패/제외: ${skipped}개)`);
+  console.log(`\n\n🎉 시딩 완료: ${saved}개 신규 저장 (이미 존재: ${existsCount}개, 제외됨: ${skipped}개)`);
   process.exit(0);
 }
 
