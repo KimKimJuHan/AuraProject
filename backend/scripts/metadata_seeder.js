@@ -25,7 +25,6 @@ function isBadSteamName(name) {
 
 async function searchSteamApps(term) {
   try {
-    // 스팀 검색 API
     const res = await axios.get(
       `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`
     );
@@ -59,13 +58,13 @@ function scoreCandidate(data, originalTitle) {
   const name = data.name.toLowerCase();
   const t = originalTitle.toLowerCase();
   let score = 0;
-  if (name === t) score += 100; // 정확히 일치
+  if (name === t) score += 100;
   else if (name.includes(t)) score += 40;
   else if (t.includes(name)) score += 40;
   
   if (isBadSteamName(name)) score -= 200;
-  if (data.price_overview?.final !== undefined) score += 50; // 가격 정보 있으면 가산점
-  if (data.release_date?.date) score += 10; // 출시일 있으면 가산점
+  if (data.price_overview?.final !== undefined) score += 50; 
+  if (data.release_date?.date) score += 10; 
   
   return score;
 }
@@ -73,16 +72,13 @@ function scoreCandidate(data, originalTitle) {
 async function findBestSteamAppId(originalAppId, title) {
   const candidates = [];
   
-  // 1. ITAD가 준 ID로 먼저 조회
   const mainDetail = await getSteamDetails(originalAppId);
   if (mainDetail) candidates.push({ appId: originalAppId, data: mainDetail });
 
-  // 2. 제목으로 스팀 검색해서 후보군 추가
-  await sleep(500); // 검색 전 딜레이
+  await sleep(500); 
   const searched = await searchSteamApps(title);
   
   for (const item of searched) {
-    // 이미 찾은 거면 패스
     if (item.id == originalAppId) continue;
     const d = await getSteamDetails(item.id);
     if (d) candidates.push({ appId: item.id, data: d });
@@ -99,13 +95,13 @@ async function findBestSteamAppId(originalAppId, title) {
 
 async function seedMetadata() {
   await mongoose.connect(MONGODB_URI);
-  console.log("📌 DB 연결됨. 대규모 게임 목록 확보 시작...");
+  console.log("📌 DB 연결됨. 게임 목록 2000개 확보 및 갱신 시작...");
 
   let popular = [];
   try {
-    // ★ [핵심 수정] 인기 게임 수집량을 2500개로 대폭 증가
+    // ★ [핵심] 2000개 요청
     const res = await axios.get(`https://api.isthereanydeal.com/stats/most-popular/v1`, {
-      params: { key: ITAD_API_KEY, limit: 2500 } 
+      params: { key: ITAD_API_KEY, limit: 2000 } 
     });
     popular = res.data || [];
   } catch (e) {
@@ -113,11 +109,10 @@ async function seedMetadata() {
     process.exit(1);
   }
 
-  console.log(`🔥 ITAD 인기 게임 TOP 2500 로딩 완료. 스팀 매칭 시작...`);
+  console.log(`🔥 ITAD 인기 게임 TOP ${popular.length}개 로딩 완료. 하나씩 검증 시작...`);
   
   let saved = 0, skipped = 0;
 
-  // 순차 처리
   for (let i = 0; i < popular.length; i++) {
     const game = popular[i];
     const title = game.title;
@@ -125,13 +120,8 @@ async function seedMetadata() {
 
     if (isBadSteamName(title)) { skipped++; continue; }
 
-    // 이미 DB에 있는지 확인 (중복 매칭 방지)
-    const exists = await GameMetadata.findOne({ title: title });
-    if (exists) {
-        // console.log(`Pass: ${title}`);
-        continue; 
-    }
-
+    // ★ [수정] 기존에 있어도 건너뛰지 않고 무조건 최신 정보로 갱신 시도 (Skip 로직 제거됨)
+    
     let appId = null;
     try {
       const infoRes = await axios.get(`https://api.isthereanydeal.com/games/info/v2`, {
@@ -140,35 +130,38 @@ async function seedMetadata() {
       if (infoRes.data?.appid) appId = infoRes.data.appid;
     } catch {}
 
-    if (!appId) { skipped++; continue; }
+    // 앱ID가 없으면 검색 시도
+    if (!appId) { 
+       // ID가 없어도 findBestSteamAppId 내부에서 제목으로 검색하므로 그냥 진행
+    }
 
-    console.log(`[${i+1}/${popular.length}] 매칭 시도: ${title}...`);
+    console.log(`[${i+1}/${popular.length}] 처리 중: ${title}...`);
     
     const best = await findBestSteamAppId(appId, title);
     
     if (!best) { 
-        console.log(`   ❌ 매칭 실패`);
+        console.log(`   ❌ 스팀 매칭 실패 (제외됨)`);
         skipped++; 
     } else {
         await GameMetadata.findOneAndUpdate(
           { steamAppId: best.appId },
           {
             steamAppId: best.appId,
-            title: title, // ITAD 기준 영문 제목 저장
+            title: title, 
             itad: { uuid: rawItadId },
             lastUpdated: Date.now()
           },
           { upsert: true }
         );
         saved++;
-        console.log(`   ✅ 매칭 성공: ${best.data.name} (AppID: ${best.appId})`);
+        console.log(`   ✅ 확인 완료: ${best.data.name} (AppID: ${best.appId})`);
     }
 
-    // ★ [핵심] 스팀 API 차단 방지를 위한 1.5초 대기
+    // 차단 방지 딜레이
     await sleep(1500);
   }
 
-  console.log(`\n\n🎉 메타데이터 시딩 완료: ${saved}개 저장됨 (제외됨: ${skipped})`);
+  console.log(`\n\n🎉 시딩 완료: 총 ${saved}개 게임 확보 (매칭 실패: ${skipped}개)`);
   process.exit(0);
 }
 
