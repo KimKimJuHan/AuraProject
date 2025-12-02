@@ -6,15 +6,13 @@ const Game = require('../models/Game');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const { getQueryTags } = require('../utils/tagMapper'); // ★ 태그 매퍼 연결
+const { getQueryTags } = require('../utils/tagMapper');
 
 const STEAM_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
 
-// 태그 유사도 계산
 function calculateTagScore(gameTags, userTags) {
     if (!gameTags || !userTags || userTags.length === 0) return 0;
     const gameSet = new Set((gameTags || []).map(t => t.toLowerCase().trim()));
-    
     let matchCount = 0;
     userTags.forEach(tag => {
         if (gameSet.has(tag.toLowerCase())) matchCount++;
@@ -39,7 +37,7 @@ function parsePlaytime(playtimeStr) {
 router.post('/reco', async (req, res) => {
     const { term, liked = [], k = 12 } = req.body; 
 
-    // 1. 사용자 토큰 확인 (로그인 여부 및 스팀ID 확인)
+    // 1. 사용자 토큰 확인
     let userSteamId = null;
     const token = req.cookies?.token;
     if (token) {
@@ -53,21 +51,25 @@ router.post('/reco', async (req, res) => {
     try {
         let filter = {};
 
-        // 2. 보유 게임 제외 ($nin)
+        // 2. ★ 보유 게임 제외 로직 (수정됨)
         if (userSteamId && STEAM_API_KEY) {
             try {
                 const steamRes = await axios.get("http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/", {
-                    params: { key: STEAM_API_KEY, steamid: userSteamId, format: 'json' },
+                    params: { 
+                        key: STEAM_API_KEY, 
+                        steamid: userSteamId, 
+                        include_played_free_games: true, // ★ 핵심: 무료 게임(TF2 등)도 포함해서 가져옴 -> 제외 리스트에 추가
+                        format: 'json' 
+                    },
                     timeout: 2000
                 });
                 const ownedGames = steamRes.data?.response?.games || [];
                 const ownedAppIds = ownedGames.map(g => g.appid);
+                
                 if (ownedAppIds.length > 0) {
-                    filter.steam_appid = { $nin: ownedAppIds };
+                    filter.steam_appid = { $nin: ownedAppIds }; // 보유 게임 제외
                 }
-            } catch (steamErr) {
-                console.error("[스팀 연동 에러]", steamErr.message);
-            }
+            } catch (steamErr) { console.error("[스팀 연동 에러]", steamErr.message); }
         }
 
         // 3. 검색어 필터
@@ -76,7 +78,7 @@ router.post('/reco', async (req, res) => {
             filter.$or = [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }];
         }
 
-        // 4. 태그 필터 (AND 조건 - 교집합 검색)
+        // 4. 태그 필터 (AND 조건)
         if (liked && liked.length > 0) {
             const andConditions = liked.map(tag => {
                 const regexTags = getQueryTags(tag);
@@ -91,7 +93,7 @@ router.post('/reco', async (req, res) => {
             .limit(1000) 
             .lean();
 
-        // ★ 유효 태그 목록 추출 (동적 비활성화용)
+        // ★ 유효 태그 목록 추출
         const validTagsSet = new Set();
         candidates.forEach(game => {
             if (game.smart_tags) {
@@ -123,14 +125,13 @@ router.post('/reco', async (req, res) => {
             };
         });
 
-        // 7. 4가지 카테고리로 정렬 및 추출
+        // 7. 4가지 섹션 분류
         const limit = k * 2; 
         const overall = [...processedGames].sort((a, b) => b.sortData.overall - a.sortData.overall).slice(0, limit);
         const trend = [...processedGames].sort((a, b) => b.sortData.trend - a.sortData.trend).slice(0, limit);
         const playtime = [...processedGames].sort((a, b) => b.sortData.playtime - a.sortData.playtime).slice(0, limit);
         const tag = [...processedGames].sort((a, b) => b.sortData.tag - a.sortData.tag).slice(0, limit);
 
-        // ★ validTags 포함해서 반환
         res.json({ overall, trend, playtime, tag, validTags });
 
     } catch (err) {

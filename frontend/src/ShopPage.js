@@ -1,3 +1,5 @@
+// frontend/src/ShopPage.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
@@ -5,7 +7,6 @@ import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config'; 
 
-// ResponsiveContainer 제거 (오류 원인 방지), 직접 Chart 컴포넌트 사용
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const REVIEW_KO_MAP = {
@@ -40,7 +41,6 @@ const styles = {
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
   
-  // 차트 그리드 레이아웃 (반응형 문제 해결을 위해 Flex 사용)
   chartsGrid: { display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '40px', justifyContent: 'center' },
   chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   
@@ -185,7 +185,9 @@ function ShopPage({ region }) {
       } catch (error) { alert("투표 실패"); }
   };
 
-  const cleanHTML = (html) => DOMPurify.sanitize(html, { USE_PROFILES: { html: false } });
+  // ★ [수정됨] DOMPurify 기본 설정 사용 (태그 유지)
+  const cleanHTML = (html) => DOMPurify.sanitize(html);
+  
   const formatDate = (dateString) => {
       if (!dateString) return "정보 없음";
       const d = new Date(dateString);
@@ -194,31 +196,15 @@ function ShopPage({ region }) {
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
 
-  // ★ [핵심] 정규식을 사용하여 키워드 앞 줄바꿈 강제 적용 (텍스트 뭉침 해결)
+  // ★ [핵심] 원본 구조를 살리되 불필요한 제목만 제거
   const formatRequirements = (html) => {
       if (!html || html === "정보 없음") return "정보 없음";
       
       let safeHtml = cleanHTML(html);
 
-      // 1. 리스트 태그(ul, li)가 있는 경우 div로 변환 (기존 유지)
-      safeHtml = safeHtml.replace(/<ul[^>]*>/g, '<div class="req-list">');
-      safeHtml = safeHtml.replace(/<\/ul>/g, '</div>');
-      safeHtml = safeHtml.replace(/<li[^>]*>/g, '<div class="req-item">');
-      safeHtml = safeHtml.replace(/<\/li>/g, '</div>');
+      // "최소:", "권장:" 텍스트가 중복으로 나오는 경우만 제거 (탭으로 구분하므로)
+      safeHtml = safeHtml.replace(/<strong>\s*(최소|권장|Minimum|Recommended):?\s*<\/strong><br>/gi, '');
       
-      // 2. [강력한 해결책] 키워드(운영체제, 프로세서 등)를 찾아 앞에서 줄바꿈(<br>) 강제
-      // 한국어 및 영어 키워드 패턴 정의
-      const keywordsPattern = /(운영\s*체제|프로세서|메모리|그래픽|저장\s*공간|DirectX|사운드\s*카드|네트워크|추가\s*사항|OS|Processor|Memory|Graphics|Storage|Network|Sound Card|Additional Notes)/gi;
-
-      // 키워드 발견 시 줄바꿈(<br>) 후 강조 스타일(span.req-title) 적용
-      safeHtml = safeHtml.replace(keywordsPattern, '<br><span class="req-title">$1</span>');
-      
-      // 3. 불필요한 태그 및 중복 줄바꿈 정리
-      safeHtml = safeHtml.replace(/<br>\s*<br>/g, '<br>'); 
-      if (safeHtml.startsWith('<br>')) {
-          safeHtml = safeHtml.substring(4);
-      }
-
       return safeHtml;
   };
 
@@ -356,7 +342,6 @@ function ShopPage({ region }) {
 
         {historyData.length > 0 && (
             <div style={styles.chartsGrid}>
-                {/* ★ [차트] ResponsiveContainer 제거하고 고정 크기 사용 (오류 원천 차단) */}
                 <div style={styles.chartBox}>
                     <h3 className="net-section-title">📡 방송 시청자 트렌드</h3>
                     <div style={{ width: '500px', height: '250px', overflowX: 'auto', overflowY:'hidden' }}> 
@@ -400,40 +385,33 @@ function ShopPage({ region }) {
                     <button onClick={() => setReqTab('recommended')} style={reqTab === 'recommended' ? styles.reqTabButtonActive : styles.reqTabButton}>권장 사양</button>
                 </div>
                 
-                {/* ★ [CSS 주입] 사양 정보 스타일 수정 */}
+                {/* ★ [CSS 주입] 원본 리스트 구조를 살리는 스타일 적용 */}
                 <style>{`
                     .req-content {
                         font-size: 14px;
                         line-height: 1.6;
                         color: #acb2b8;
                     }
-                    .req-content .req-list { margin-top: 10px; }
-                    
-                    /* 각 항목이 블록으로 잡히도록 설정 */
-                    .req-content .req-item { 
-                        margin-bottom: 8px; 
-                        display: block; 
+                    /* 리스트 항목을 명확하게 분리 */
+                    .req-content ul { 
+                        padding-left: 0; 
+                        margin: 0; 
+                        list-style: none; /* 점 제거 */
                     }
-                    
-                    /* ★ [디자인] 항목 제목 (예: 운영체제, 그래픽 등) 스타일 */
-                    .req-content .req-title { 
+                    .req-content li { 
+                        margin-bottom: 8px; /* 항목 간 줄바꿈 효과 */
+                    }
+                    /* 강조된 항목 제목 (예: 운영체제, 프로세서) 스타일 */
+                    .req-content strong { 
                         color: #66c0f4; /* 스팀 스타일 하늘색 */
                         font-weight: bold; 
                         margin-right: 6px; 
-                        display: inline-block;
-                        margin-top: 5px;
                     }
-                    
-                    /* 줄바꿈 태그가 확실히 작동하고 간격을 갖도록 설정 */
-                    .req-content br { 
-                        display: block; 
-                        content: ""; 
-                        margin-bottom: 6px; 
+                    .req-content br {
+                        display: block;
+                        content: "";
+                        margin-bottom: 4px;
                     }
-                    
-                    /* 리스트 태그 초기화 */
-                    .req-content ul { padding: 0; margin: 0; list-style: none; }
-                    .req-content li { margin-bottom: 8px; display: block; }
                 `}</style>
 
                 <div className="req-content" style={{minHeight:'200px'}}>
