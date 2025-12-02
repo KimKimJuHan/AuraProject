@@ -6,7 +6,6 @@ import axios from 'axios';
 import "../styles/Recommend.css"; 
 import { API_BASE_URL } from '../config'; 
 
-// 인터넷 연결 없이도 보이는 회색 배경 이미지 (Base64)
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 const TAG_CATEGORIES = {
@@ -17,7 +16,6 @@ const TAG_CATEGORIES = {
   '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
 };
 
-// 개별 게임 카드
 function GameCard({ game }) {
     const [isWishlisted, setIsWishlisted] = useState(false);
     const [imgSrc, setImgSrc] = useState(game.thumb || FALLBACK_IMAGE);
@@ -47,10 +45,7 @@ function GameCard({ game }) {
                     src={imgSrc} 
                     className="thumb" 
                     alt={game.name} 
-                    onError={(e) => {
-                        e.target.onerror = null; 
-                        e.target.src = FALLBACK_IMAGE; 
-                    }}
+                    onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_IMAGE; }}
                 />
                 <div className="net-card-gradient"></div>
                 <button className="heart-btn" onClick={toggleWishlist}>
@@ -73,7 +68,6 @@ function GameCard({ game }) {
     );
 }
 
-// 섹션 컴포넌트
 function RecoSection({ title, games }) {
     const [expanded, setExpanded] = useState(false);
     if (!games || games.length === 0) return null;
@@ -105,6 +99,7 @@ function RecoSection({ title, games }) {
 function PersonalRecoPage({ user }) {
   const [term, setTerm] = useState("");
   const [picked, setPicked] = useState(new Set());
+  const [validTags, setValidTags] = useState([]); 
   const strict = false;
   const k = 12;
   
@@ -117,31 +112,27 @@ function PersonalRecoPage({ user }) {
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
 
+  // ★ 스팀 연동 체크
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
-        // ★ 여기서 400 에러가 나면 "연동 안됨"으로 처리해야 함
         const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
         
-        // 정상적으로 게임을 가져온 경우
+        // 성공 시 (DB에서 최신 스팀ID 확인됨)
         const sorted = (res.data || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
         setTopGames(sorted);
         setSteamStatus('LINKED');
     } catch (err) {
-        // ★ 에러 처리 강화
         if (err.response) {
             if (err.response.status === 400) {
-                // 400: 스팀 ID가 없음 -> "연동하기" 버튼 보여줌
+                // 400 = 스팀 ID 없음 = 연동 안 됨
                 setSteamStatus('NOT_LINKED');
             } else if (err.response.status === 403) {
-                // 403: 스팀 프로필 비공개
                 setSteamStatus('PRIVATE');
             } else {
-                console.error("Steam Check Error:", err);
                 setSteamStatus('ERROR');
             }
         } else {
-            console.error("Network Error:", err);
             setSteamStatus('NOT_LINKED');
         }
     }
@@ -151,15 +142,15 @@ function PersonalRecoPage({ user }) {
     if (user) checkSteamConnection();
     else setSteamStatus('GUEST');
     // eslint-disable-next-line
-  }, [user, urlSteamId]);
+  }, [user, urlSteamId]); // URL에 steamId가 있으면(연동 직후) 다시 체크
 
+  // 추천 데이터 로드
   useEffect(() => {
     const fetchReco = async () => {
         setErr("");
         setLoading(true);
         try {
           const liked = Array.from(picked);
-          // withCredentials: true 필수 (로그인 쿠키 전송용)
           const res = await axios.post(
               `${API_BASE_URL}/api/steam/reco`, 
               { term, liked, strict, k },
@@ -167,6 +158,8 @@ function PersonalRecoPage({ user }) {
           );
           setData(res.data);
           
+          if (res.data.validTags) setValidTags(res.data.validTags);
+
           if (!res.data.overall?.length && !res.data.trend?.length) {
               setErr("조건에 맞는 게임이 없습니다.");
           }
@@ -185,6 +178,10 @@ function PersonalRecoPage({ user }) {
   }, [picked, term]); 
 
   const toggle = (t) => {
+    const isSelected = picked.has(t);
+    // 선택된 게 있고 & 유효목록에 없고 & 선택 안 된 거면 클릭 막기
+    if (picked.size > 0 && !validTags.includes(t) && !isSelected) return;
+
     setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(t)) next.delete(t);
@@ -194,8 +191,20 @@ function PersonalRecoPage({ user }) {
   };
 
   const handleLinkSteam = () => { 
-      // ★ 새 창이 아니라 현재 창에서 이동 (모바일/브라우저 호환성)
       window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; 
+  };
+
+  // ★ 연동 해제 핸들러
+  const handleUnlinkSteam = async () => {
+      if (!window.confirm("정말 스팀 연동을 해제하시겠습니까?")) return;
+      try {
+          await axios.delete(`${API_BASE_URL}/api/user/steam`, { withCredentials: true });
+          alert("해제되었습니다.");
+          setSteamStatus('NOT_LINKED');
+          setTopGames([]);
+      } catch (e) {
+          alert("해제 실패");
+      }
   };
   
   const formatPlaytime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
@@ -213,7 +222,6 @@ function PersonalRecoPage({ user }) {
                 </div>
             ) : (
                 <>
-                    {/* ★ 400 에러가 나면 이 부분이 보여야 함 */}
                     {(steamStatus === 'NOT_LINKED' || steamStatus === 'ERROR') && (
                         <div className="steam-connect-box">
                             <span>스팀 계정을 연동하면 더 정확한 추천을 받습니다.</span>
@@ -223,7 +231,16 @@ function PersonalRecoPage({ user }) {
                     {steamStatus === 'PRIVATE' && <div className="steam-error">🔒 스팀 프로필이 비공개 상태입니다.</div>}
                     {steamStatus === 'LINKED' && (
                         <>
-                            <div className="steam-header"><h3 style={{margin:0, color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3></div>
+                            <div className="steam-header">
+                                <h3 style={{margin:0, color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3>
+                                {/* ★ 연동 해제 버튼 */}
+                                <button 
+                                    onClick={handleUnlinkSteam} 
+                                    style={{background:'none', border:'1px solid #555', color:'#aaa', fontSize:'12px', padding:'4px 8px', borderRadius:'4px', cursor:'pointer'}}
+                                >
+                                    연동 해제
+                                </button>
+                            </div>
                             <div className="steam-list">
                                 {topGames.map((g, i) => {
                                     const maxPlaytime = topGames[0].playtime_forever || 1;
@@ -262,9 +279,27 @@ function PersonalRecoPage({ user }) {
                 <div className="tag-group" key={group}>
                     <div className="tag-label">{group}</div>
                     <div className="tag-list">
-                        {list.map(t => (
-                            <div key={t} className={`tag-chip ${picked.has(t)?'on':''}`} onClick={()=>toggle(t)}>{t}</div>
-                        ))}
+                        {list.map(t => {
+                            const isSelected = picked.has(t);
+                            const isDisabled = picked.size > 0 && !validTags.includes(t) && !isSelected;
+
+                            return (
+                                <div 
+                                    key={t} 
+                                    className={`tag-chip ${isSelected ? 'on' : ''}`} 
+                                    onClick={() => toggle(t)}
+                                    style={isDisabled ? { 
+                                        opacity: 0.3, 
+                                        cursor: 'not-allowed', 
+                                        backgroundColor: '#222', 
+                                        color: '#555',
+                                        border: '1px solid #333'
+                                    } : {}}
+                                >
+                                    {t}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             ))}
