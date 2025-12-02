@@ -7,7 +7,7 @@ const Game = require("../models/Game");
 const axios = require("axios");
 const { authenticateToken } = require("../middleware/auth");
 
-// 1. 유저 정보
+// 1. 유저 정보 조회
 router.get("/info", authenticateToken, async (req, res) => {
     try {
         const user = await User.findById(req.user._id).select("-password");
@@ -16,7 +16,7 @@ router.get("/info", authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: "서버 오류" }); }
 });
 
-// 2. 유저 정보 수정
+// 2. 유저 정보 수정 (복구됨)
 router.put("/info", authenticateToken, async (req, res) => {
     const { username } = req.body;
     try {
@@ -27,7 +27,7 @@ router.put("/info", authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: "오류 발생" }); }
 });
 
-// 3. 태그 저장
+// 3. 태그 저장 (복구됨)
 router.post("/tags", authenticateToken, async (req, res) => {
     const { tags } = req.body;
     try {
@@ -38,19 +38,18 @@ router.post("/tags", authenticateToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: "오류 발생" }); }
 });
 
-// 4. ★ 스팀 라이브러리 조회 (로그 강화)
+// 4. 스팀 라이브러리 조회 (DB 최신정보 확인)
 router.get('/games', authenticateToken, async (req, res) => {
-    const steamId = req.user.steamId;
-    const STEAM_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
-
-    console.log(`[스팀 조회 요청] User: ${req.user.username}, SteamID: ${steamId}`);
-
-    if (!steamId) {
-        // ★ 400 에러는 "연동 안됨" 의미이므로 에러가 아님 (클라이언트가 처리)
-        return res.status(400).json({ message: "스팀 계정 미연동" });
-    }
-
     try {
+        // ★ 중요: 토큰 대신 DB에서 최신 스팀ID 조회 (연동 직후 반영 위해)
+        const user = await User.findById(req.user._id);
+        const steamId = user.steamId;
+        const STEAM_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
+
+        if (!steamId) {
+            return res.status(400).json({ message: "스팀 계정 미연동" });
+        }
+
         const response = await axios.get(
             "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/",
             {
@@ -65,12 +64,11 @@ router.get('/games', authenticateToken, async (req, res) => {
         );
 
         const games = response.data?.response?.games || [];
-        console.log(`[스팀 API] ${games.length}개 게임 발견`);
-
+        
+        // 플레이타임 순 정렬 및 상위 50개 추출
         const sortedGames = games.sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 50);
         const appIds = sortedGames.map(g => g.appid); 
 
-        // DB에서 스마트 태그 매칭
         const localGames = await Game.find({ steam_appid: { $in: appIds } }).select("steam_appid smart_tags").lean();
 
         const enrichedGames = sortedGames.map(g => {
@@ -92,17 +90,17 @@ router.get('/games', authenticateToken, async (req, res) => {
     }
 });
 
-// 5. 스팀 해제
+// 5. ★ 스팀 연동 해제 (복구됨)
 router.delete("/steam", authenticateToken, async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
-        user.steamId = undefined;
+        user.steamId = null; // 초기화
         await user.save();
         res.json({ message: "해제됨", user });
     } catch (error) { res.status(500).json({ message: "오류" }); }
 });
 
-// 6. 찜 목록
+// 6. 찜 목록 (기존 유지)
 router.get("/wishlist", authenticateToken, async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
