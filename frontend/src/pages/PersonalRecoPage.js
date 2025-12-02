@@ -1,8 +1,13 @@
+// frontend/src/pages/PersonalRecoPage.js
+
 import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axios from 'axios'; 
-import "../styles/Recommend.css"; // ★ 경로 수정됨
+import "../styles/Recommend.css"; 
 import { API_BASE_URL } from '../config'; 
+
+// 인터넷 연결 없이도 보이는 회색 배경 이미지 (Base64)
+const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
@@ -12,13 +17,16 @@ const TAG_CATEGORIES = {
   '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
 };
 
+// 개별 게임 카드
 function GameCard({ game }) {
     const [isWishlisted, setIsWishlisted] = useState(false);
+    const [imgSrc, setImgSrc] = useState(game.thumb || FALLBACK_IMAGE);
 
     useEffect(() => {
         const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
         setIsWishlisted(wishlist.includes(game.slug));
-    }, [game.slug]);
+        setImgSrc(game.thumb || FALLBACK_IMAGE); 
+    }, [game.slug, game.thumb]);
 
     const toggleWishlist = (e) => {
         e.preventDefault();
@@ -35,7 +43,15 @@ function GameCard({ game }) {
     return (
         <Link to={`/game/${game.slug || `steam-${game.appid}`}`} className="game-card">
             <div className="thumb-wrapper">
-                <img src={game.thumb} className="thumb" alt="" onError={(e)=>e.target.src="https://via.placeholder.com/300x169?text=No+Image"}/>
+                <img 
+                    src={imgSrc} 
+                    className="thumb" 
+                    alt={game.name} 
+                    onError={(e) => {
+                        e.target.onerror = null; 
+                        e.target.src = FALLBACK_IMAGE; 
+                    }}
+                />
                 <div className="net-card-gradient"></div>
                 <button className="heart-btn" onClick={toggleWishlist}>
                     {isWishlisted ? '❤️' : '🤍'}
@@ -50,10 +66,39 @@ function GameCard({ game }) {
                     </span>
                     <span className="game-playtime">⏳ {game.playtime}</span>
                 </div>
-                <div style={{fontSize:'11px', color:'#888', marginBottom:'4px'}}>일치도 {game.score}%</div>
+                <div style={{fontSize:'11px', color:'#888', marginBottom:'4px'}}>추천 점수 {game.score}</div>
                 <div className="score-bar"><div style={{width:`${game.score}%`}}></div></div>
             </div>
         </Link>
+    );
+}
+
+// 섹션 컴포넌트
+function RecoSection({ title, games }) {
+    const [expanded, setExpanded] = useState(false);
+    if (!games || games.length === 0) return null;
+
+    const displayGames = expanded ? games : games.slice(0, 4);
+
+    return (
+        <div style={{ marginBottom: '50px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'15px', borderBottom:'1px solid #333', paddingBottom:'10px' }}>
+                <h3 style={{ margin:0, fontSize:'22px', color:'#e50914' }}>{title}</h3>
+                {games.length > 4 && (
+                    <button 
+                        onClick={() => setExpanded(!expanded)}
+                        style={{ background:'none', border:'none', color:'#ccc', cursor:'pointer', textDecoration:'underline' }}
+                    >
+                        {expanded ? '접기' : '더보기 +'}
+                    </button>
+                )}
+            </div>
+            <div className="game-grid">
+                {displayGames.map((g, i) => (
+                    <GameCard key={g._id || i} game={g} />
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -63,7 +108,7 @@ function PersonalRecoPage({ user }) {
   const strict = false;
   const k = 12;
   
-  const [data, setData] = useState(null);
+  const [data, setData] = useState({ overall: [], trend: [], playtime: [], tag: [] });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -75,12 +120,30 @@ function PersonalRecoPage({ user }) {
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
+        // ★ 여기서 400 에러가 나면 "연동 안됨"으로 처리해야 함
         const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
+        
+        // 정상적으로 게임을 가져온 경우
         const sorted = (res.data || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
         setTopGames(sorted);
         setSteamStatus('LINKED');
     } catch (err) {
-        setSteamStatus(err.response?.status === 403 ? 'PRIVATE' : 'NOT_LINKED');
+        // ★ 에러 처리 강화
+        if (err.response) {
+            if (err.response.status === 400) {
+                // 400: 스팀 ID가 없음 -> "연동하기" 버튼 보여줌
+                setSteamStatus('NOT_LINKED');
+            } else if (err.response.status === 403) {
+                // 403: 스팀 프로필 비공개
+                setSteamStatus('PRIVATE');
+            } else {
+                console.error("Steam Check Error:", err);
+                setSteamStatus('ERROR');
+            }
+        } else {
+            console.error("Network Error:", err);
+            setSteamStatus('NOT_LINKED');
+        }
     }
   };
 
@@ -96,10 +159,21 @@ function PersonalRecoPage({ user }) {
         setLoading(true);
         try {
           const liked = Array.from(picked);
-          const res = await axios.post(`${API_BASE_URL}/api/steam/reco`, { term, liked, strict, k });
+          // withCredentials: true 필수 (로그인 쿠키 전송용)
+          const res = await axios.post(
+              `${API_BASE_URL}/api/steam/reco`, 
+              { term, liked, strict, k },
+              { withCredentials: true } 
+          );
           setData(res.data);
-          if (!res.data.items?.length) setErr("조건에 맞는 게임이 없습니다.");
-        } catch (e) { setErr("데이터 로딩 실패"); } 
+          
+          if (!res.data.overall?.length && !res.data.trend?.length) {
+              setErr("조건에 맞는 게임이 없습니다.");
+          }
+        } catch (e) { 
+            console.error(e);
+            setErr("데이터 로딩 실패"); 
+        } 
         finally { setLoading(false); }
     };
 
@@ -119,7 +193,11 @@ function PersonalRecoPage({ user }) {
     });
   };
 
-  const handleLinkSteam = () => { window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; };
+  const handleLinkSteam = () => { 
+      // ★ 새 창이 아니라 현재 창에서 이동 (모바일/브라우저 호환성)
+      window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; 
+  };
+  
   const formatPlaytime = (m) => m < 60 ? `${m}분` : `${Math.floor(m/60)}시간`;
 
   return (
@@ -135,7 +213,8 @@ function PersonalRecoPage({ user }) {
                 </div>
             ) : (
                 <>
-                    {steamStatus === 'NOT_LINKED' && (
+                    {/* ★ 400 에러가 나면 이 부분이 보여야 함 */}
+                    {(steamStatus === 'NOT_LINKED' || steamStatus === 'ERROR') && (
                         <div className="steam-connect-box">
                             <span>스팀 계정을 연동하면 더 정확한 추천을 받습니다.</span>
                             <button onClick={handleLinkSteam} className="search-btn">🎮 Steam 연동</button>
@@ -151,7 +230,7 @@ function PersonalRecoPage({ user }) {
                                     const percent = Math.min(100, (g.playtime_forever / maxPlaytime) * 100);
                                     return (
                                         <div key={i} className="steam-card">
-                                            <img src={`http://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`} className="steam-game-icon" alt="" onError={(e)=>e.target.src="https://via.placeholder.com/32"}/>
+                                            <img src={`http://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`} className="steam-game-icon" alt="" onError={(e)=>e.target.src=FALLBACK_IMAGE}/>
                                             <div className="steam-info-col">
                                                 <div className="steam-row-top">
                                                     <span className="steam-game-name" title={g.name}>{g.name}</span>
@@ -198,16 +277,13 @@ function PersonalRecoPage({ user }) {
               분석 중...
           </div>
       ) : (
-        data?.items && (
-            <div className="result-panel">
-            <h2>✨ 추천 결과 ({data.items.length}개)</h2>
-            <div className="game-grid">
-                {data.items.map((g, i) => (
-                <GameCard key={g._id || i} game={g} />
-                ))}
-            </div>
-            </div>
-        )
+        <div className="result-panel">
+            <h2>✨ 추천 결과</h2>
+            <RecoSection title="🌟 종합 추천 (BEST)" games={data.overall} />
+            <RecoSection title="🔥 지금 뜨는 트렌드" games={data.trend} />
+            <RecoSection title="🎯 선택하신 취향 저격" games={data.tag} />
+            <RecoSection title="⏳ 플레이 타임 보장 명작" games={data.playtime} />
+        </div>
       )}
       {!loading && err && <div className="error-box">{err}</div>}
     </div>
