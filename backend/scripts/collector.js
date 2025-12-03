@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: 대량 수집용 안정화 버전 (랜덤 딜레이 + 배치 처리)
+// 기능: 대량 수집용 안정화 버전 (HLTB 로딩 대기 최적화 V9 적용)
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -321,7 +321,7 @@ async function collectGamesData() {
           const priceInfo = await fetchPriceInfo(metadata.steamAppId, data, metadata);
           const steamReviews = await getSteamReviews(metadata.steamAppId);
 
-          // HLTB 플레이타임 (V5 로직)
+          // HLTB 플레이타임 (V9 로직 - 안정성 강화)
           let playTime = '정보 없음';
           if (hltbLoaded) {
               try {
@@ -332,45 +332,61 @@ async function collectGamesData() {
                     if (match) steamYear = parseInt(match[1]);
                 }
 
-                await page.goto(`https://howlongtobeat.com/?q=${encodeURIComponent(cleanName)}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
-                
-                try {
-                    await page.waitForFunction(() => {
-                        const txt = document.body.innerText;
-                        return txt.includes("We couldn't find anything") || document.querySelector('ul') || txt.includes('No results');
-                    }, { timeout: 8000 });
-                } catch {}
-                
-                const result = await page.evaluate((targetYear) => {
-                    let candidates = Array.from(document.querySelectorAll('li'));
-                    if (candidates.length < 2) candidates = Array.from(document.querySelectorAll('div[class*="GameCard"]'));
+                // 여러 검색어로 시도 (cleanName, 원본 등)
+                const searchQueries = [cleanName, metadata.title, data.name].filter(q => q && q.length > 1);
+                const uniqueQueries = [...new Set(searchQueries)];
 
-                    const validCards = candidates.filter(el => {
-                        const text = el.innerText;
-                        return (text.includes('Hours') || text.includes('Mins')) && !text.includes('We Found');
-                    });
-                    if (validCards.length === 0) return null;
+                for (const query of uniqueQueries) {
+                    try {
+                        await page.goto(`https://howlongtobeat.com/?q=${encodeURIComponent(query)}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+                        
+                        // ★ [핵심 수정] 텍스트 대신 CSS 선택자 대기로 변경 (로딩 안정화)
+                        // .search_list가 뜰 때까지 최대 15초 대기
+                        try {
+                            await page.waitForSelector('ul.search_list, .search_list_details', { timeout: 15000 });
+                        } catch (e) {
+                            // 리스트가 없으면, 'We couldn't find anything' 텍스트 확인 (빠른 실패)
+                            try { await page.waitForFunction(() => document.body.innerText.includes("We couldn't find anything"), { timeout: 3000 }); } catch {}
+                        }
+                        
+                        const result = await page.evaluate((targetYear) => {
+                            let candidates = Array.from(document.querySelectorAll('li'));
+                            if (candidates.length < 2) candidates = Array.from(document.querySelectorAll('div[class*="GameCard"]'));
 
-                    let targetCard = validCards[0];
-                    if (targetYear) {
-                        const yearMatch = validCards.find(card => {
-                            const matches = card.innerText.match(/(\d{4})/g);
-                            return matches && matches.some(y => Math.abs(parseInt(y) - targetYear) <= 1);
-                        });
-                        if (yearMatch) targetCard = yearMatch;
+                            const validCards = candidates.filter(el => {
+                                const text = el.innerText;
+                                return (text.includes('Hours') || text.includes('Mins')) && !text.includes('We Found');
+                            });
+                            if (validCards.length === 0) return null;
+
+                            let targetCard = validCards[0];
+                            if (targetYear) {
+                                const yearMatch = validCards.find(card => {
+                                    const matches = card.innerText.match(/(\d{4})/g);
+                                    return matches && matches.some(y => Math.abs(parseInt(y) - targetYear) <= 1);
+                                });
+                                if (yearMatch) targetCard = yearMatch;
+                            }
+
+                            const rawText = targetCard.innerText.replace(/\n/g, ' ');
+                            function extractTime(label) {
+                                const regex = new RegExp(`${label}.*?([0-9½\.]+)\\s*(Hours|Hour|Mins|h)`, 'i');
+                                const m = rawText.match(regex);
+                                if (m) return `${m[1].replace('½', '.5')} ${m[2]}`.replace('Hours', '시간').replace('Hour', '시간').replace('Mins', '분').replace('h', '시간');
+                                return null;
+                            }
+                            return (extractTime('Main Story') || extractTime('Main + Extra') || extractTime('Co-Op') || extractTime('Multiplayer') || extractTime('Versus') || extractTime('All Styles'));
+                        }, steamYear);
+
+                        if (result) {
+                            playTime = result;
+                            break; // 성공하면 루프 종료
+                        }
+                    } catch (e) { 
+                        // 개별 쿼리 실패 시 다음 쿼리로 계속 진행
                     }
-
-                    const rawText = targetCard.innerText.replace(/\n/g, ' ');
-                    function extractTime(label) {
-                        const regex = new RegExp(`${label}.*?([0-9½\.]+)\\s*(Hours|Hour|Mins|h)`, 'i');
-                        const m = rawText.match(regex);
-                        if (m) return `${m[1].replace('½', '.5')} ${m[2]}`.replace('Hours', '시간').replace('Hour', '시간').replace('Mins', '분').replace('h', '시간');
-                        return null;
-                    }
-                    return (extractTime('Main Story') || extractTime('Main + Extra') || extractTime('Co-Op') || extractTime('Multiplayer') || extractTime('Versus') || extractTime('All Styles'));
-                }, steamYear);
-
-                if (result) playTime = result;
+                    await sleep(1000); // 쿼리 간 딜레이
+                }
               } catch (e) { }
           }
 
