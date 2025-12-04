@@ -10,9 +10,12 @@ const gameSchema = new mongoose.Schema({
   main_image: { type: String },
   description: { type: String },
   
-  // ★ 태그 검색을 위한 인덱스 추가 (성능 향상)
+  // ★ 성인 게임 여부 (기본값 false)
+  isAdult: { type: Boolean, default: false },
+
   smart_tags: { type: [String], index: true },
 
+  // 트렌드 점수 (이걸로 인기순 정렬)
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
   chzzk_viewers: { type: Number, default: 0 },
@@ -61,9 +64,8 @@ const gameSchema = new mongoose.Schema({
   trailers: [String],
   play_time: { type: String, default: "정보 없음" },
   
-  // ★ 평점 필드
   metacritic_score: { type: Number, default: 0 },
-  igdb_score: { type: Number, default: 0 }, // 새로 추가
+  igdb_score: { type: Number, default: 0 },
 
   votes: [{ identifier: String, type: { type: String, enum: ['like', 'dislike'] }, date: { type: Date, default: Date.now } }],
   likes_count: { type: Number, default: 0 },
