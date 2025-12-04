@@ -35,16 +35,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.set('trust proxy', 1);
 
-// ★ 세션 설정 수정 (리다이렉트 시 유지력 강화)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret_key_aura',
-    resave: false, // 불필요한 저장 방지
-    saveUninitialized: false, // 빈 세션 저장 방지
+    resave: false, 
+    saveUninitialized: false, 
     cookie: { 
-        secure: false, // http(로컬) 환경에서는 반드시 false
+        secure: false, 
         httpOnly: true,
-        sameSite: 'lax', // 리다이렉트 후에도 쿠키 전송 허용
-        maxAge: 1000 * 60 * 30 // 30분
+        sameSite: 'lax', 
+        maxAge: 1000 * 60 * 30 
     }
 }));
 
@@ -105,19 +104,23 @@ app.get('/api/games/:id/history', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
+// ★ [핵심 수정] 메인 페이지 추천 로직 (성인 필터 + 트렌드 정렬)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body;
   const limit = 15;
   const skip = (page - 1) * limit;
 
   try {
-    const filter = {};
+    // 1. 기본 필터: 성인 게임 제외 (isAdult가 true가 아닌 것만)
+    const filter = { isAdult: { $ne: true } };
+
     if (tags && tags.length > 0) {
         const andConditions = tags.map(tag => ({ smart_tags: { $in: getQueryTags(tag) } }));
         filter.$and = andConditions;
     }
     if (searchQuery) {
         const q = searchQuery.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        // 검색 시에는 필터를 유지할지 말지 결정 (현재: 유지)
         filter.$or = [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }];
     }
 
@@ -127,15 +130,28 @@ app.post('/api/recommend', async (req, res) => {
         if (g.smart_tags) g.smart_tags.forEach(t => validTagsSet.add(t));
     });
 
-    let sortRule = { popularity: -1, _id: -1 };
-    if (sortBy === 'discount') { sortRule = { 'price_info.discount_percent': -1 }; filter['price_info.discount_percent'] = { $gt: 0 }; }
-    else if (sortBy === 'new') sortRule = { releaseDate: -1 };
-    else if (sortBy === 'price') { sortRule = { 'price_info.current_price': 1 }; filter['price_info.current_price'] = { $gte: 0 }; }
+    // 2. 정렬 기준 수정 (popularity -> trend_score)
+    let sortRule = { trend_score: -1, _id: -1 };
+    
+    if (sortBy === 'discount') { 
+        sortRule = { 'price_info.discount_percent': -1 }; 
+        filter['price_info.discount_percent'] = { $gt: 0 }; 
+    }
+    else if (sortBy === 'new') {
+        sortRule = { releaseDate: -1 };
+    }
+    else if (sortBy === 'price') { 
+        sortRule = { 'price_info.current_price': 1 }; 
+        filter['price_info.current_price'] = { $gte: 0 }; 
+    }
 
     const games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit).lean();
 
     if (allMatches.length === 0 && !searchQuery && (!tags || tags.length === 0)) {
-        const popGames = await Game.find({}).sort({ popularity: -1 }).limit(20).lean();
+        // 태그 선택 없고 결과도 없으면 트렌드 순으로 기본 추천 (성인 제외)
+        const popGames = await Game.find({ isAdult: { $ne: true } })
+                                   .sort({ trend_score: -1 })
+                                   .limit(20).lean();
         return res.status(200).json({ games: popGames, totalPages: 1, validTags: [] });
     }
 
@@ -150,7 +166,10 @@ app.post('/api/recommend', async (req, res) => {
 app.get('/api/search/autocomplete', async (req, res) => {
     const q = req.query.q?.trim();
     if (!q) return res.json([]);
-    const suggestions = await Game.find({ $or: [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }] }).select('title title_ko slug').limit(10).lean();
+    const suggestions = await Game.find({ 
+        $or: [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }],
+        isAdult: { $ne: true } // 자동완성에서도 성인 게임 제외
+    }).select('title title_ko slug').limit(10).lean();
     res.json(suggestions);
 });
 
