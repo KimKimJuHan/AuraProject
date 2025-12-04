@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: 스마트 업데이트 (신규 게임은 풀 수집, 기존 게임은 트렌드/가격/누락정보만 갱신)
+// 기능: 최종 완전체 (스마트 업데이트 + 성인 필터 + HLTB 안정화 + 브라우저 재사용)
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -30,6 +30,17 @@ const STEAM_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=english;'
 };
+
+// ★ [기능] 성인 게임 판별 함수
+function checkIfAdult(data, tags) {
+    if (data.required_age >= 18) return true;
+    const adultKeywords = ['Nudity', 'Sexual Content', 'Hentai', 'NSFW', 'Mature', 'Adult', 'Sexual Violence'];
+    const hasAdultTag = tags.some(tag => adultKeywords.some(keyword => tag.toLowerCase() === keyword.toLowerCase()));
+    if (hasAdultTag) return true;
+    const title = (data.name || "").toLowerCase();
+    if (title.includes("hentai") || title.includes("sex") || title.includes("nude")) return true;
+    return false;
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -248,20 +259,15 @@ async function fetchPriceInfo(originalAppId, initialSteamData, metadata) {
   };
 }
 
-// ==========================================
-// ★ 메인 수집 함수 (스마트 업데이트 버전)
-// ==========================================
 async function collectGamesData() {
   await mongoose.connect(MONGODB_URI);
-  console.log('✅ DB Connected. 스마트 수집/업데이트 시작...');
+  console.log('✅ DB Connected. 스마트 수집/업데이트 + 성인 필터링 시작...');
 
-  // 1. 현재 DB에 존재하는 게임 목록 확인 (빠른 조회용 Map 생성)
-  const existingGames = await Game.find({}).select('steam_appid play_time').lean();
+  const existingGames = await Game.find({}).select('steam_appid play_time isAdult').lean();
   const existingGameMap = new Map();
   existingGames.forEach(g => existingGameMap.set(g.steam_appid, g));
   console.log(`📂 기존 DB 게임 수: ${existingGameMap.size}개`);
 
-  // 2. 전체 메타데이터 가져오기
   const metadatas = await GameMetadata.find({});
   if (!metadatas.length) { console.log('⚠️ GameMetadata 비어 있음.'); process.exit(0); }
 
@@ -300,12 +306,11 @@ async function collectGamesData() {
           const steamId = metadata.steamAppId;
           const existingData = existingGameMap.get(steamId);
           
-          // ★ 판단 로직: 신규 게임인가? 아니면 플레이타임 누락인가?
           const isNewGame = !existingData;
           const isMissingPlaytime = existingData && (existingData.play_time === '정보 없음' || !existingData.play_time);
           
-          // 스팀 API는 가격/기본정보 확인 위해 항상 호출 (단, 기존 게임은 딜레이 줄여도 됨)
-          const delay = isNewGame ? (Math.floor(Math.random() * 2000) + 1500) : 1200; // 신규: 1.5~3.5초, 기존: 1.2초 고정
+          // 기존 게임은 딜레이 최소화, 신규 게임은 안전 딜레이
+          const delay = isNewGame ? (Math.floor(Math.random() * 2000) + 1500) : 1000; 
           await sleep(delay);
           
           const steamRes = await axios.get(
@@ -314,13 +319,8 @@ async function collectGamesData() {
           );
           const data = steamRes.data?.[steamId]?.data;
           
-          // 데이터가 없거나 유효하지 않으면 스킵 (단, 기존 데이터가 있으면 유지해야 하므로 주의)
           if (!data && !existingData) continue; 
           
-          // ---------------------------------------------------------
-          // 1. 스팀 상점 태그/이미지 크롤링 (Puppeteer)
-          // -> 신규 게임일 때만 수행 (기존 게임은 태그가 잘 안 바뀌므로 패스)
-          // ---------------------------------------------------------
           let scrapedTags = [];
           if (isNewGame && data) {
               const lowerName = (data.name || '').toLowerCase();
@@ -341,22 +341,14 @@ async function collectGamesData() {
               } catch (e) { }
           }
 
-          // ---------------------------------------------------------
-          // 2. 부가 정보 (트렌드, CCU, 가격) -> ★ 항상 업데이트 (핵심)
-          // ---------------------------------------------------------
           const categoryData = await GameCategory.findOne({ steamAppId: steamId }).lean();
           const trends = await getTrendStats(steamId, categoryData);
           const steamCCU = await getSteamCCU(steamId);
           const trendScore = calculateTrendScore(trends, steamCCU);
           
-          // 가격 정보는 스팀 데이터(data)가 없으면 기존 것 유지하거나 0 처리
           const priceInfo = data ? await fetchPriceInfo(steamId, data, metadata) : (existingData?.price_info || {});
           const steamReviews = await getSteamReviews(steamId);
 
-          // ---------------------------------------------------------
-          // 3. HLTB 플레이타임 (Puppeteer)
-          // -> 신규 게임이거나, 기존 게임인데 플레이타임이 없을 때만 수행
-          // ---------------------------------------------------------
           let playTime = existingData?.play_time || '정보 없음';
           
           if (hltbLoaded && (isNewGame || isMissingPlaytime)) {
@@ -422,9 +414,6 @@ async function collectGamesData() {
               } catch (e) { }
           }
 
-          // ---------------------------------------------------------
-          // 4. DB 저장 / 업데이트
-          // ---------------------------------------------------------
           const updateData = {
               trend_score: trendScore,
               twitch_viewers: trends.twitch.value || 0,
@@ -436,11 +425,13 @@ async function collectGamesData() {
               lastUpdated: new Date()
           };
 
-          // 신규 게임이거나 데이터가 있는 경우 기본 정보도 업데이트 (없으면 기존 유지)
           if (data) {
               const rawTags = scrapedTags.length > 0 ? scrapedTags : [...(data.genres || []).map((g) => g.description), ...(data.categories || []).map((c) => c.description)];
               const smart_tags = mapSteamTags(rawTags);
               
+              // ★ 성인 여부 판별
+              const isAdult = checkIfAdult(data, rawTags);
+
               Object.assign(updateData, {
                   slug: `steam-${steamId}`,
                   steam_appid: steamId,
@@ -448,7 +439,8 @@ async function collectGamesData() {
                   title_ko: (categoryData?.chzzk?.categoryValue || data.name).replace(/_/g, ' '),
                   main_image: data.header_image,
                   description: data.short_description,
-                  smart_tags: smart_tags, // 태그는 스팀 API 데이터로도 충분
+                  smart_tags: smart_tags,
+                  isAdult: isAdult, 
                   releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월/g, '-').replace(/일/g, '')) : undefined,
                   metacritic_score: data.metacritic?.score || 0,
                   screenshots: (data.screenshots || []).map(s => s.path_full),
@@ -465,7 +457,6 @@ async function collectGamesData() {
             { upsert: true }
           );
 
-          // 트렌드 히스토리는 항상 기록
           await new TrendHistory({
             steam_appid: steamId, trend_score: trendScore,
             twitch_viewers: trends.twitch.value || 0, chzzk_viewers: trends.chzzk.value || 0, steam_ccu: steamCCU,
@@ -474,7 +465,8 @@ async function collectGamesData() {
 
           processedCount++;
           const status = isNewGame ? "✨ 신규" : (isMissingPlaytime ? "🔧 보강" : "🔄 갱신");
-          console.log(`✅ [${status}] ${metadata.title} | Time=${playTime} | CCU=${steamCCU}`);
+          const adultMark = updateData.isAdult ? "🔞" : "";
+          console.log(`✅ [${status}] ${metadata.title} ${adultMark} | Time=${playTime} | Trend=${trendScore}`);
           
         } catch (e) { console.error(`❌ 처리 실패: ${metadata.steamAppId}`, e.message); }
       }
