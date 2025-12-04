@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: 브라우저 주기적 재시작으로 GitHub Actions 메모리 부족 해결
+// 기능: 브라우저 주기적 재시작 + 날짜 파싱 오류 해결 + 트렌드/가격 업데이트
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -25,6 +25,24 @@ const STEAM_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=english;'
 };
+
+// ★ [추가] 안전한 날짜 파싱 함수 (Invalid Date 방지)
+function parseSafeDate(dateStr) {
+    if (!dateStr) return undefined;
+    
+    // 1. 한국어 날짜 포맷 변환 ("2024년 5월 1일" -> "2024-5-1")
+    const cleanStr = dateStr.replace(/년|월/g, '-').replace(/일/g, '').trim();
+    
+    // 2. 날짜 객체 생성
+    const date = new Date(cleanStr);
+    
+    // 3. 유효성 검사 (Invalid Date 체크)
+    if (isNaN(date.getTime())) {
+        // 날짜가 아닌 문자열("Coming Soon", "TBA" 등)일 경우 undefined 반환 (DB 저장 생략)
+        return undefined;
+    }
+    return date;
+}
 
 function checkIfAdult(data, tags) {
     if (data.required_age >= 18) return true;
@@ -58,7 +76,6 @@ function findChromePath() {
 function cleanGameTitle(title) {
   if (!title) return '';
   let clean = title.replace(/[™®©]/g, '');
-  // ... 기존 정규식 유지 ...
   const patterns = [
     /Game of the Year Edition/gi, /GOTY Edition/gi, /GOTY/gi,
     /Definitive Edition/gi, /Enhanced Edition/gi, /Director's Cut/gi,
@@ -92,9 +109,6 @@ async function getTwitchToken() {
     twitchToken = res.data.access_token;
   } catch {}
 }
-
-// ... getSteamCCU, getSteamReviews, getTrendStats, calculateTrendScore, fetchPriceInfo 등 기존 함수들은 그대로 유지 ...
-// (지면 관계상 생략하지 않고, 사용자가 복붙하기 편하게 아래에 전체 로직을 포함합니다.)
 
 async function getSteamCCU(appId) {
   try {
@@ -181,7 +195,7 @@ async function fetchPriceInfo(originalAppId, initialSteamData, metadata) {
 }
 
 // ----------------------------------------------------------------------------
-// ★ 핵심 수정: 브라우저 생명주기 관리 및 재시작 로직
+// 메인 수집 로직
 // ----------------------------------------------------------------------------
 async function collectGamesData() {
   await mongoose.connect(MONGODB_URI);
@@ -201,24 +215,18 @@ async function collectGamesData() {
   const batches = chunkArray(metadatas, BATCH_SIZE);
   let processedCount = 0;
 
-  // 브라우저 관련 변수
   let browser = null;
   let page = null;
 
-  // 브라우저 켜는 함수
   const launchBrowser = async () => {
       if (browser) await browser.close().catch(() => {});
       browser = await puppeteer.launch({
           executablePath: chromePath,
           headless: 'new',
-          // args 최적화 (CI 환경용)
           args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--single-process']
       });
       page = await browser.newPage();
       await page.setUserAgent(STEAM_HEADERS['User-Agent']);
-      console.log("🖥️ 브라우저 시작됨");
-      
-      // HLTB 미리 접속
       try {
           await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
       } catch(e) {}
@@ -230,7 +238,6 @@ async function collectGamesData() {
     const batch = batches[i];
     console.log(`\n🔄 Batch ${i + 1}/${batches.length} 진행 중...`);
 
-    // ★ [핵심] 20 배치(약 100개 게임)마다 브라우저 재시작 (메모리 누수 방지)
     if (i > 0 && i % 20 === 0) {
         console.log("♻️ 메모리 정리를 위해 브라우저 재시작...");
         await launchBrowser();
@@ -251,7 +258,6 @@ async function collectGamesData() {
           if (!data && !existingData) continue; 
           
           let scrapedTags = [];
-          // 신규 게임 태그 스크래핑 (에러나도 죽지 않게 try-catch)
           if (isNewGame && data && page) {
               try {
                   const lowerName = (data.name || '').toLowerCase();
@@ -261,7 +267,7 @@ async function collectGamesData() {
                       if (ageGate) { await page.select('#ageYear', '2000'); await page.click('.btnv6_blue_hoverfade_btn').catch(()=>{}); await page.waitForNavigation({timeout:5000}).catch(()=>{}); }
                       scrapedTags = await page.evaluate(() => Array.from(document.querySelectorAll('.app_tag')).map(el => el.innerText.trim()));
                   }
-              } catch (e) { } // 태그 못 가져와도 진행
+              } catch (e) { } 
           }
 
           const categoryData = await GameCategory.findOne({ steamAppId: steamId }).lean();
@@ -273,7 +279,6 @@ async function collectGamesData() {
 
           let playTime = existingData?.play_time || '정보 없음';
           
-          // HLTB 수집 (에러나도 죽지 않게 try-catch)
           if (page && (isNewGame || isMissingPlaytime)) {
               try {
                 const targetName = data?.name || metadata.title;
@@ -289,14 +294,11 @@ async function collectGamesData() {
                         const result = await page.evaluate((targetYear) => {
                             let cards = Array.from(document.querySelectorAll('li'));
                             if (cards.length < 2) cards = Array.from(document.querySelectorAll('div[class*="GameCard"]'));
-                            
-                            // 텍스트 필터링
                             const validCards = cards.filter(el => {
                                 const t = el.innerText;
                                 return (t.includes('Hours') || t.includes('Mins')) && !t.includes('We Found');
                             });
                             if (validCards.length === 0) return null;
-
                             let card = validCards[0];
                             if (targetYear) {
                                 const match = validCards.find(c => {
@@ -305,7 +307,6 @@ async function collectGamesData() {
                                 });
                                 if (match) card = match;
                             }
-                            
                             const raw = card.innerText.replace(/\n/g, ' ');
                             const extract = (label) => {
                                 const m = raw.match(new RegExp(`${label}.*?([0-9½\.]+)\\s*(Hours|Hour|Mins|h)`, 'i'));
@@ -340,7 +341,8 @@ async function collectGamesData() {
                   title_ko: (categoryData?.chzzk?.categoryValue || data.name).replace(/_/g, ' '),
                   main_image: data.header_image, description: data.short_description,
                   smart_tags: mapSteamTags(rawTags), isAdult: checkIfAdult(data, rawTags),
-                  releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월/g, '-').replace(/일/g, '')) : undefined,
+                  // [수정됨] 안전한 날짜 파싱 적용
+                  releaseDate: data.release_date?.date ? parseSafeDate(data.release_date.date) : undefined,
                   metacritic_score: data.metacritic?.score || 0,
                   screenshots: (data.screenshots || []).map(s => s.path_full),
                   pc_requirements: { minimum: data.pc_requirements?.minimum || "정보 없음", recommended: data.pc_requirements?.recommended || "정보 없음" }
