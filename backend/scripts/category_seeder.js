@@ -1,4 +1,5 @@
 // backend/scripts/category_seeder.js
+// 기능: Twitch/Chzzk 카테고리 매핑 (검색어 다변화 전략 적용)
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -10,6 +11,7 @@ const Game = require('../models/Game');
 
 const { MONGODB_URI, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
+// 1. 수동 매핑 리스트 (검색으로 절대 안 나오는 예외 케이스들)
 const MANUAL_CHZZK_MAPPING = {
     "DARK SOULS III": "DARK_SOULS_III",
     "Among Us": "Among_Us",
@@ -21,7 +23,8 @@ const MANUAL_CHZZK_MAPPING = {
     "Stray": "Stray",
     "Elden Ring": "ELDEN_RING", 
     "Subnautica": "Subnautica",
-    "Rust": "Rust"
+    "Rust": "Rust",
+    "League of Legends": "League_of_Legends"
 };
 
 const MANUAL_TWITCH_MAPPING = {
@@ -42,6 +45,9 @@ if (!MONGODB_URI) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ==========================================
+// 🟣 Twitch API 관련 로직
+// ==========================================
 let twitchToken = null;
 
 async function getTwitchToken() {
@@ -51,16 +57,16 @@ async function getTwitchToken() {
             params: { client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET, grant_type: 'client_credentials' }
         });
         twitchToken = res.data.access_token;
-        console.log("💜 Twitch Token 확보 완료");
-    } catch (e) { console.error("❌ Twitch Token 실패"); }
+        console.log("💜 Twitch Token 발급 완료");
+    } catch (e) { 
+        console.error("❌ Twitch Token 발급 실패:", e.message); 
+    }
 }
 
+// "Edition", "Remastered" 등 불필요한 접미사 제거
 function buildTwitchBaseTitle(name) {
     if (!name) return "";
-    let base = name;
-    base = base.replace(/^\[.*?\]\s*/, "");
-    base = base.replace(/[®™©]/g, "");
-    base = base.replace(/\(.*?\)/g, "").trim();
+    let base = name.replace(/^\[.*?\]\s*/, "").replace(/[®™©]/g, "").replace(/\(.*?\)/g, "").trim();
     if (base.includes('+')) base = base.split('+')[0].trim();
   
     const editionWords = [
@@ -81,10 +87,8 @@ function buildTwitchBaseTitle(name) {
         }
       }
     }
-    if (base.includes(':')) base = base.split(':')[0].trim();
-    if (base.includes(' - ')) base = base.split(' - ')[0].trim();
-    base = base.replace(/\s+/g, ' ').trim();
-    return base;
+    // 콜론, 하이픈 제거는 검색어 생성 로직에서 별도로 수행하므로 여기서는 놔둠
+    return base.replace(/\s+/g, ' ').trim();
 }
 
 async function searchTwitch(gameName, korTitleOptional) {
@@ -93,13 +97,25 @@ async function searchTwitch(gameName, korTitleOptional) {
 
     if (MANUAL_TWITCH_MAPPING[gameName]) return MANUAL_TWITCH_MAPPING[gameName];
 
+    // ★ Twitch 검색 전략 (우선순위 순서)
+    // 1. Base Title (에디션 제거 버전)
+    // 2. Original Name (원본)
+    // 3. Clean Name (특수문자 제거) -> "MARVEL vs. CAPCOM" 해결용
+    // 4. Before Colon (콜론 앞)
+    // 5. Before Hyphen (하이픈 앞)
     const baseTitle = buildTwitchBaseTitle(gameName);
-    const searchQueries = [
-        baseTitle, gameName, gameName.replace(/[®™©]/g, '').trim(),
-        gameName.split(':')[0].trim(), korTitleOptional || null
-    ].filter(q => q && q.length >= 2);
+    const cleanName = gameName.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim(); 
 
-    const uniqueQueries = [...new Set(searchQueries)];
+    const searchQueries = [
+        baseTitle,
+        gameName,
+        cleanName,
+        gameName.split(':')[0].trim(),
+        gameName.split('-')[0].trim(),
+        korTitleOptional // 한국어 제목이 있으면 마지막 수단으로 시도
+    ].filter(q => q && q.length >= 2); // 2글자 미만 제외
+
+    const uniqueQueries = [...new Set(searchQueries)]; // 중복 제거
 
     for (const query of uniqueQueries) {
         try {
@@ -109,23 +125,45 @@ async function searchTwitch(gameName, korTitleOptional) {
             });
             const data = res.data?.data?.[0];
             if (data) return { id: data.id, name: data.name, boxArt: data.box_art_url };
-        } catch (e) { }
-        await sleep(100);
+        } catch (e) {
+            if (e.response && e.response.status === 401) {
+                console.log("🔄 Twitch Token 만료. 재발급...");
+                await getTwitchToken(); 
+            } else if (e.response && e.response.status === 429) {
+                await sleep(2000); // Rate Limit 대기
+            }
+        }
+        await sleep(100); // 쿼리 간 딜레이
     }
     return null;
 }
 
+// ==========================================
+// 🟢 Chzzk API 관련 로직
+// ==========================================
 async function searchChzzk(gameName, korName) { 
+    // 수동 매핑 확인
     const manualSlug = MANUAL_CHZZK_MAPPING[gameName] || (korName && MANUAL_CHZZK_MAPPING[korName]);
     if (manualSlug) return { categoryValue: manualSlug, posterImageUrl: "" };
     
+    // 자동 생성 슬러그 (대문자_언더바_규칙)
     const inferredSlug = gameName.normalize("NFKD").replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '_').toUpperCase();
 
     if (CHZZK_CLIENT_ID && CHZZK_CLIENT_SECRET) {
         const cleanName = gameName.replace(/[-:™®©]/g, ' ').trim();
-        const noSpecial = gameName.replace(/[^\w\s가-힣]/g, '').trim();
+        const noSpecial = gameName.replace(/[^\w\s가-힣]/g, ' ').trim(); // 한글+영문+숫자 외 제거
+        
+        // ★ Chzzk 검색 전략 (우선순위 순서)
+        // 1. 한국어 제목 (가장 정확함)
+        // 2. 영문 원본
+        // 3. 특수문자 제거 버전
+        // 4. Inferred Slug (슬러그 자체로 검색)
         const searchTerms = [
-            korName, gameName, cleanName, noSpecial, gameName.toLowerCase(), inferredSlug 
+            korName, 
+            gameName, 
+            cleanName, 
+            noSpecial, 
+            inferredSlug 
         ].filter(n => n && n.length > 1);
 
         const uniqueTerms = [...new Set(searchTerms)];
@@ -143,17 +181,24 @@ async function searchChzzk(gameName, korName) {
                 });
                 const data = res.data?.data?.[0];
                 if (data) return { categoryValue: data.categoryValue, posterImageUrl: data.posterImageUrl };
-            } catch (error) { }
+            } catch (error) { 
+                // 404 등 에러는 무시하고 다음 검색어 시도
+            }
             await sleep(100);
         }
     }
+    
+    // ★ 검색 실패 시 Fallback: 추론한 슬러그라도 저장 (나중에 수집기가 시청자 수 긁어올 때 시도함)
     if (inferredSlug.length > 0) return { categoryValue: inferredSlug, posterImageUrl: "" };
     return null;
 }
 
+// ==========================================
+// 🚀 메인 실행 함수
+// ==========================================
 async function seedCategories() {
     await mongoose.connect(MONGODB_URI);
-    console.log("✅ DB 연결됨. GameMetadata에서 목록을 가져와 트렌드 매핑 시작...");
+    console.log("✅ DB 연결됨. 트렌드 매핑 시작...");
 
     const gamesToMap = await GameMetadata.find().select('steamAppId title').lean();
     console.log(`🎯 전체 대상 게임 수: ${gamesToMap.length}개`);
@@ -169,16 +214,14 @@ async function seedCategories() {
 
         const exists = await GameCategory.findOne({ steamAppId: steamId });
         
-        // ★ [수정됨] 건너뛰기 로직 강화
-        // 1. 이미 존재하고 (exists)
-        // 2. 최근 1주일 내에 업데이트 되었으며 (isFresh)
-        // 3. ★ 중요: 데이터가 "유의미하게" 들어있어야 함 (hasData)
-        // -> 데이터가 비어있으면(실패했으면) 날짜가 최신이어도 다시 시도!
+        // ★ 건너뛰기 로직 (효율성)
+        // 이미 데이터가 있고 + 최근 1주 내 업데이트 + 데이터가 "유효"할 때만 건너뜀
         if (exists) {
             const isFresh = exists.lastUpdated && (Date.now() - new Date(exists.lastUpdated).getTime() < 7 * 24 * 60 * 60 * 1000);
-            const hasData = (exists.twitch && exists.twitch.id) || (exists.chzzk && exists.chzzk.categoryValue && exists.chzzk.categoryValue.length < 50); // 너무 긴 slug는 자동생성된 더미일 수 있음
+            const hasTwitch = exists.twitch && exists.twitch.id;
+            const hasChzzk = exists.chzzk && exists.chzzk.categoryValue && exists.chzzk.categoryValue.length < 60; // 너무 긴 슬러그는 의심
 
-            if (isFresh && hasData) {
+            if (isFresh && (hasTwitch || hasChzzk)) {
                 skipped++;
                 continue;
             }
@@ -187,7 +230,7 @@ async function seedCategories() {
         const gameRecord = await Game.findOne({ steam_appid: steamId }).select('title_ko').lean();
         const korTitle = gameRecord?.title_ko;
         
-        console.log(`\n🔍 [${processed}/${gamesToMap.length}] 매핑 시작: ${gameTitle} (한글: ${korTitle || '-'})`);
+        console.log(`\n🔍 [${processed}/${gamesToMap.length}] 매핑: ${gameTitle} (한글: ${korTitle || '-'})`);
         
         let twitchData = await searchTwitch(gameTitle, korTitle);
         let chzzkData = await searchChzzk(gameTitle, korTitle); 
@@ -203,10 +246,11 @@ async function seedCategories() {
         await GameCategory.findOneAndUpdate({ steamAppId: steamId }, doc, { upsert: true });
         updated++;
         
-        console.log(`   💜 Twitch: ${twitchData ? twitchData.name : "❌ 실패"}`);
-        console.log(`   💚 Chzzk : ${chzzkData ? chzzkData.categoryValue : "❌ 실패"}`);
+        const twitchLog = twitchData ? `💜 ${twitchData.name}` : "❌";
+        const chzzkLog = chzzkData ? `💚 ${chzzkData.categoryValue}` : `⚠️ ${doc.chzzk.categoryValue} (추론)`;
+        console.log(`   ${twitchLog} | ${chzzkLog}`);
         
-        await sleep(500); 
+        await sleep(400); // 너무 빠르면 차단될 수 있으므로 적절한 딜레이
     }
 
     console.log(`\n🎉 매핑 완료! (총: ${processed}, 업데이트: ${updated}, 건너뜀: ${skipped})`);
