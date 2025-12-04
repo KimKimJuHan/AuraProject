@@ -1,171 +1,155 @@
 // backend/scripts/metadata_seeder.js
-// 기능: Puppeteer로 스팀 '최고 인기 제품' 페이지를 순회하며 2500개 게임 확보
+// 기능: ITAD 인기 순위 기반 메타데이터 추가 수집 (일일 100개 제한 + 이어하기 기능)
 
-require("dotenv").config({ path: '../.env' }); 
+require("dotenv").config({ path: '../.env' });
 const mongoose = require("mongoose");
-const puppeteer = require('puppeteer-core');
-const os = require('os');
-const fs = require('fs');
+const axios = require("axios");
 const GameMetadata = require("../models/GameMetadata");
 
-const { MONGODB_URI } = process.env;
+const { MONGODB_URI, ITAD_API_KEY } = process.env;
 
-if (!MONGODB_URI) {
-  console.error("🚨 MONGODB_URI 누락");
-  process.exit(1);
-}
-
-// 크롬 경로 찾기
-function findChromePath() {
-  const platform = os.platform();
-  if (platform === 'win32') {
-    const paths = [
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-      `C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`,
-    ];
-    for (const p of paths) if (fs.existsSync(p)) return p;
-  } else if (platform === 'linux') {
-    const paths = ['/usr/bin/google-chrome', '/usr/bin/chromium-browser'];
-    for (const p of paths) if (fs.existsSync(p)) return p;
-  } else if (platform === 'darwin') {
-    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  }
-  return null;
+if (!ITAD_API_KEY) {
+    console.error("🚨 ITAD_API_KEY 누락");
+    process.exit(1);
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// 불필요한 키워드 필터링
+// 불필요한 게임 필터링
 function isBadSteamName(name) {
-  if (!name) return true;
-  const x = name.toLowerCase();
-  const badWords = [
-    "legacy", "soundtrack", "ost", "pack", "demo", "test", "beta", "server", "tool", "artwork", "wallpaper", "artbook"
-  ];
-  return badWords.some(w => x.includes(w));
+    if (!name) return true;
+    const x = name.toLowerCase();
+    const badWords = [
+        "legacy", "dlc", "soundtrack", "ost", "bundle", "pack", "demo", 
+        "test", "beta", "prologue", "trailer", "server", "expansion", 
+        "season pass", "bonus content", "artbook", "edition", "collection"
+    ];
+    return badWords.some(w => x.includes(w));
+}
+
+// ITAD UUID로 게임 상세 정보(스팀 AppID) 조회
+async function getGameInfoFromITAD(uuid) {
+    try {
+        const res = await axios.get(`https://api.isthereanydeal.com/games/info/v2`, {
+            params: {
+                key: ITAD_API_KEY,
+                id: uuid
+            },
+            timeout: 5000
+        });
+        return res.data;
+    } catch (e) {
+        if (e.response && e.response.status === 429) {
+            console.warn("⚠️ API 호출 제한(Rate Limit) 감지! 잠시 대기합니다...");
+            await sleep(5000);
+        }
+        return null;
+    }
 }
 
 async function seedMetadata() {
-  await mongoose.connect(MONGODB_URI);
-  console.log("📌 DB 연결됨. Puppeteer로 스팀 인기 게임 2500개 확보 시작...");
+    await mongoose.connect(MONGODB_URI);
+    
+    // ★ [1] 현재 DB 상태 확인 (이어하기 기능)
+    const currentCount = await GameMetadata.countDocuments();
+    console.log(`📌 DB 연결됨. 현재 저장된 게임 수: ${currentCount}개`);
+    console.log(`🚀 '매일 100개 추가' 모드 시작... (Offset: ${currentCount}부터 시작)`);
 
-  const chromePath = findChromePath();
-  if (!chromePath) { console.error('❌ Chrome 경로 없음'); process.exit(1); }
+    const TARGET_NEW_GAMES = 100; // 목표: 신규 게임 100개 저장
+    const BATCH_SIZE = 50;        // API 요청 단위
+    
+    let totalSavedThisRun = 0;    // 이번 실행에서 저장한 신규 게임 수
+    let currentOffset = currentCount; // DB에 있는 수만큼 건너뛰고 시작
 
-  // 브라우저 실행
-  const browser = await puppeteer.launch({
-      executablePath: chromePath,
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+    try {
+        while (totalSavedThisRun < TARGET_NEW_GAMES) {
+            console.log(`\n📡 ITAD 인기 순위 조회 중... (Rank ${currentOffset + 1} ~ ${currentOffset + BATCH_SIZE})`);
 
-  const page = await browser.newPage();
-  
-  // 봇 탐지 방지
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-  
-  // 이미지/CSS 차단 (속도 향상)
-  await page.setRequestInterception(true);
-  page.on('request', (req) => {
-      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-          req.abort();
-      } else {
-          req.continue();
-      }
-  });
+            let popularList = [];
+            try {
+                const res = await axios.get(`https://api.isthereanydeal.com/stats/most-popular/v1`, {
+                    params: {
+                        key: ITAD_API_KEY,
+                        limit: BATCH_SIZE,
+                        offset: currentOffset,
+                    },
+                    timeout: 5000
+                });
+                popularList = res.data || [];
+            } catch (e) {
+                console.error(`❌ 목록 조회 실패 (Offset ${currentOffset}):`, e.message);
+                break;
+            }
 
-  // ★ [핵심] 스팀 상점 페이지네이션 (Page 1 ~ 100)
-  const MAX_PAGES = 100; // 25개 * 100페이지 = 2500개
-  let totalSaved = 0;
-  let totalSkipped = 0;
-  let totalExists = 0;
+            if (popularList.length === 0) {
+                console.log("⚠️ 더 이상 가져올 인기 게임이 없습니다. (리스트 끝 도달)");
+                break;
+            }
 
-  try {
-      for (let p = 1; p <= MAX_PAGES; p++) {
-          console.log(`\n📡 스팀 상점 페이지 조회 중... (Page ${p}/${MAX_PAGES})`);
-          
-          // 스팀 인기 순위 페이지 URL
-          const url = `https://store.steampowered.com/search/?filter=topsellers&category1=998&page=${p}`;
+            // 목록 순회
+            for (const item of popularList) {
+                // 목표 달성 시 즉시 종료
+                if (totalSavedThisRun >= TARGET_NEW_GAMES) break;
 
-          try {
-              await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-              
-              // 페이지 내 게임 목록 추출
-              const games = await page.evaluate(() => {
-                  const rows = document.querySelectorAll('#search_resultsRows a');
-                  const data = [];
-                  rows.forEach(row => {
-                      const titleEl = row.querySelector('.title');
-                      const idAttr = row.getAttribute('data-ds-appid');
-                      
-                      if (titleEl && idAttr) {
-                          // 번들인 경우 첫 번째 ID만 사용
-                          const appId = idAttr.split(',')[0];
-                          const title = titleEl.innerText.trim();
-                          data.push({ appId, title });
-                      }
-                  });
-                  return data;
-              });
+                const itadId = item.id;
+                const title = item.title;
 
-              if (games.length === 0) {
-                  console.log("⚠️ 게임을 찾지 못했습니다. (페이지 끝 또는 로딩 실패)");
-                  // 연속 실패 방지를 위해 잠시 대기 후 재시도하지 않고 다음 페이지로
-                  await sleep(2000);
-                  continue;
-              }
+                if (isBadSteamName(title)) continue;
 
-              console.log(`   => ${games.length}개 항목 발견. 저장 중...`);
+                // ★ [2] 이미 DB에 있는지 확인 (중복 건너뛰기)
+                const exists = await GameMetadata.exists({ "itad.uuid": itadId });
+                if (exists) {
+                    // 이미 있으면 스킵 (API 호출 아끼기 위해 업데이트도 생략하거나 필요시 lastUpdated만 갱신)
+                    // console.log(`   ⏩ Skip: ${title} (이미 존재)`);
+                    continue;
+                }
 
-              for (const game of games) {
-                  const { appId, title } = game;
+                // ★ [3] 신규 게임 상세 정보 조회
+                const info = await getGameInfoFromITAD(itadId);
+                
+                // 스팀 앱 ID가 있는 경우만 저장
+                if (info && info.appid) {
+                    // 혹시 SteamID로 중복된게 있는지 최종 확인 (upsert)
+                    await GameMetadata.findOneAndUpdate(
+                        { steamAppId: info.appid },
+                        {
+                            steamAppId: info.appid,
+                            title: info.title || title,
+                            itad: { uuid: itadId },
+                            lastUpdated: Date.now()
+                        },
+                        { upsert: true, new: true }
+                    );
+                    
+                    totalSavedThisRun++;
+                    console.log(`   ✅ [${totalSavedThisRun}/${TARGET_NEW_GAMES}] 신규 저장: ${title} (SteamID: ${info.appid})`);
+                    
+                    // API 호출 간격 준수
+                    await sleep(1200); 
+                } else {
+                    // console.log(`   ❌ 스팀 미지원: ${title}`);
+                }
+            }
 
-                  if (isBadSteamName(title)) {
-                      totalSkipped++;
-                      continue;
-                  }
+            // 다음 배치를 위해 오프셋 증가
+            currentOffset += BATCH_SIZE;
+            
+            // 목표를 아직 못 채웠다면 배치 사이 딜레이
+            if (totalSavedThisRun < TARGET_NEW_GAMES) {
+                await sleep(2000);
+            }
+        }
 
-                  const exists = await GameMetadata.findOne({ steamAppId: appId });
-                  if (exists) {
-                      totalExists++;
-                      await GameMetadata.updateOne({ steamAppId: appId }, { lastUpdated: Date.now() });
-                      continue;
-                  }
+    } catch (err) {
+        console.error("🚨 프로세스 오류:", err);
+    }
 
-                  await GameMetadata.create({
-                      steamAppId: appId,
-                      title: title,
-                      itad: { uuid: null }, 
-                      lastUpdated: Date.now()
-                  });
-                  
-                  totalSaved++;
-                  console.log(`   ✅ 신규 저장: ${title} (ID: ${appId})`);
-              }
-              
-              // 페이지 넘김 딜레이 (차단 방지)
-              const delay = Math.floor(Math.random() * 1000) + 1500;
-              await sleep(delay);
-
-          } catch (err) {
-              console.error(`   ❌ 페이지 로딩 에러 (Page ${p}):`, err.message);
-              await sleep(3000);
-          }
-      }
-  } catch (err) {
-      console.error("❌ 전체 프로세스 에러:", err);
-  } finally {
-      if (browser) await browser.close();
-      await mongoose.disconnect();
-  }
-
-  console.log(`\n\n🎉 시딩 완료!`);
-  console.log(`   - 신규 저장: ${totalSaved}개`);
-  console.log(`   - 이미 존재(갱신): ${totalExists}개`);
-  console.log(`   - 필터링됨: ${totalSkipped}개`);
-  
-  process.exit(0);
+    console.log(`\n🎉 작업 완료!`);
+    console.log(`   - 기존 게임 수: ${currentCount}`);
+    console.log(`   - 추가된 게임 수: ${totalSavedThisRun}`);
+    console.log(`   - 최종 게임 수: ${currentCount + totalSavedThisRun}`);
+    
+    process.exit(0);
 }
 
 seedMetadata();

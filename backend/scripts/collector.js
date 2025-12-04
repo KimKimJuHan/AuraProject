@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: 대량 수집용 안정화 버전 (HLTB 로딩 대기 최적화 V9 적용)
+// 기능: 스마트 업데이트 (신규 게임은 풀 수집, 기존 게임은 트렌드/가격/누락정보만 갱신)
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -248,105 +248,139 @@ async function fetchPriceInfo(originalAppId, initialSteamData, metadata) {
   };
 }
 
+// ==========================================
+// ★ 메인 수집 함수 (스마트 업데이트 버전)
+// ==========================================
 async function collectGamesData() {
   await mongoose.connect(MONGODB_URI);
-  console.log('✅ DB Connected. 대규모 수집 시작...');
+  console.log('✅ DB Connected. 스마트 수집/업데이트 시작...');
 
+  // 1. 현재 DB에 존재하는 게임 목록 확인 (빠른 조회용 Map 생성)
+  const existingGames = await Game.find({}).select('steam_appid play_time').lean();
+  const existingGameMap = new Map();
+  existingGames.forEach(g => existingGameMap.set(g.steam_appid, g));
+  console.log(`📂 기존 DB 게임 수: ${existingGameMap.size}개`);
+
+  // 2. 전체 메타데이터 가져오기
   const metadatas = await GameMetadata.find({});
   if (!metadatas.length) { console.log('⚠️ GameMetadata 비어 있음.'); process.exit(0); }
+
+  console.log(`🚀 전체 처리 대상: ${metadatas.length}개`);
 
   const chromePath = findChromePath();
   if (!chromePath) { console.error('❌ Chrome 경로 없음'); process.exit(1); }
 
-  const BATCH_SIZE = 5; // 배치 사이즈는 작게 유지 (안전성)
+  const browser = await puppeteer.launch({
+    executablePath: chromePath, headless: 'new', protocolTimeout: 240000,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--no-first-run'],
+  });
+
+  const page = await browser.newPage();
+  await page.setUserAgent(STEAM_HEADERS['User-Agent']);
+  
+  let hltbLoaded = false;
+  try {
+      await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
+      hltbLoaded = true;
+      console.log("🌍 HLTB 접속 성공");
+  } catch(e) { 
+      console.error("⚠️ HLTB 초기 접속 실패");
+  }
+
+  const BATCH_SIZE = 5; 
   const batches = chunkArray(metadatas, BATCH_SIZE);
-  let totalCount = 0;
+  let processedCount = 0;
 
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
-    console.log(`\n🔄 Batch ${i + 1}/${batches.length} 시작...`);
+    console.log(`\n🔄 Batch ${i + 1}/${batches.length} 진행 중...`);
 
-    const browser = await puppeteer.launch({
-      executablePath: chromePath, headless: 'new', protocolTimeout: 240000,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-
-    try {
-      const page = await browser.newPage();
-      await page.setUserAgent(STEAM_HEADERS['User-Agent']);
-      
-      let hltbLoaded = false;
-      try {
-          await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
-          hltbLoaded = true;
-      } catch(e) { }
-
-      for (const metadata of batch) {
+    for (const metadata of batch) {
         try {
-          // ★ [핵심] 랜덤 딜레이 (3~6초) 적용으로 차단 방지
-          const delay = Math.floor(Math.random() * 3000) + 3000;
-          await sleep(delay); 
+          const steamId = metadata.steamAppId;
+          const existingData = existingGameMap.get(steamId);
+          
+          // ★ 판단 로직: 신규 게임인가? 아니면 플레이타임 누락인가?
+          const isNewGame = !existingData;
+          const isMissingPlaytime = existingData && (existingData.play_time === '정보 없음' || !existingData.play_time);
+          
+          // 스팀 API는 가격/기본정보 확인 위해 항상 호출 (단, 기존 게임은 딜레이 줄여도 됨)
+          const delay = isNewGame ? (Math.floor(Math.random() * 2000) + 1500) : 1200; // 신규: 1.5~3.5초, 기존: 1.2초 고정
+          await sleep(delay);
           
           const steamRes = await axios.get(
             'https://store.steampowered.com/api/appdetails',
-            { params: { appids: metadata.steamAppId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS, timeout: 10000 }
+            { params: { appids: steamId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS, timeout: 10000 }
           );
-          const data = steamRes.data?.[metadata.steamAppId]?.data;
-          if (!data) continue;
-
-          const lowerName = (data.name || '').toLowerCase();
-          if (lowerName.includes('soundtrack') || lowerName.includes('ost') || lowerName.includes('dlc')) continue;
-
-          // 스팀 상점 페이지 크롤링
+          const data = steamRes.data?.[steamId]?.data;
+          
+          // 데이터가 없거나 유효하지 않으면 스킵 (단, 기존 데이터가 있으면 유지해야 하므로 주의)
+          if (!data && !existingData) continue; 
+          
+          // ---------------------------------------------------------
+          // 1. 스팀 상점 태그/이미지 크롤링 (Puppeteer)
+          // -> 신규 게임일 때만 수행 (기존 게임은 태그가 잘 안 바뀌므로 패스)
+          // ---------------------------------------------------------
           let scrapedTags = [];
-          try {
-              await page.goto(`https://store.steampowered.com/app/${metadata.steamAppId}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-              
-              const ageGate = await page.$('#ageYear');
-              if (ageGate) {
-                  await page.select('#ageYear', '2000');
-                  const btn = await page.$('.btnv6_blue_hoverfade_btn');
-                  if (btn) { await btn.click(); await page.waitForNavigation(); }
-              }
-              scrapedTags = await page.evaluate(() => {
-                  return Array.from(document.querySelectorAll('.app_tag')).map(el => el.innerText.trim());
-              });
-          } catch (e) { }
+          if (isNewGame && data) {
+              const lowerName = (data.name || '').toLowerCase();
+              if (lowerName.includes('soundtrack') || lowerName.includes('ost') || lowerName.includes('dlc')) continue;
 
-          // 부가 정보
-          const categoryData = await GameCategory.findOne({ steamAppId: metadata.steamAppId }).lean();
-          const trends = await getTrendStats(metadata.steamAppId, categoryData);
-          const steamCCU = await getSteamCCU(metadata.steamAppId);
-          const trendScore = calculateTrendScore(trends, steamCCU);
-          const priceInfo = await fetchPriceInfo(metadata.steamAppId, data, metadata);
-          const steamReviews = await getSteamReviews(metadata.steamAppId);
-
-          // HLTB 플레이타임 (V9 로직 - 안정성 강화)
-          let playTime = '정보 없음';
-          if (hltbLoaded) {
               try {
-                const cleanName = cleanGameTitle(metadata.title || data.name || '');
+                  await page.goto(`https://store.steampowered.com/app/${steamId}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+                  
+                  const ageGate = await page.$('#ageYear');
+                  if (ageGate) {
+                      await page.select('#ageYear', '2000');
+                      const btn = await page.$('.btnv6_blue_hoverfade_btn');
+                      if (btn) { await btn.click(); await page.waitForNavigation(); }
+                  }
+                  scrapedTags = await page.evaluate(() => {
+                      return Array.from(document.querySelectorAll('.app_tag')).map(el => el.innerText.trim());
+                  });
+              } catch (e) { }
+          }
+
+          // ---------------------------------------------------------
+          // 2. 부가 정보 (트렌드, CCU, 가격) -> ★ 항상 업데이트 (핵심)
+          // ---------------------------------------------------------
+          const categoryData = await GameCategory.findOne({ steamAppId: steamId }).lean();
+          const trends = await getTrendStats(steamId, categoryData);
+          const steamCCU = await getSteamCCU(steamId);
+          const trendScore = calculateTrendScore(trends, steamCCU);
+          
+          // 가격 정보는 스팀 데이터(data)가 없으면 기존 것 유지하거나 0 처리
+          const priceInfo = data ? await fetchPriceInfo(steamId, data, metadata) : (existingData?.price_info || {});
+          const steamReviews = await getSteamReviews(steamId);
+
+          // ---------------------------------------------------------
+          // 3. HLTB 플레이타임 (Puppeteer)
+          // -> 신규 게임이거나, 기존 게임인데 플레이타임이 없을 때만 수행
+          // ---------------------------------------------------------
+          let playTime = existingData?.play_time || '정보 없음';
+          
+          if (hltbLoaded && (isNewGame || isMissingPlaytime)) {
+              try {
+                const targetName = data?.name || metadata.title;
+                const cleanName = cleanGameTitle(targetName);
+                
                 let steamYear = null;
-                if (data.release_date && data.release_date.date) {
+                if (data?.release_date?.date) {
                     const match = data.release_date.date.match(/(\d{4})/);
                     if (match) steamYear = parseInt(match[1]);
                 }
 
-                // 여러 검색어로 시도 (cleanName, 원본 등)
-                const searchQueries = [cleanName, metadata.title, data.name].filter(q => q && q.length > 1);
+                const searchQueries = [cleanName, targetName].filter(q => q && q.length > 1);
                 const uniqueQueries = [...new Set(searchQueries)];
 
                 for (const query of uniqueQueries) {
                     try {
                         await page.goto(`https://howlongtobeat.com/?q=${encodeURIComponent(query)}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
                         
-                        // ★ [핵심 수정] 텍스트 대신 CSS 선택자 대기로 변경 (로딩 안정화)
-                        // .search_list가 뜰 때까지 최대 15초 대기
                         try {
-                            await page.waitForSelector('ul.search_list, .search_list_details', { timeout: 15000 });
+                            await page.waitForSelector('ul.search_list, .search_list_details', { timeout: 10000 });
                         } catch (e) {
-                            // 리스트가 없으면, 'We couldn't find anything' 텍스트 확인 (빠른 실패)
-                            try { await page.waitForFunction(() => document.body.innerText.includes("We couldn't find anything"), { timeout: 3000 }); } catch {}
+                            try { await page.waitForFunction(() => document.body.innerText.includes("We couldn't find anything"), { timeout: 2000 }); } catch {}
                         }
                         
                         const result = await page.evaluate((targetYear) => {
@@ -380,58 +414,78 @@ async function collectGamesData() {
 
                         if (result) {
                             playTime = result;
-                            break; // 성공하면 루프 종료
+                            break; 
                         }
-                    } catch (e) { 
-                        // 개별 쿼리 실패 시 다음 쿼리로 계속 진행
-                    }
-                    await sleep(1000); // 쿼리 간 딜레이
+                    } catch (e) { }
+                    await sleep(500);
                 }
               } catch (e) { }
           }
 
-          const rawTags = scrapedTags.length > 0 ? scrapedTags : [...(data.genres || []).map((g) => g.description), ...(data.categories || []).map((c) => c.description)];
-          const smart_tags = mapSteamTags(rawTags);
+          // ---------------------------------------------------------
+          // 4. DB 저장 / 업데이트
+          // ---------------------------------------------------------
+          const updateData = {
+              trend_score: trendScore,
+              twitch_viewers: trends.twitch.value || 0,
+              chzzk_viewers: trends.chzzk.value || 0,
+              steam_ccu: steamCCU,
+              steam_reviews: steamReviews,
+              price_info: priceInfo,
+              play_time: playTime,
+              lastUpdated: new Date()
+          };
+
+          // 신규 게임이거나 데이터가 있는 경우 기본 정보도 업데이트 (없으면 기존 유지)
+          if (data) {
+              const rawTags = scrapedTags.length > 0 ? scrapedTags : [...(data.genres || []).map((g) => g.description), ...(data.categories || []).map((c) => c.description)];
+              const smart_tags = mapSteamTags(rawTags);
+              
+              Object.assign(updateData, {
+                  slug: `steam-${steamId}`,
+                  steam_appid: steamId,
+                  title: data.name,
+                  title_ko: (categoryData?.chzzk?.categoryValue || data.name).replace(/_/g, ' '),
+                  main_image: data.header_image,
+                  description: data.short_description,
+                  smart_tags: smart_tags, // 태그는 스팀 API 데이터로도 충분
+                  releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월/g, '-').replace(/일/g, '')) : undefined,
+                  metacritic_score: data.metacritic?.score || 0,
+                  screenshots: (data.screenshots || []).map(s => s.path_full),
+                  pc_requirements: { 
+                      minimum: data.pc_requirements?.minimum || "정보 없음", 
+                      recommended: data.pc_requirements?.recommended || "정보 없음" 
+                  }
+              });
+          }
 
           await Game.findOneAndUpdate(
-            { steam_appid: metadata.steamAppId },
-            {
-              slug: `steam-${metadata.steamAppId}`, steam_appid: metadata.steamAppId,
-              title: data.name,
-              title_ko: (categoryData?.chzzk?.categoryValue || data.name).replace(/_/g, ' '),
-              main_image: data.header_image, description: data.short_description,
-              smart_tags: smart_tags, trend_score: trendScore, twitch_viewers: trends.twitch.value || 0, chzzk_viewers: trends.chzzk.value || 0, steam_ccu: steamCCU,
-              steam_reviews: steamReviews, price_info: priceInfo, play_time: playTime,
-              releaseDate: data.release_date?.date ? new Date(data.release_date.date.replace(/년|월/g, '-').replace(/일/g, '')) : undefined,
-              metacritic_score: data.metacritic?.score || 0,
-              screenshots: (data.screenshots || []).map(s => s.path_full),
-              trailers: [], 
-              pc_requirements: { 
-                  minimum: data.pc_requirements?.minimum || "정보 없음", 
-                  recommended: data.pc_requirements?.recommended || "정보 없음" 
-              }
-            }, { upsert: true }
+            { steam_appid: steamId },
+            updateData, 
+            { upsert: true }
           );
 
+          // 트렌드 히스토리는 항상 기록
           await new TrendHistory({
-            steam_appid: metadata.steamAppId, trend_score: trendScore,
+            steam_appid: steamId, trend_score: trendScore,
             twitch_viewers: trends.twitch.value || 0, chzzk_viewers: trends.chzzk.value || 0, steam_ccu: steamCCU,
             recordedAt: new Date()
           }).save();
 
-          totalCount++;
-          console.log(`✅ [${totalCount}] ${data.name} | Tags=${smart_tags.slice(0,3)}... | Time=${playTime}`);
-        } catch (e) { console.error(`❌ 수집 실패: ${metadata.steamAppId}`, e.message); }
+          processedCount++;
+          const status = isNewGame ? "✨ 신규" : (isMissingPlaytime ? "🔧 보강" : "🔄 갱신");
+          console.log(`✅ [${status}] ${metadata.title} | Time=${playTime} | CCU=${steamCCU}`);
+          
+        } catch (e) { console.error(`❌ 처리 실패: ${metadata.steamAppId}`, e.message); }
       }
-    } catch (e) { console.error('❌ Batch 에러:', e.message); } 
-    finally { 
-        try {
-            await sleep(2000); 
-            if (browser) await browser.close();
-        } catch (e) {}
-    }
   }
-  console.log('\n🎉 모든 수집 완료'); process.exit(0);
+
+  try {
+      if (browser) await browser.close();
+  } catch (e) {}
+
+  console.log(`\n🎉 모든 작업 완료 (총 처리: ${processedCount}개)`);
+  process.exit(0);
 }
 
 collectGamesData();
