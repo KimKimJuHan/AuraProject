@@ -24,7 +24,6 @@ const MANUAL_CHZZK_MAPPING = {
     "Rust": "Rust"
 };
 
-// ★ 이전에 추가해드린 수동 매핑 리스트를 꼭 유지하세요 (Wallpaper Engine 등)
 const MANUAL_TWITCH_MAPPING = {
     "Wallpaper Engine": { id: "491578", name: "Wallpaper Engine" },
     "Street Fighter 30th Anniversary Collection": { id: "504461", name: "Street Fighter 30th Anniversary Collection" },
@@ -168,14 +167,18 @@ async function seedCategories() {
         const gameTitle = game.title;
         processed++;
 
-        // ★ [핵심 수정] 건너뛰기 로직 변경 (효율성 극대화)
-        // 기존: "성공한 데이터만" 스킵 -> 변경: "최근 7일 내에 시도했으면(성공/실패 불문)" 스킵
         const exists = await GameCategory.findOne({ steamAppId: steamId });
+        
+        // ★ [수정됨] 건너뛰기 로직 강화
+        // 1. 이미 존재하고 (exists)
+        // 2. 최근 1주일 내에 업데이트 되었으며 (isFresh)
+        // 3. ★ 중요: 데이터가 "유의미하게" 들어있어야 함 (hasData)
+        // -> 데이터가 비어있으면(실패했으면) 날짜가 최신이어도 다시 시도!
         if (exists) {
-            // 최근 7일 이내에 업데이트된 기록이 있다면, 결과가 실패였더라도 재시도하지 않음
             const isFresh = exists.lastUpdated && (Date.now() - new Date(exists.lastUpdated).getTime() < 7 * 24 * 60 * 60 * 1000);
+            const hasData = (exists.twitch && exists.twitch.id) || (exists.chzzk && exists.chzzk.categoryValue && exists.chzzk.categoryValue.length < 50); // 너무 긴 slug는 자동생성된 더미일 수 있음
 
-            if (isFresh) {
+            if (isFresh && hasData) {
                 skipped++;
                 continue;
             }
@@ -184,7 +187,7 @@ async function seedCategories() {
         const gameRecord = await Game.findOne({ steam_appid: steamId }).select('title_ko').lean();
         const korTitle = gameRecord?.title_ko;
         
-        console.log(`\n🔍 [${processed}/${gamesToMap.length}] 처리 중: ${gameTitle} (한글명: ${korTitle || '없음'})`);
+        console.log(`\n🔍 [${processed}/${gamesToMap.length}] 매핑 시작: ${gameTitle} (한글: ${korTitle || '-'})`);
         
         let twitchData = await searchTwitch(gameTitle, korTitle);
         let chzzkData = await searchChzzk(gameTitle, korTitle); 
@@ -201,7 +204,7 @@ async function seedCategories() {
         updated++;
         
         console.log(`   💜 Twitch: ${twitchData ? twitchData.name : "❌ 실패"}`);
-        console.log(`   💚 Chzzk : ${chzzkData ? chzzkData.categoryValue : "❌ 실패 (Slug: " + doc.chzzk.categoryValue + ")"}`);
+        console.log(`   💚 Chzzk : ${chzzkData ? chzzkData.categoryValue : "❌ 실패"}`);
         
         await sleep(500); 
     }
