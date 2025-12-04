@@ -9,8 +9,16 @@ const userSchema = new mongoose.Schema({
   steamId: { type: String },
   role: { type: String, default: 'user' },
   isVerified: { type: Boolean, default: false },
-  // 사용자가 선호하는 태그 목록
-  likedTags: [{ type: String }] 
+  likedTags: [{ type: String }],
+  wishlist: [{ type: String }], 
+  
+  // ★ [추가됨] 스팀 게임 플레이 정보 저장용 필드
+  steamGames: [{
+      appid: Number,
+      name: String,
+      playtime_forever: Number, // 분 단위 플레이 타임
+      img_icon_url: String
+  }]
 });
 
 // 비밀번호 암호화 저장
@@ -21,7 +29,7 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-// ★ [핵심] 로그인 시 비밀번호 비교 메서드 (이게 없으면 500 에러 발생)
+// 로그인 비밀번호 검증
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
