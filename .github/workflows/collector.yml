@@ -1,9 +1,13 @@
 name: Game Data Collector
 
 on:
-  # schedule:
-  #   - cron: '0 10 * * *' # 매일 자동 실행은 비활성화 (대량 수집 시 부하 방지)
-  workflow_dispatch: # ★ 수동 실행 버튼 활성화 (필요할 때만 클릭해서 실행)
+  schedule:
+    # ⚠️ 주의: GitHub Actions는 UTC(세계 표준시) 기준입니다.
+    # '0 10 * * *' = UTC 10:00 = 한국 시간(KST) 오후 7:00
+    # 한국 시간 새벽 4시에 돌리고 싶다면 '0 19 * * *' (전날 오후 7시 UTC) 등으로 설정해야 합니다.
+    - cron: '0 10 * * *' 
+    
+  workflow_dispatch: # 수동 실행 버튼도 유지 (테스트용)
 
 jobs:
   build:
@@ -32,22 +36,19 @@ jobs:
         cd backend
         npm install
 
-    # 1단계: 최신 게임 목록 및 가격 정보 ID(UUID) 갱신
-    # ★ 경로 수정: scripts/metadata_seeder.js
+    # 1단계: 메타데이터 수집
     - name: 1. Seed Game Metadata (Price & Game List)
       run: |
         cd backend
         node scripts/metadata_seeder.js
 
-    # 2단계: 갱신된 게임 목록에 대한 트위치/치지직 카테고리 매핑
-    # ★ 경로 수정: scripts/category_seeder.js
+    # 2단계: 카테고리 매핑
     - name: 2. Seed Category Mapping (Trend Source)
       run: |
         cd backend
         node scripts/category_seeder.js
 
-    # 3단계: 완성된 족보를 바탕으로 실제 가격/트렌드/상세정보 수집
-    # ★ 경로 수정: scripts/collector.js
+    # 3단계: 메인 수집기 실행
     - name: 3. Run Main Collector
       run: |
         cd backend
