@@ -6,6 +6,8 @@ import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config'; 
+// ★ 안전한 저장소 import
+import { safeLocalStorage } from './utils/storage';
 
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
@@ -141,8 +143,11 @@ function ShopPage({ region }) {
                 setIsPlaying(false);
             }
 
-            const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+            // ★ safeLocalStorage 사용
+            const wishlistStr = safeLocalStorage.getItem('gameWishlist');
+            const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
             setIsWishlisted(wishlist.includes(data.slug));
+            
             setLikes(data.likes_count || 0);
             setDislikes(data.dislikes_count || 0);
             
@@ -168,11 +173,15 @@ function ShopPage({ region }) {
   };
 
   const toggleWishlist = () => {
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    // ★ safeLocalStorage 사용
+    const wishlistStr = safeLocalStorage.getItem('gameWishlist');
+    const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
+    
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
     else newWishlist = [...wishlist, gameData.slug];
-    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+    
+    safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
   };
 
@@ -185,7 +194,6 @@ function ShopPage({ region }) {
       } catch (error) { alert("투표 실패"); }
   };
 
-  // ★ [수정됨] DOMPurify 기본 설정 사용 (태그 유지)
   const cleanHTML = (html) => DOMPurify.sanitize(html);
   
   const formatDate = (dateString) => {
@@ -196,15 +204,11 @@ function ShopPage({ region }) {
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
 
-  // ★ [핵심] 원본 구조를 살리되 불필요한 제목만 제거
   const formatRequirements = (html) => {
       if (!html || html === "정보 없음") return "정보 없음";
       
       let safeHtml = cleanHTML(html);
-
-      // "최소:", "권장:" 텍스트가 중복으로 나오는 경우만 제거 (탭으로 구분하므로)
       safeHtml = safeHtml.replace(/<strong>\s*(최소|권장|Minimum|Recommended):?\s*<\/strong><br>/gi, '');
-      
       return safeHtml;
   };
 
@@ -385,33 +389,16 @@ function ShopPage({ region }) {
                     <button onClick={() => setReqTab('recommended')} style={reqTab === 'recommended' ? styles.reqTabButtonActive : styles.reqTabButton}>권장 사양</button>
                 </div>
                 
-                {/* ★ [CSS 주입] 원본 리스트 구조를 살리는 스타일 적용 */}
                 <style>{`
                     .req-content {
                         font-size: 14px;
                         line-height: 1.6;
                         color: #acb2b8;
                     }
-                    /* 리스트 항목을 명확하게 분리 */
-                    .req-content ul { 
-                        padding-left: 0; 
-                        margin: 0; 
-                        list-style: none; /* 점 제거 */
-                    }
-                    .req-content li { 
-                        margin-bottom: 8px; /* 항목 간 줄바꿈 효과 */
-                    }
-                    /* 강조된 항목 제목 (예: 운영체제, 프로세서) 스타일 */
-                    .req-content strong { 
-                        color: #66c0f4; /* 스팀 스타일 하늘색 */
-                        font-weight: bold; 
-                        margin-right: 6px; 
-                    }
-                    .req-content br {
-                        display: block;
-                        content: "";
-                        margin-bottom: 4px;
-                    }
+                    .req-content ul { padding-left: 0; margin: 0; list-style: none; }
+                    .req-content li { margin-bottom: 8px; }
+                    .req-content strong { color: #66c0f4; font-weight: bold; margin-right: 6px; }
+                    .req-content br { display: block; content: ""; margin-bottom: 4px; }
                 `}</style>
 
                 <div className="req-content" style={{minHeight:'200px'}}>
