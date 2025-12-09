@@ -1,9 +1,12 @@
+// frontend/src/ComparisonPage.js
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE_URL } from './config'; // ★ 설정 파일 import
+import { API_BASE_URL } from './config'; 
+// ★ 안전한 저장소 import
+import { safeLocalStorage } from './utils/storage';
 
 const styles = {
-  // ... (기존 스타일 유지, 필요시 PersonalRecoPage.css 등과 통합 고려)
   container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
   header: { fontSize: '28px', fontWeight: 'bold', marginBottom: '30px', borderLeft: '5px solid #E50914', paddingLeft: '15px' },
   searchRow: { display: 'flex', gap: '10px', marginBottom: '30px', position: 'relative' },
@@ -29,9 +32,10 @@ function ComparisonPage({ region, user }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
 
-  // 1. 로컬 스토리지에서 찜 목록 로드
+  // 1. 로컬 스토리지에서 찜 목록 로드 (safeLocalStorage)
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    const storedStr = safeLocalStorage.getItem('gameWishlist');
+    const stored = storedStr ? JSON.parse(storedStr) : [];
     setWishlistSlugs(stored);
   }, []);
 
@@ -43,7 +47,6 @@ function ComparisonPage({ region, user }) {
     }
     const fetchGames = async () => {
         try {
-            // ★ API 주소 변수 사용
             const res = await fetch(`${API_BASE_URL}/api/wishlist`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -61,7 +64,6 @@ function ComparisonPage({ region, user }) {
     if (searchTerm.length < 1) { setSuggestions([]); return; }
     const timer = setTimeout(async () => {
         try {
-            // ★ API 주소 변수 사용
             const res = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${searchTerm}`);
             const data = await res.json();
             setSuggestions(data);
@@ -74,7 +76,7 @@ function ComparisonPage({ region, user }) {
       if (!wishlistSlugs.includes(game.slug)) {
           const newSlugs = [...wishlistSlugs, game.slug];
           setWishlistSlugs(newSlugs);
-          localStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
+          safeLocalStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
       }
       setSearchTerm("");
       setSuggestions([]);
@@ -83,7 +85,7 @@ function ComparisonPage({ region, user }) {
   const removeGame = (slug) => {
       const newSlugs = wishlistSlugs.filter(s => s !== slug);
       setWishlistSlugs(newSlugs);
-      localStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
+      safeLocalStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
   };
 
   const getPrice = (g) => {
