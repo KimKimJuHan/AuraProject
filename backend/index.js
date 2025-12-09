@@ -104,14 +104,14 @@ app.get('/api/games/:id/history', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// ★ [핵심 수정] 메인 페이지 추천 로직 (성인 필터 + 트렌드 정렬)
+// ★ [핵심 수정] 메인 페이지 추천 로직 (성인 필터 + 트렌드 정렬 + 낮은 가격 유료 전용)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body;
   const limit = 15;
   const skip = (page - 1) * limit;
 
   try {
-    // 1. 기본 필터: 성인 게임 제외 (isAdult가 true가 아닌 것만)
+    // 1. 기본 필터: 성인 게임 제외
     const filter = { isAdult: { $ne: true } };
 
     if (tags && tags.length > 0) {
@@ -120,7 +120,6 @@ app.post('/api/recommend', async (req, res) => {
     }
     if (searchQuery) {
         const q = searchQuery.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-        // 검색 시에는 필터를 유지할지 말지 결정 (현재: 유지)
         filter.$or = [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }];
     }
 
@@ -130,7 +129,7 @@ app.post('/api/recommend', async (req, res) => {
         if (g.smart_tags) g.smart_tags.forEach(t => validTagsSet.add(t));
     });
 
-    // 2. 정렬 기준 수정 (popularity -> trend_score)
+    // 2. 정렬 기준 수정 (Low Price 로직 강화)
     let sortRule = { trend_score: -1, _id: -1 };
     
     if (sortBy === 'discount') { 
@@ -142,13 +141,18 @@ app.post('/api/recommend', async (req, res) => {
     }
     else if (sortBy === 'price') { 
         sortRule = { 'price_info.current_price': 1 }; 
-        filter['price_info.current_price'] = { $gte: 0 }; 
+        
+        // ★ [지시서 이행] 낮은 가격 탭은 오직 '유료' 게임만 취급
+        // 1) 가격이 0보다 커야 함 (무료/정보없음/0원 제외)
+        // 2) isFree 플래그가 true가 아니어야 함
+        filter['price_info.current_price'] = { $gt: 0 }; 
+        filter['price_info.isFree'] = { $ne: true };
     }
 
     const games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit).lean();
 
     if (allMatches.length === 0 && !searchQuery && (!tags || tags.length === 0)) {
-        // 태그 선택 없고 결과도 없으면 트렌드 순으로 기본 추천 (성인 제외)
+        // 결과 없을 때 기본 추천
         const popGames = await Game.find({ isAdult: { $ne: true } })
                                    .sort({ trend_score: -1 })
                                    .limit(20).lean();
@@ -168,7 +172,7 @@ app.get('/api/search/autocomplete', async (req, res) => {
     if (!q) return res.json([]);
     const suggestions = await Game.find({ 
         $or: [{ title: { $regex: q, $options: 'i' } }, { title_ko: { $regex: q, $options: 'i' } }],
-        isAdult: { $ne: true } // 자동완성에서도 성인 게임 제외
+        isAdult: { $ne: true } 
     }).select('title title_ko slug').limit(10).lean();
     res.json(suggestions);
 });
