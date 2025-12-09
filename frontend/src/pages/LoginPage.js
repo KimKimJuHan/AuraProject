@@ -4,8 +4,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
-// ★ [수정] 안전한 저장소 import
-import { safeLocalStorage } from '../utils/storage';
 
 function LoginPage({ setUser }) {
   const [formData, setFormData] = useState({ username: '', password: '' });
@@ -29,8 +27,7 @@ function LoginPage({ setUser }) {
       });
 
       if (response.data.user) {
-        // [수정] safeLocalStorage 사용
-        safeLocalStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('user', JSON.stringify(response.data.user));
         setUser(response.data.user);
         navigate('/');
       }

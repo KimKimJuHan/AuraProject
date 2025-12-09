@@ -1,9 +1,6 @@
-// frontend/src/App.js
 import React, { useState, useEffect, useRef } from 'react';
-// ★ [수정] BrowserRouter(Router) 제거 (이미 index.js에서 씀)
-import { Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from './config';
-import { safeLocalStorage, safeSessionStorage } from './utils/storage';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from './config'; // ★ API 주소 가져오기
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
@@ -41,10 +38,8 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const searchContainerRef = useRef(null); 
 
   useEffect(() => {
-    const storedHistory = safeLocalStorage.getItem('gameSearchHistory');
-    if (storedHistory) {
-        try { setHistory(JSON.parse(storedHistory)); } catch(e) { setHistory([]); }
-    }
+    const storedHistory = localStorage.getItem('gameSearchHistory');
+    if (storedHistory) setHistory(JSON.parse(storedHistory));
   }, []);
 
   useEffect(() => {
@@ -60,6 +55,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const fetchSuggestions = async (query) => {
     if (query.length < 1) { setSuggestions([]); return; }
     try {
+      // ★ API 주소 변수 사용
       const response = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${query}`);
       const data = await response.json();
       setSuggestions(data);
@@ -80,7 +76,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     
     const newHistory = [game.title, ...history.filter(h => h !== game.title).slice(0, 4)];
     setHistory(newHistory);
-    safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
     navigate(`/game/${game.slug}`); 
   };
@@ -92,7 +88,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
 
     const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
     setHistory(newHistory);
-    safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
     const targetGame = suggestions.find(g => g.title.toLowerCase() === query.toLowerCase());
     setIsFocused(false); 
@@ -132,7 +128,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   
   const handleClearHistory = () => {
     setHistory([]);
-    safeLocalStorage.removeItem('gameSearchHistory');
+    localStorage.removeItem('gameSearchHistory');
     setIsFocused(false);
     navigate('/search');
   };
@@ -145,9 +141,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   };
 
   const handleLogout = () => {
-    safeLocalStorage.removeItem('token');
-    safeLocalStorage.removeItem('user');
-    safeSessionStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.clear();
     
     document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     setUser(null);
@@ -156,38 +152,78 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   };
 
   return (
-    <div className="net-app">
-        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} />
-        <Routes>
-          <Route path="/" element={<MainPage region={region} user={user} />} />
-          <Route path="/game/:id" element={<ShopPage region={region} />} />
-          <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
-          <Route path="/search" element={<SearchResultsPage />} />
-          <Route path="/login" element={<LoginPage setUser={setUser} />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
-        </Routes>
-    </div>
+    <header className="net-header">
+      <Link to="/" className="net-logo">PLAY FOR YOU</Link>
+
+      <div style={styles.searchContainer} ref={searchContainerRef}>
+        <form onSubmit={handleSubmit}>
+            <input type="text" className="net-search-input" placeholder="게임 검색..." value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsFocused(true)} />
+        </form>
+        {searchTerm.length > 0 && <button onClick={handleClear} style={styles.clearButton}>✕</button>}
+        
+        {isFocused && (
+            <ul style={styles.suggestionsList}>
+                {(searchTerm.length > 0 ? suggestions : history).map((item, idx) => (
+                    <li key={idx} style={idx === selectedIndex ? styles.suggestionItemSelected : styles.suggestionItem}
+                    onMouseDown={() => { 
+                        if(item.slug) handleSuggestionClick(item); 
+                        else { 
+                            setSearchTerm(item); 
+                            navigate(`/search?q=${item}`);
+                            setIsFocused(false);
+                        } 
+                    }}>
+                        {item.slug ? (
+                            <div style={{display:'flex', justifyContent:'space-between'}}>
+                                <span>{item.title}</span>
+                                {item.title_ko && <span style={{color:'#888', fontSize:'12px', marginLeft:'10px'}}>{item.title_ko}</span>}
+                            </div>
+                        ) : item}
+                    </li>
+                ))}
+                {searchTerm.length === 0 && history.length > 0 && ( <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>기록 삭제</li> )}
+            </ul>
+        )}
+      </div>
+
+      <div style={styles.rightGroup}>
+          <Link to="/recommend/personal" style={styles.recoBtn}>🤖 AI 추천</Link>
+          <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
+            <option value="KR">🇰🇷 KRW</option>
+            <option value="US">🇺🇸 USD</option>
+            <option value="JP">🇯🇵 JPY</option>
+          </select>
+          <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
+          {user ? (
+            <>
+                <span style={styles.userText}>{user.username}님</span>
+                <button onClick={handleLogout} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
+            </>
+          ) : (
+            <Link to="/login" style={styles.authBtn}>로그인</Link>
+          )}
+      </div>
+    </header>
   );
 }
 
-// ★ [수정] App 감싸던 Router 제거됨
-function AppContainer() {
+function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
 
   useEffect(() => {
-    const sessionUser = safeSessionStorage.getItem('user');
-    const localUser = safeLocalStorage.getItem('user');
+    const sessionUser = sessionStorage.getItem('user');
+    const localUser = localStorage.getItem('user');
 
     if (sessionUser) {
-        try { setUser(JSON.parse(sessionUser)); } catch(e) {}
+        setUser(JSON.parse(sessionUser));
     } else if (localUser) {
-        try { setUser(JSON.parse(localUser)); } catch(e) {}
+        setUser(JSON.parse(localUser));
     }
   }, []);
 
   return (
+    <Router>
       <div className="net-app">
         <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} />
         <Routes>
@@ -200,6 +236,7 @@ function AppContainer() {
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
         </Routes>
       </div>
+    </Router>
   );
 }
-export default AppContainer;
+export default App;
