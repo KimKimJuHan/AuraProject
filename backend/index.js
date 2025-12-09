@@ -104,7 +104,7 @@ app.get('/api/games/:id/history', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Error' }); }
 });
 
-// ★ [핵심 수정] 메인 페이지 추천 로직 (성인 필터 + 트렌드 정렬 + 낮은 가격 유료 전용)
+// ★ [핵심 수정] 메인 페이지 추천 로직 (신규 탭 정렬 교정 + 출시 예정작 방어)
 app.post('/api/recommend', async (req, res) => {
   const { tags, sortBy, page = 1, searchQuery } = req.body;
   const limit = 15;
@@ -129,7 +129,7 @@ app.post('/api/recommend', async (req, res) => {
         if (g.smart_tags) g.smart_tags.forEach(t => validTagsSet.add(t));
     });
 
-    // 2. 정렬 기준 수정 (Low Price 로직 강화)
+    // 2. 정렬 기준 설정
     let sortRule = { trend_score: -1, _id: -1 };
     
     if (sortBy === 'discount') { 
@@ -137,14 +137,17 @@ app.post('/api/recommend', async (req, res) => {
         filter['price_info.discount_percent'] = { $gt: 0 }; 
     }
     else if (sortBy === 'new') {
+        const now = new Date();
+        // ★ [지시서 이행] 신규 탭: "오늘 이전"이면서 "2000년 이후"인 게임만
+        filter.releaseDate = {
+            $lte: now,
+            $gte: new Date('2000-01-01')
+        };
+        // 최신순 정렬 (미래 출시일은 $lte: now로 이미 걸러짐)
         sortRule = { releaseDate: -1 };
     }
     else if (sortBy === 'price') { 
         sortRule = { 'price_info.current_price': 1 }; 
-        
-        // ★ [지시서 이행] 낮은 가격 탭은 오직 '유료' 게임만 취급
-        // 1) 가격이 0보다 커야 함 (무료/정보없음/0원 제외)
-        // 2) isFree 플래그가 true가 아니어야 함
         filter['price_info.current_price'] = { $gt: 0 }; 
         filter['price_info.isFree'] = { $ne: true };
     }
@@ -152,7 +155,6 @@ app.post('/api/recommend', async (req, res) => {
     const games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit).lean();
 
     if (allMatches.length === 0 && !searchQuery && (!tags || tags.length === 0)) {
-        // 결과 없을 때 기본 추천
         const popGames = await Game.find({ isAdult: { $ne: true } })
                                    .sort({ trend_score: -1 })
                                    .limit(20).lean();

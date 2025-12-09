@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: 브라우저 주기적 재시작 + 분할 수집(배치) + 트렌드/가격 업데이트
+// 기능: HLTB 데이터 정규화(숫자 변환) 적용된 수집기
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -26,7 +26,33 @@ const STEAM_HEADERS = {
   'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=english;'
 };
 
-// 안전한 날짜 파싱
+// ★ [신규] HLTB 문자열 파싱 함수 (지시서 기반 구현)
+function parseHLTBTime(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+
+    // 특수문자 및 공백 정리 (½ -> .5)
+    const normalize = raw
+        .replace('½', '.5')
+        .replace(/½/g, '.5') // 혹시 몰라 전역 치환
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    // 정규식으로 숫자 추출
+    const extract = (label) => {
+        // 예: "main story 8.5 hours" -> 8.5 추출
+        const regex = new RegExp(label + '.*?([0-9]+(\\.[0-9]+)?)');
+        const match = normalize.match(regex);
+        return match ? parseFloat(match[1]) : null;
+    };
+
+    return {
+        main: extract('main story'),
+        extra: extract('main \\+ extra'), // +는 정규식 특수문자라 이스케이프
+        completionist: extract('completionist'),
+        raw: raw
+    };
+}
+
 function parseSafeDate(dateStr) {
     if (!dateStr) return undefined;
     const cleanStr = dateStr.replace(/년|월/g, '-').replace(/일/g, '').trim();
@@ -185,9 +211,6 @@ async function fetchPriceInfo(originalAppId, initialSteamData, metadata) {
   return { regular_price: 0, current_price: 0, discount_percent: 0, historical_low: 0, deals: [], store_name: 'Steam', store_url: `https://store.steampowered.com/app/${originalAppId}`, isFree };
 }
 
-// ----------------------------------------------------------------------------
-// 메인 수집 로직
-// ----------------------------------------------------------------------------
 async function collectGamesData() {
   await mongoose.connect(MONGODB_URI);
   console.log('✅ DB Connected. 수집기 시작...');
@@ -196,11 +219,9 @@ async function collectGamesData() {
   const existingGameMap = new Map();
   existingGames.forEach(g => existingGameMap.set(g.steam_appid, g));
 
-  // ★ [핵심 수정 1] 전체 2600개를 다 돌리지 않고, 업데이트가 가장 오래된 100개만 가져옴 (GitHub Actions 메모리 보호)
-  // 처음에는 lastUpdated가 없는(undefined) 애들부터 가져오고, 그 다음엔 날짜가 오래된 순
   const metadatas = await GameMetadata.find({})
-    .sort({ lastUpdated: 1 }) // 오름차순 (null or 과거 -> 최신)
-    .limit(100);              // ★ 100개만 처리하고 종료
+    .sort({ lastUpdated: 1 }) 
+    .limit(100); 
 
   console.log(`🚀 이번 실행 처리 대상: ${metadatas.length}개 (안정성을 위한 분할 처리)`);
 
@@ -219,15 +240,14 @@ async function collectGamesData() {
       browser = await puppeteer.launch({
           executablePath: chromePath,
           headless: 'new',
-          // ★ [핵심 수정 2] --single-process 제거 (불안정), 메모리 관련 옵션 강화
           args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
             '--disable-dev-shm-usage', 
             '--disable-gpu', 
             '--no-first-run',
-            '--disable-extensions', // 확장 프로그램 비활성화로 메모리 절약
-            '--mute-audio'          // 오디오 리소스 사용 방지
+            '--disable-extensions', 
+            '--mute-audio'          
           ]
       });
       page = await browser.newPage();
@@ -253,14 +273,14 @@ async function collectGamesData() {
           const steamId = metadata.steamAppId;
           const existingData = existingGameMap.get(steamId);
           const isNewGame = !existingData;
-          const isMissingPlaytime = existingData && (existingData.play_time === '정보 없음' || !existingData.play_time);
+          // play_time이 없거나, 문자열 '정보 없음'인 경우 재수집 대상
+          const isMissingPlaytime = existingData && (!existingData.play_time || existingData.play_time === '정보 없음');
           
           await sleep(isNewGame ? 1500 : 500);
           
           const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, { params: { appids: steamId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS, timeout: 10000 });
           const data = steamRes.data?.[steamId]?.data;
           
-          // 데이터가 없어도 메타데이터 업데이트(시간)는 해줘야 다음에 또 시도 안함
           if (!data && !existingData) {
              await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
              continue; 
@@ -286,7 +306,8 @@ async function collectGamesData() {
           const priceInfo = data ? await fetchPriceInfo(steamId, data, metadata) : (existingData?.price_info || {});
           const steamReviews = await getSteamReviews(steamId);
 
-          let playTime = existingData?.play_time || '정보 없음';
+          // ★ [핵심] HLTB 데이터 구조화 로직 적용
+          let playTime = existingData?.play_time || null;
           
           if (page && (isNewGame || isMissingPlaytime)) {
               try {
@@ -300,7 +321,7 @@ async function collectGamesData() {
                         await page.goto(`https://howlongtobeat.com/?q=${encodeURIComponent(query)}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
                         await page.waitForSelector('ul.search_list, .search_list_details', { timeout: 5000 }).catch(()=>{});
                         
-                        const result = await page.evaluate((targetYear) => {
+                        const resultText = await page.evaluate((targetYear) => {
                             let cards = Array.from(document.querySelectorAll('li'));
                             if (cards.length < 2) cards = Array.from(document.querySelectorAll('div[class*="GameCard"]'));
                             const validCards = cards.filter(el => {
@@ -316,16 +337,14 @@ async function collectGamesData() {
                                 });
                                 if (match) card = match;
                             }
-                            const raw = card.innerText.replace(/\n/g, ' ');
-                            const extract = (label) => {
-                                const m = raw.match(new RegExp(`${label}.*?([0-9½\.]+)\\s*(Hours|Hour|Mins|h)`, 'i'));
-                                if (m) return `${m[1].replace('½', '.5')} ${m[2]}`.replace(/Hours|Hour|h/i, '시간').replace('Mins', '분');
-                                return null;
-                            };
-                            return extract('Main Story') || extract('Main + Extra') || extract('Co-Op') || extract('All Styles');
+                            return card.innerText.replace(/\n/g, ' ');
                         }, steamYear);
 
-                        if (result) { playTime = result; break; }
+                        if (resultText) {
+                            // ★ 문자열 파싱하여 구조화된 객체 생성
+                            playTime = parseHLTBTime(resultText);
+                            break; 
+                        }
                     } catch (e) {}
                     await sleep(500);
                 }
@@ -339,7 +358,7 @@ async function collectGamesData() {
               steam_ccu: steamCCU,
               steam_reviews: steamReviews,
               price_info: priceInfo,
-              play_time: playTime,
+              play_time: playTime, // 구조화된 객체 저장
               lastUpdated: new Date()
           };
 
@@ -360,23 +379,22 @@ async function collectGamesData() {
           await Game.findOneAndUpdate({ steam_appid: steamId }, updateData, { upsert: true });
           await new TrendHistory({ steam_appid: steamId, trend_score: trendScore, twitch_viewers: trends.twitch.value, chzzk_viewers: trends.chzzk.value, steam_ccu: steamCCU, recordedAt: new Date() }).save();
           
-          // ★ [핵심] 메타데이터의 lastUpdated도 갱신하여, 다음번 실행 때 이 게임은 뒤로 밀리게 함
           await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
 
           processedCount++;
           const status = isNewGame ? "✨ 신규" : (isMissingPlaytime ? "🔧 보강" : "🔄 갱신");
-          console.log(`✅ [${status}] ${metadata.title} | Time=${playTime} | Trend=${trendScore}`);
+          // 로그에는 보기 좋게 메인 스토리 시간 표시
+          const timeLog = playTime?.main ? `${playTime.main}H` : 'N/A';
+          console.log(`✅ [${status}] ${metadata.title} | Time=${timeLog} | Trend=${trendScore}`);
           
         } catch (e) { 
             console.error(`❌ 처리 실패: ${metadata.steamAppId}`, e.message); 
-            // 실패해도 업데이트 시간을 갱신해서 무한 반복 방지 (선택 사항)
-            // await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
         }
       }
   }
 
   if (browser) await browser.close();
-  console.log(`\n🎉 부분 수집 완료 (총 처리: ${processedCount}개) - GitHub Actions 메모리 보호됨`);
+  console.log(`\n🎉 부분 수집 완료 (총 처리: ${processedCount}개)`);
   process.exit(0);
 }
 
