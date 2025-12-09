@@ -1,7 +1,10 @@
+// frontend/src/App.js
+
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from './config'; 
-import { safeLocalStorage, safeSessionStorage } from './utils/storage'; // 방금 만든 파일 불러오기
+import { API_BASE_URL } from './config';
+// ★ [핵심 수정] 안전한 저장소 import
+import { safeLocalStorage, safeSessionStorage } from './utils/storage';
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
@@ -39,13 +42,10 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const searchContainerRef = useRef(null); 
 
   useEffect(() => {
+    // [수정] safeLocalStorage 사용으로 에러 방지
     const storedHistory = safeLocalStorage.getItem('gameSearchHistory');
     if (storedHistory) {
-        try {
-            setHistory(JSON.parse(storedHistory));
-        } catch (e) {
-            setHistory([]);
-        }
+        try { setHistory(JSON.parse(storedHistory)); } catch(e) { setHistory([]); }
     }
   }, []);
 
@@ -151,6 +151,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     safeLocalStorage.removeItem('user');
     safeSessionStorage.clear();
     
+    // 쿠키 삭제 (만료일 과거로 설정)
     document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     setUser(null);
     alert("로그아웃 되었습니다.");
@@ -218,6 +219,7 @@ function App() {
   const [region, setRegion] = useState('KR');
 
   useEffect(() => {
+    // [수정] 앱 시작 시 저장소 에러 방지
     const sessionUser = safeSessionStorage.getItem('user');
     const localUser = safeLocalStorage.getItem('user');
 
