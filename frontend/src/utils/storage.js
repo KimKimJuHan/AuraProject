@@ -1,4 +1,5 @@
 // frontend/src/utils/storage.js
+// [핵심] 저장소가 막혀도 앱이 죽지 않게 막아주는 방패 역할
 
 const isStorageAvailable = (type) => {
   try {
@@ -15,7 +16,6 @@ const isStorageAvailable = (type) => {
 const availableLocal = isStorageAvailable('localStorage');
 const availableSession = isStorageAvailable('sessionStorage');
 
-// 저장소가 차단되었을 때 사용할 임시 메모리 공간
 const memoryStorage = {};
 
 export const safeLocalStorage = {
