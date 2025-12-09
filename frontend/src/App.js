@@ -1,6 +1,8 @@
+// frontend/src/App.js
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from './config'; // ★ API 주소 가져오기
+import { API_BASE_URL } from './config';
+import { safeLocalStorage, safeSessionStorage } from './utils/storage';
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
@@ -38,8 +40,10 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const searchContainerRef = useRef(null); 
 
   useEffect(() => {
-    const storedHistory = localStorage.getItem('gameSearchHistory');
-    if (storedHistory) setHistory(JSON.parse(storedHistory));
+    const storedHistory = safeLocalStorage.getItem('gameSearchHistory');
+    if (storedHistory) {
+        try { setHistory(JSON.parse(storedHistory)); } catch(e) {}
+    }
   }, []);
 
   useEffect(() => {
@@ -55,7 +59,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const fetchSuggestions = async (query) => {
     if (query.length < 1) { setSuggestions([]); return; }
     try {
-      // ★ API 주소 변수 사용
       const response = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${query}`);
       const data = await response.json();
       setSuggestions(data);
@@ -76,7 +79,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     
     const newHistory = [game.title, ...history.filter(h => h !== game.title).slice(0, 4)];
     setHistory(newHistory);
-    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
     navigate(`/game/${game.slug}`); 
   };
@@ -88,7 +91,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
 
     const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
     setHistory(newHistory);
-    localStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
     
     const targetGame = suggestions.find(g => g.title.toLowerCase() === query.toLowerCase());
     setIsFocused(false); 
@@ -128,7 +131,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   
   const handleClearHistory = () => {
     setHistory([]);
-    localStorage.removeItem('gameSearchHistory');
+    safeLocalStorage.removeItem('gameSearchHistory');
     setIsFocused(false);
     navigate('/search');
   };
@@ -141,9 +144,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    sessionStorage.clear();
+    safeLocalStorage.removeItem('token');
+    safeLocalStorage.removeItem('user');
+    safeSessionStorage.clear();
     
     document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
     setUser(null);
@@ -187,7 +190,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
       </div>
 
       <div style={styles.rightGroup}>
-          <Link to="/recommend/personal" style={styles.recoBtn}>🤖 AI 추천</Link>
+          {/* ★ [수정] AI 추천 -> 게임 추천 (명칭 변경) */}
+          <Link to="/recommend/personal" style={styles.recoBtn}>🤖 게임 추천</Link>
+          
           <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
             <option value="KR">🇰🇷 KRW</option>
             <option value="US">🇺🇸 USD</option>
@@ -212,13 +217,13 @@ function App() {
   const [region, setRegion] = useState('KR');
 
   useEffect(() => {
-    const sessionUser = sessionStorage.getItem('user');
-    const localUser = localStorage.getItem('user');
+    const sessionUser = safeSessionStorage.getItem('user');
+    const localUser = safeLocalStorage.getItem('user');
 
     if (sessionUser) {
-        setUser(JSON.parse(sessionUser));
+        try { setUser(JSON.parse(sessionUser)); } catch(e) {}
     } else if (localUser) {
-        setUser(JSON.parse(localUser));
+        try { setUser(JSON.parse(localUser)); } catch(e) {}
     }
   }, []);
 

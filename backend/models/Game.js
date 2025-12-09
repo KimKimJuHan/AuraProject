@@ -10,12 +10,9 @@ const gameSchema = new mongoose.Schema({
   main_image: { type: String },
   description: { type: String },
   
-  // ★ 성인 게임 여부 (기본값 false)
   isAdult: { type: Boolean, default: false },
-
   smart_tags: { type: [String], index: true },
 
-  // 트렌드 점수 (이걸로 인기순 정렬)
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
   chzzk_viewers: { type: Number, default: 0 },
@@ -62,7 +59,14 @@ const gameSchema = new mongoose.Schema({
 
   screenshots: [String],
   trailers: [String],
-  play_time: { type: String, default: "정보 없음" },
+  
+  // ★ [핵심 수정] 플레이타임 구조화 (숫자 기반)
+  play_time: { 
+    main: Number,          // 메인 스토리
+    extra: Number,         // 메인 + 서브
+    completionist: Number, // 완전 정복
+    raw: String            // 원본 문자열 (백업용)
+  },
   
   metacritic_score: { type: Number, default: 0 },
   igdb_score: { type: Number, default: 0 },

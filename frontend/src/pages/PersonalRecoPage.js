@@ -17,7 +17,6 @@ const TAG_CATEGORIES = {
   '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
 };
 
-// [수정됨] 추천 페이지 전용 GameCard (메인 페이지와 규칙 분리)
 function GameCard({ game }) {
     const [isWishlisted, setIsWishlisted] = useState(false);
     const [imgSrc, setImgSrc] = useState(game.thumb || FALLBACK_IMAGE);
@@ -42,13 +41,9 @@ function GameCard({ game }) {
         setIsWishlisted(!isWishlisted);
     };
 
-    // [표현 규칙 A] 가격 정보 상태 판별
     const isFree = game.price === "무료";
     const isUnknown = game.price === "가격 정보 없음";
 
-    // [표현 규칙 B] HLTB 데이터 정제 (레이아웃 깨짐 방지)
-    // 숫자가 포함되어 있고, 너무 길지 않은 깔끔한 문자열("14 시간")만 허용
-    // "Hours", "Main Story" 같은 영문/특수문자 섞인 긴 텍스트는 숨김
     const rawPlaytime = game.playtime || "";
     const showPlaytime = rawPlaytime !== "정보 없음" && 
                          !rawPlaytime.includes("Hours") && 
@@ -72,7 +67,6 @@ function GameCard({ game }) {
             <div className="card-info">
                 <div className="game-title">{game.name}</div>
                 <div className="game-meta-row">
-                    {/* [지시 이행] 가격 정보 없음 시각적 강등 (Visual Downgrade) */}
                     <span 
                         className="game-price" 
                         style={{
@@ -85,7 +79,6 @@ function GameCard({ game }) {
                         {isUnknown ? "가격 정보 수집 중" : game.price}
                     </span>
                     
-                    {/* [지시 이행] HLTB 텍스트 깨짐 방지 (조건부 렌더링) */}
                     {showPlaytime && (
                         <span className="game-playtime">⏳ {game.playtime}</span>
                     )}
@@ -215,7 +208,8 @@ function PersonalRecoPage({ user }) {
   return (
     <div className="reco-container">
       <div className="search-panel">
-        <h1>🤖 AI 맞춤 추천</h1>
+        {/* ★ [수정] AI 맞춤 추천 -> 게임 맞춤 추천 (타이틀 변경) */}
+        <h1>🤖 게임 맞춤 추천</h1>
         <div className="steam-dashboard">
             {!user ? (
                 <div className="steam-guest-msg">
