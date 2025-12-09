@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
+// ★ [수정] 안전한 저장소 사용
+import { safeLocalStorage } from './utils/storage';
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
@@ -26,15 +28,12 @@ const styles = {
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
-  // 비활성화 스타일
   tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 }
 };
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
     const [isOpen, setIsOpen] = useState(false); 
-    
-    // 태그 선택 여부 확인 (하나라도 선택되었는지)
     const hasSelection = selectedTags.length > 0;
 
     return (
@@ -47,8 +46,6 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                 <div style={styles.filterContent}>
                     {tags.map(tag => {
                         const isSelected = selectedTags.includes(tag);
-                        // ★ 유효하지 않은 태그 비활성화 로직
-                        // 선택된 게 있고 + 현재 태그가 선택 안 됐고 + 유효 목록에도 없으면 -> 비활성화
                         const isDisabled = hasSelection && !isSelected && !validTags.includes(tag);
 
                         return (
@@ -75,17 +72,20 @@ function GameListItem({ game }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   useEffect(() => {
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    // [수정] safeLocalStorage 사용
+    const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || '[]');
     setIsWishlisted(wishlist.includes(game.slug));
   }, [game.slug]);
 
   const toggleWishlist = (e) => {
     e.preventDefault(); e.stopPropagation();
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || '[]');
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
     else newWishlist = [...wishlist, game.slug];
-    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+    
+    // [수정] safeLocalStorage 사용
+    safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
   };
 
@@ -121,7 +121,7 @@ function MainPage({ user }) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [validTags, setValidTags] = useState([]); // ★ 유효 태그 목록 상태
+  const [validTags, setValidTags] = useState([]); 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
   const [error, setError] = useState(null);
@@ -133,8 +133,6 @@ function MainPage({ user }) {
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
-    // hasMore 체크를 처음에 안 하고 일단 요청을 보냄 (필터 변경 시 갱신 위해)
-    // 단, page > 1 일 때는 hasMore가 false면 중단
     if (page > 1 && !hasMore) return;
     
     const fetchGames = async () => {
@@ -149,7 +147,6 @@ function MainPage({ user }) {
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
             
-            // ★ 유효 태그 목록 업데이트
             if (data.validTags) {
                 setValidTags(data.validTags);
             }
@@ -169,7 +166,7 @@ function MainPage({ user }) {
     };
     
     fetchGames();
-  }, [page, selectedTags, activeTab]); // hasMore 제거 (무한루프 방지 및 즉시 갱신)
+  }, [page, selectedTags, activeTab]); 
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -191,7 +188,7 @@ function MainPage({ user }) {
                 tags={tags} 
                 selectedTags={selectedTags} 
                 onToggleTag={toggleTag} 
-                validTags={validTags} // ★ 유효 태그 전달
+                validTags={validTags} 
               />
           ))}
       </div>
