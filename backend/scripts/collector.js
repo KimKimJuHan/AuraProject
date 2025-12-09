@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: 브라우저 주기적 재시작 + 날짜 파싱 오류 해결 + 트렌드/가격 업데이트
+// 기능: 브라우저 주기적 재시작 + 분할 수집(배치) + 트렌드/가격 업데이트
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -26,21 +26,12 @@ const STEAM_HEADERS = {
   'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=english;'
 };
 
-// ★ [추가] 안전한 날짜 파싱 함수 (Invalid Date 방지)
+// 안전한 날짜 파싱
 function parseSafeDate(dateStr) {
     if (!dateStr) return undefined;
-    
-    // 1. 한국어 날짜 포맷 변환 ("2024년 5월 1일" -> "2024-5-1")
     const cleanStr = dateStr.replace(/년|월/g, '-').replace(/일/g, '').trim();
-    
-    // 2. 날짜 객체 생성
     const date = new Date(cleanStr);
-    
-    // 3. 유효성 검사 (Invalid Date 체크)
-    if (isNaN(date.getTime())) {
-        // 날짜가 아닌 문자열("Coming Soon", "TBA" 등)일 경우 undefined 반환 (DB 저장 생략)
-        return undefined;
-    }
+    if (isNaN(date.getTime())) return undefined;
     return date;
 }
 
@@ -205,8 +196,13 @@ async function collectGamesData() {
   const existingGameMap = new Map();
   existingGames.forEach(g => existingGameMap.set(g.steam_appid, g));
 
-  const metadatas = await GameMetadata.find({});
-  console.log(`🚀 전체 처리 대상: ${metadatas.length}개`);
+  // ★ [핵심 수정 1] 전체 2600개를 다 돌리지 않고, 업데이트가 가장 오래된 100개만 가져옴 (GitHub Actions 메모리 보호)
+  // 처음에는 lastUpdated가 없는(undefined) 애들부터 가져오고, 그 다음엔 날짜가 오래된 순
+  const metadatas = await GameMetadata.find({})
+    .sort({ lastUpdated: 1 }) // 오름차순 (null or 과거 -> 최신)
+    .limit(100);              // ★ 100개만 처리하고 종료
+
+  console.log(`🚀 이번 실행 처리 대상: ${metadatas.length}개 (안정성을 위한 분할 처리)`);
 
   const chromePath = findChromePath();
   if (!chromePath) { console.error('❌ Chrome 경로 없음'); process.exit(1); }
@@ -223,7 +219,16 @@ async function collectGamesData() {
       browser = await puppeteer.launch({
           executablePath: chromePath,
           headless: 'new',
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--single-process']
+          // ★ [핵심 수정 2] --single-process 제거 (불안정), 메모리 관련 옵션 강화
+          args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage', 
+            '--disable-gpu', 
+            '--no-first-run',
+            '--disable-extensions', // 확장 프로그램 비활성화로 메모리 절약
+            '--mute-audio'          // 오디오 리소스 사용 방지
+          ]
       });
       page = await browser.newPage();
       await page.setUserAgent(STEAM_HEADERS['User-Agent']);
@@ -255,7 +260,11 @@ async function collectGamesData() {
           const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, { params: { appids: steamId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS, timeout: 10000 });
           const data = steamRes.data?.[steamId]?.data;
           
-          if (!data && !existingData) continue; 
+          // 데이터가 없어도 메타데이터 업데이트(시간)는 해줘야 다음에 또 시도 안함
+          if (!data && !existingData) {
+             await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
+             continue; 
+          }
           
           let scrapedTags = [];
           if (isNewGame && data && page) {
@@ -341,7 +350,6 @@ async function collectGamesData() {
                   title_ko: (categoryData?.chzzk?.categoryValue || data.name).replace(/_/g, ' '),
                   main_image: data.header_image, description: data.short_description,
                   smart_tags: mapSteamTags(rawTags), isAdult: checkIfAdult(data, rawTags),
-                  // [수정됨] 안전한 날짜 파싱 적용
                   releaseDate: data.release_date?.date ? parseSafeDate(data.release_date.date) : undefined,
                   metacritic_score: data.metacritic?.score || 0,
                   screenshots: (data.screenshots || []).map(s => s.path_full),
@@ -351,17 +359,24 @@ async function collectGamesData() {
 
           await Game.findOneAndUpdate({ steam_appid: steamId }, updateData, { upsert: true });
           await new TrendHistory({ steam_appid: steamId, trend_score: trendScore, twitch_viewers: trends.twitch.value, chzzk_viewers: trends.chzzk.value, steam_ccu: steamCCU, recordedAt: new Date() }).save();
+          
+          // ★ [핵심] 메타데이터의 lastUpdated도 갱신하여, 다음번 실행 때 이 게임은 뒤로 밀리게 함
+          await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
 
           processedCount++;
           const status = isNewGame ? "✨ 신규" : (isMissingPlaytime ? "🔧 보강" : "🔄 갱신");
           console.log(`✅ [${status}] ${metadata.title} | Time=${playTime} | Trend=${trendScore}`);
           
-        } catch (e) { console.error(`❌ 처리 실패: ${metadata.steamAppId}`, e.message); }
+        } catch (e) { 
+            console.error(`❌ 처리 실패: ${metadata.steamAppId}`, e.message); 
+            // 실패해도 업데이트 시간을 갱신해서 무한 반복 방지 (선택 사항)
+            // await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
+        }
       }
   }
 
   if (browser) await browser.close();
-  console.log(`\n🎉 모든 작업 완료 (총 처리: ${processedCount}개)`);
+  console.log(`\n🎉 부분 수집 완료 (총 처리: ${processedCount}개) - GitHub Actions 메모리 보호됨`);
   process.exit(0);
 }
 
