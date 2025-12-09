@@ -5,6 +5,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import axios from 'axios'; 
 import "../styles/Recommend.css"; 
 import { API_BASE_URL } from '../config'; 
+// ★ 안전한 저장소 import
+import { safeLocalStorage } from '../utils/storage';
 
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
@@ -21,18 +23,24 @@ function GameCard({ game }) {
     const [imgSrc, setImgSrc] = useState(game.thumb || FALLBACK_IMAGE);
 
     useEffect(() => {
-        const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+        // ★ safeLocalStorage 사용
+        const wishlistStr = safeLocalStorage.getItem('gameWishlist');
+        const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
         setIsWishlisted(wishlist.includes(game.slug));
         setImgSrc(game.thumb || FALLBACK_IMAGE); 
     }, [game.slug, game.thumb]);
 
     const toggleWishlist = (e) => {
         e.preventDefault();
-        const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+        const wishlistStr = safeLocalStorage.getItem('gameWishlist');
+        const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
+        
         let newWishlist;
         if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
         else newWishlist = [...wishlist, game.slug];
-        localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+        
+        // ★ 안전하게 저장
+        safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
         setIsWishlisted(!isWishlisted);
     };
 
@@ -107,19 +115,16 @@ function PersonalRecoPage({ user }) {
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
 
-  // ★ 스팀 연동 체크 (200 OK + Flag 방식)
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
         const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
         
-        // ★ 백엔드가 200 OK를 주지만, 내용에 따라 상태 결정
         if (res.data.linked === false) {
-            setSteamStatus('NOT_LINKED'); // 400 에러 없이 조용히 처리
+            setSteamStatus('NOT_LINKED'); 
         } else if (res.data.error === "PRIVATE") {
             setSteamStatus('PRIVATE');
         } else {
-            // 정상 연동됨
             const sorted = (res.data.games || []).sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
             setTopGames(sorted);
             setSteamStatus('LINKED');
@@ -161,7 +166,8 @@ function PersonalRecoPage({ user }) {
 
   const toggle = (t) => {
     const isSelected = picked.has(t);
-    if (picked.size > 0 && !validTags.includes(t) && !isSelected) return;
+    // 태그 필터 로직: 결과가 0개가 될 조합은 선택 방지
+    if (picked.size > 0 && validTags.length > 0 && !validTags.includes(t) && !isSelected) return;
 
     setPicked((prev) => {
       const next = new Set(prev);
@@ -250,7 +256,7 @@ function PersonalRecoPage({ user }) {
                     <div className="tag-list">
                         {list.map(t => {
                             const isSelected = picked.has(t);
-                            const isDisabled = picked.size > 0 && !validTags.includes(t) && !isSelected;
+                            const isDisabled = picked.size > 0 && validTags.length > 0 && !validTags.includes(t) && !isSelected;
                             return (
                                 <div 
                                     key={t} 
