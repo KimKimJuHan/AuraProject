@@ -1,15 +1,15 @@
 // frontend/src/App.js
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from './config';
-import { safeLocalStorage, safeSessionStorage } from './utils/storage';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
+import API_BASE_URL, { apiClient } from './config';
+import { safeLocalStorage } from './utils/storage';
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
 import SearchResultsPage from './SearchResultsPage';
 import LoginPage from './pages/LoginPage';
-import SignupPage from './pages/SignupPage';
+// import SignupPage from './pages/SignupPage'; // 스팀 연동이므로 자체 회원가입 제거 권장
 import PersonalRecoPage from './pages/PersonalRecoPage';
 
 const styles = {
@@ -59,9 +59,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const fetchSuggestions = async (query) => {
     if (query.length < 1) { setSuggestions([]); return; }
     try {
-      const response = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${query}`);
-      const data = await response.json();
-      setSuggestions(data);
+      // apiClient 적용
+      const response = await apiClient.get(`/search/autocomplete?q=${query}`);
+      setSuggestions(response.data);
       setSelectedIndex(-1); 
     } catch (err) { console.error(err); }
   };
@@ -143,15 +143,16 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     setIsFocused(true); 
   };
 
-  const handleLogout = () => {
-    safeLocalStorage.removeItem('token');
-    safeLocalStorage.removeItem('user');
-    safeSessionStorage.clear();
-    
-    document.cookie = 'token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-    setUser(null);
-    alert("로그아웃 되었습니다.");
-    navigate('/');
+  // 백엔드 세션 무효화 로그아웃 호출
+  const handleLogout = async () => {
+    try {
+        await apiClient.post('/auth/logout');
+        setUser(null);
+        alert("성공적으로 로그아웃 되었습니다.");
+        navigate('/');
+    } catch (error) {
+        console.error("로그아웃 실패", error);
+    }
   };
 
   return (
@@ -190,7 +191,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
       </div>
 
       <div style={styles.rightGroup}>
-          {/* ★ [수정] AI 추천 -> 게임 추천 (명칭 변경) */}
           <Link to="/recommend/personal" style={styles.recoBtn}>🤖 게임 추천</Link>
           
           <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
@@ -199,9 +199,11 @@ function NavigationBar({ user, setUser, region, setRegion }) {
             <option value="JP">🇯🇵 JPY</option>
           </select>
           <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
+          
           {user ? (
             <>
-                <span style={styles.userText}>{user.username}님</span>
+                <span style={styles.userText}>{user.displayName || user.username}님</span>
+                {user.avatar && <img src={user.avatar} alt="profile" style={{width:'32px', height:'32px', borderRadius:'50%'}} />}
                 <button onClick={handleLogout} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
             </>
           ) : (
@@ -215,17 +217,32 @@ function NavigationBar({ user, setUser, region, setRegion }) {
 function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
+  const [loading, setLoading] = useState(true);
 
+  // 앱 로드 시 백엔드에 쿠키를 들고가서 스팀 로그인 세션이 살아있는지 확인
   useEffect(() => {
-    const sessionUser = safeSessionStorage.getItem('user');
-    const localUser = safeLocalStorage.getItem('user');
+    const checkAuthStatus = async () => {
+        try {
+            const response = await apiClient.get('/auth/status');
+            if (response.data.isAuthenticated) {
+                setUser(response.data.user);
+            } else {
+                setUser(null);
+            }
+        } catch (error) {
+            console.error('인증 상태 확인 실패:', error);
+            setUser(null);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    if (sessionUser) {
-        try { setUser(JSON.parse(sessionUser)); } catch(e) {}
-    } else if (localUser) {
-        try { setUser(JSON.parse(localUser)); } catch(e) {}
-    }
+    checkAuthStatus();
   }, []);
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', backgroundColor: '#121212' }}>Loading AuraProject...</div>;
+  }
 
   return (
     <Router>
@@ -236,12 +253,12 @@ function App() {
           <Route path="/game/:id" element={<ShopPage region={region} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
-          <Route path="/login" element={<LoginPage setUser={setUser} />} />
-          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/login" element={<LoginPage user={user} />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
         </Routes>
       </div>
     </Router>
   );
 }
+
 export default App;
