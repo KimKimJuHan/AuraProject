@@ -1,7 +1,6 @@
-// frontend/src/App.js
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
-import API_BASE_URL, { apiClient } from './config';
+import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 
 import MainPage from './MainPage';
@@ -9,7 +8,7 @@ import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
 import SearchResultsPage from './SearchResultsPage';
 import LoginPage from './pages/LoginPage';
-// import SignupPage from './pages/SignupPage'; // 스팀 연동이므로 자체 회원가입 제거 권장
+import SignupPage from './pages/SignupPage'; // 회원가입 페이지 임포트 복구
 import PersonalRecoPage from './pages/PersonalRecoPage';
 
 const styles = {
@@ -59,7 +58,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const fetchSuggestions = async (query) => {
     if (query.length < 1) { setSuggestions([]); return; }
     try {
-      // apiClient 적용
       const response = await apiClient.get(`/search/autocomplete?q=${query}`);
       setSuggestions(response.data);
       setSelectedIndex(-1); 
@@ -143,7 +141,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     setIsFocused(true); 
   };
 
-  // 백엔드 세션 무효화 로그아웃 호출
   const handleLogout = async () => {
     try {
         await apiClient.post('/auth/logout');
@@ -219,7 +216,6 @@ function App() {
   const [region, setRegion] = useState('KR');
   const [loading, setLoading] = useState(true);
 
-  // 앱 로드 시 백엔드에 쿠키를 들고가서 스팀 로그인 세션이 살아있는지 확인
   useEffect(() => {
     const checkAuthStatus = async () => {
         try {
@@ -253,7 +249,11 @@ function App() {
           <Route path="/game/:id" element={<ShopPage region={region} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
-          <Route path="/login" element={<LoginPage user={user} />} />
+          
+          {/* 로그인/회원가입 라우터 및 상태 관리 함수(setUser) 전달 */}
+          <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
+          <Route path="/signup" element={<SignupPage />} />
+          
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
         </Routes>
       </div>
