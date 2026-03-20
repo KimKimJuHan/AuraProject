@@ -1,55 +1,80 @@
-// backend/controllers/authController.js
-const authService = require('../services/authService');
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const User = require('../models/User');
+const bcrypt = require('bcrypt');
 
 class AuthController {
-    // 스팀 인증 후 콜백 처리
-    async steamCallback(req, res) {
+    // 자체 회원가입
+    async signup(req, res) {
         try {
-            if (!req.user) {
-                return res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
+            const { username, password, email } = req.body;
+            
+            // 중복 검사
+            const existingUser = await User.findOne({ username });
+            if (existingUser) {
+                return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
             }
 
-            // 비즈니스 로직(DB 저장) 호출
-            const user = await authService.handleSteamLogin(req.user);
-
-            // 보안 통신을 위한 Session Cookie 발급 보장
-            req.session.userId = user._id;
+            // 비밀번호 암호화 (Salt 10번)
+            const hashedPassword = await bcrypt.hash(password, 10);
             
-            // 인증 성공 후 프론트엔드 메인으로 리다이렉트
-            res.redirect(`${FRONTEND_URL}/?login=success`);
+            // DB 저장
+            const newUser = new User({ username, password: hashedPassword, email });
+            await newUser.save();
+
+            res.status(201).json({ success: true, message: '회원가입이 완료되었습니다.' });
         } catch (error) {
-            console.error('Steam Auth Error:', error);
-            res.redirect(`${FRONTEND_URL}/login?error=server_error`);
+            console.error('Signup Error:', error);
+            res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
         }
     }
 
-    // 현재 로그인 상태 확인 API
+    // 자체 로그인
+    async login(req, res) {
+        try {
+            const { username, password, rememberMe } = req.body;
+            
+            // 유저 찾기
+            const user = await User.findOne({ username });
+            if (!user) {
+                return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
+            }
+
+            // 비밀번호 검증
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+                return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
+            }
+
+            // 세션 발급
+            req.session.user = { id: user._id, username: user.username };
+            
+            // 동적 세션 제어 (로그인 유지 체크박스)
+            if (rememberMe) {
+                req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30; // 30일 유지
+            } else {
+                req.session.cookie.expires = false; // 브라우저 종료 시 로그아웃
+            }
+
+            res.json({ success: true, user: req.session.user });
+        } catch (error) {
+            console.error('Login Error:', error);
+            res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
+        }
+    }
+
+    // 로그인 상태 확인
     checkStatus(req, res) {
-        if (req.isAuthenticated() && req.user) {
-            res.json({
-                isAuthenticated: true,
-                user: {
-                    steamId: req.user.id,
-                    displayName: req.user.displayName,
-                    avatar: req.user.photos ? req.user.photos[2].value : null
-                }
-            });
+        if (req.session && req.session.user) {
+            res.json({ isAuthenticated: true, user: req.session.user });
         } else {
             res.json({ isAuthenticated: false, user: null });
         }
     }
 
-    // 로그아웃 처리
+    // 로그아웃
     logout(req, res) {
-        req.logout((err) => {
-            if (err) return res.status(500).json({ message: "Logout Failed" });
-            
-            // 세션 완전히 파기
-            req.session.destroy(() => {
-                res.clearCookie('connect.sid'); // 기본 세션 쿠키 삭제
-                res.json({ message: 'Logout Successful' });
-            });
+        req.session.destroy(() => {
+            res.clearCookie('connect.sid'); // 세션 쿠키 삭제
+            res.json({ success: true, message: '로그아웃 되었습니다.' });
         });
     }
 }

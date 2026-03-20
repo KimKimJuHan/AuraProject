@@ -2,49 +2,54 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { apiClient } from '../config'; // ★ [수정] 일반 axios 대신 apiClient 사용
 
 function SignupPage() {
   const [step, setStep] = useState(1); // 1: 정보입력, 2: 인증코드확인
   const [formData, setFormData] = useState({
     email: '',
-    username: '',
+    username: '', // 이전 코드의 'username'을 의미. 아이디로 사용.
     password: '',
     confirmPassword: '',
     code: ''
   });
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // 1단계: 인증코드 발송 요청
+  // 1단계: 인증코드 발송 요청 (이메일 및 아이디 등 사전 입력)
   const handleSendCode = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       return alert("비밀번호가 일치하지 않습니다.");
     }
+    
+    setLoading(true);
     try {
-      // ★ [수정] 백엔드 경로 /api/auth/signup 과 일치시킴
-      await axios.post(`${API_BASE_URL}/api/auth/signup`, {
+      // ★ [수정] 백엔드 컨트롤러에 작성해둔 /auth/send-otp 경로 호출
+      await apiClient.post('/auth/send-otp', {
         email: formData.email,
         username: formData.username
       });
-      alert("인증코드가 발송되었습니다. (서버 콘솔을 확인하세요)");
+      alert("인증코드가 발송되었습니다. (백엔드 터미널 또는 구글 메일함을 확인하세요)");
       setStep(2);
     } catch (err) {
-      alert("발송 실패: " + (err.response?.data?.error || err.message));
+      alert("발송 실패: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 2단계: 가입 완료 요청
+  // 2단계: 가입 완료 요청 (OTP 검증 및 최종 가입)
   const handleVerify = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      // ★ [수정] 백엔드 경로 /api/auth/verify
-      await axios.post(`${API_BASE_URL}/api/auth/verify`, {
+      // ★ [수정] 백엔드 컨트롤러에 작성해둔 /auth/verify-otp 경로 호출
+      await apiClient.post('/auth/verify-otp', {
         email: formData.email,
         username: formData.username,
         password: formData.password,
@@ -53,56 +58,17 @@ function SignupPage() {
       alert("가입이 완료되었습니다! 로그인해주세요.");
       navigate('/login');
     } catch (err) {
-      alert("가입 실패: " + (err.response?.data?.error || err.message));
+      alert("가입 실패: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
     }
   };
 
-  // 스타일 객체 (로그인 페이지와 동일한 스타일 적용)
-  const pageStyle = {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    backgroundColor: '#141414',
-    padding: '20px'
-  };
-
-  const boxStyle = {
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    padding: '60px 68px 40px',
-    borderRadius: '4px',
-    width: '100%',
-    maxWidth: '450px',
-    display: 'flex',
-    flexDirection: 'column',
-    color: '#fff'
-  };
-
-  const inputStyle = {
-    background: '#333',
-    borderRadius: '4px',
-    border: '0',
-    color: '#fff',
-    height: '50px',
-    lineHeight: '50px',
-    padding: '0 20px',
-    width: '100%',
-    marginBottom: '20px',
-    boxSizing: 'border-box'
-  };
-
-  const btnStyle = {
-    borderRadius: '4px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    margin: '24px 0 12px',
-    padding: '16px',
-    background: '#e50914',
-    color: '#fff',
-    border: 'none',
-    cursor: 'pointer',
-    width: '100%'
-  };
+  // 스타일 객체 (로그인 페이지와 동일한 스타일 유지)
+  const pageStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#141414', padding: '20px' };
+  const boxStyle = { backgroundColor: 'rgba(0, 0, 0, 0.75)', padding: '60px 68px 40px', borderRadius: '4px', width: '100%', maxWidth: '450px', display: 'flex', flexDirection: 'column', color: '#fff' };
+  const inputStyle = { background: '#333', borderRadius: '4px', border: '0', color: '#fff', height: '50px', lineHeight: '50px', padding: '0 20px', width: '100%', marginBottom: '20px', boxSizing: 'border-box' };
+  const btnStyle = { borderRadius: '4px', fontSize: '16px', fontWeight: 'bold', margin: '24px 0 12px', padding: '16px', background: '#e50914', color: '#fff', border: 'none', cursor: 'pointer', width: '100%' };
 
   return (
     <div style={pageStyle}>
@@ -114,7 +80,7 @@ function SignupPage() {
             <input
               type="text"
               name="username"
-              placeholder="닉네임"
+              placeholder="아이디 (로그인용)"
               value={formData.username}
               onChange={handleChange}
               style={inputStyle}
@@ -123,7 +89,7 @@ function SignupPage() {
             <input
               type="email"
               name="email"
-              placeholder="이메일"
+              placeholder="이메일 (OTP 전송용)"
               value={formData.email}
               onChange={handleChange}
               style={inputStyle}
@@ -147,13 +113,15 @@ function SignupPage() {
               style={inputStyle}
               required
             />
-            <button type="submit" style={btnStyle}>인증코드 받기</button>
+            <button type="submit" style={btnStyle} disabled={loading}>
+              {loading ? '발송 중...' : '인증코드 받기'}
+            </button>
           </form>
         ) : (
           <form onSubmit={handleVerify}>
-            <p style={{marginBottom:'20px', color:'#bbb'}}>
-                입력하신 이메일로 인증코드가 전송되었습니다.<br/>
-                (테스트 중이므로 백엔드 터미널 로그를 확인하세요)
+            <p style={{marginBottom:'20px', color:'#bbb', fontSize: '14px', lineHeight: '1.5'}}>
+                입력하신 <strong>{formData.email}</strong>로<br/>
+                6자리 인증코드가 전송되었습니다.
             </p>
             <input
               type="text"
@@ -164,13 +132,16 @@ function SignupPage() {
               style={inputStyle}
               required
             />
-            <button type="submit" style={btnStyle}>가입 완료</button>
+            <button type="submit" style={btnStyle} disabled={loading}>
+              {loading ? '검증 중...' : '가입 완료'}
+            </button>
             <button 
                 type="button" 
                 onClick={() => setStep(1)} 
                 style={{...btnStyle, background:'#333', marginTop:'10px'}}
+                disabled={loading}
             >
-                뒤로 가기
+                정보 수정하기 (뒤로)
             </button>
           </form>
         )}
