@@ -1,150 +1,88 @@
-// frontend/src/ComparisonPage.js
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE_URL } from './config'; 
-// ★ 안전한 저장소 import
-import { safeLocalStorage } from './utils/storage';
-
-const styles = {
-  container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
-  header: { fontSize: '28px', fontWeight: 'bold', marginBottom: '30px', borderLeft: '5px solid #E50914', paddingLeft: '15px' },
-  searchRow: { display: 'flex', gap: '10px', marginBottom: '30px', position: 'relative' },
-  searchInput: { flex: 1, padding: '12px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#222', color: '#fff', fontSize: '16px' },
-  dropdown: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#222', border: '1px solid #444', zIndex: 100, maxHeight: '200px', overflowY: 'auto' },
-  dropdownItem: { padding: '10px', borderBottom: '1px solid #333', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' },
-  card: { backgroundColor: '#181818', borderRadius: '8px', border: '1px solid #333', overflow: 'hidden', position: 'relative' },
-  cardHeader: { padding: '15px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontWeight: 'bold', fontSize: '16px' },
-  removeBtn: { background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '18px' },
-  cardBody: { padding: '15px' },
-  row: { display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' },
-  label: { color: '#888' },
-  val: { fontWeight: 'bold' },
-  scoreBar: { height: '6px', backgroundColor: '#333', borderRadius: '3px', marginTop: '5px', overflow: 'hidden' },
-  emptyMsg: { textAlign: 'center', color: '#666', marginTop: '50px', fontSize: '18px' }
-};
+import { apiClient } from './config';
 
 function ComparisonPage({ region, user }) {
-  const [wishlistSlugs, setWishlistSlugs] = useState([]);
   const [games, setGames] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // 1. 로컬 스토리지에서 찜 목록 로드 (safeLocalStorage)
   useEffect(() => {
-    const storedStr = safeLocalStorage.getItem('gameWishlist');
-    const stored = storedStr ? JSON.parse(storedStr) : [];
-    setWishlistSlugs(stored);
+    const fetchWishlistGames = async () => {
+      // 메인 페이지와 동일하게 로컬 스토리지에서 찜목록(slug 배열)을 가져옴
+      const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+      
+      if (wishlist.length === 0) {
+        setGames([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // 백엔드에 찜한 게임들의 slug 배열을 보내 데이터 요청
+        const response = await apiClient.post('/recommend/wishlist', { slugs: wishlist });
+        if (response.data.success) {
+          setGames(response.data.games || []);
+        }
+      } catch (err) {
+        console.error(err);
+        setError("찜 목록 데이터를 불러오는데 실패했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWishlistGames();
   }, []);
 
-  // 2. 찜 목록 게임 데이터 가져오기
-  useEffect(() => {
-    if (wishlistSlugs.length === 0) {
-        setGames([]);
-        return;
-    }
-    const fetchGames = async () => {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/wishlist`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slugs: wishlistSlugs })
-            });
-            const data = await res.json();
-            setGames(data);
-        } catch (e) { console.error(e); }
-    };
-    fetchGames();
-  }, [wishlistSlugs]);
-
-  // 3. 검색어 자동완성
-  useEffect(() => {
-    if (searchTerm.length < 1) { setSuggestions([]); return; }
-    const timer = setTimeout(async () => {
-        try {
-            const res = await fetch(`${API_BASE_URL}/api/search/autocomplete?q=${searchTerm}`);
-            const data = await res.json();
-            setSuggestions(data);
-        } catch(e){}
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const addGame = (game) => {
-      if (!wishlistSlugs.includes(game.slug)) {
-          const newSlugs = [...wishlistSlugs, game.slug];
-          setWishlistSlugs(newSlugs);
-          safeLocalStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
-      }
-      setSearchTerm("");
-      setSuggestions([]);
+  // 찜목록에서 삭제 기능
+  const removeFromWishlist = (slug) => {
+    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
+    const newWishlist = wishlist.filter(id => id !== slug);
+    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+    // 화면에서도 즉시 제거
+    setGames(games.filter(g => g.slug !== slug));
   };
 
-  const removeGame = (slug) => {
-      const newSlugs = wishlistSlugs.filter(s => s !== slug);
-      setWishlistSlugs(newSlugs);
-      safeLocalStorage.setItem('gameWishlist', JSON.stringify(newSlugs));
-  };
-
-  const getPrice = (g) => {
-      if (g.price_info?.isFree) return "무료";
-      return g.price_info?.current_price ? `₩${g.price_info.current_price.toLocaleString()}` : "정보 없음";
-  };
+  if (loading) return <div style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>로딩 중...</div>;
+  if (error) return <div style={{ color: '#ff4444', textAlign: 'center', marginTop: '50px' }}>{error}</div>;
 
   return (
-    <div style={styles.container}>
-      <h1 style={styles.header}>⚖️ 게임 비교함</h1>
+    <div style={{ padding: '40px', color: '#fff', backgroundColor: '#141414', minHeight: '100vh' }}>
+      <h2 style={{ borderBottom: '2px solid #E50914', paddingBottom: '10px', marginBottom: '20px' }}>❤️ 내 찜/비교 목록</h2>
       
-      <div style={styles.searchRow}>
-          <input 
-            style={styles.searchInput} 
-            placeholder="비교할 게임을 검색해서 추가하세요..." 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)} 
-          />
-          {suggestions.length > 0 && (
-              <div style={styles.dropdown}>
-                  {suggestions.map((s, i) => (
-                      <div key={i} style={styles.dropdownItem} onClick={() => addGame(s)}>
-                          <span>{s.title}</span>
-                          <span style={{fontSize:'12px', color:'#888'}}>{s.title_ko}</span>
-                      </div>
-                  ))}
-              </div>
-          )}
-      </div>
-
       {games.length === 0 ? (
-          <div style={styles.emptyMsg}>비교할 게임이 없습니다. 검색해서 추가해보세요!</div>
+        <p style={{ color: '#bbb', textAlign: 'center', marginTop: '50px', fontSize: '18px' }}>
+            찜한 게임이 없습니다. 메인 화면에서 하트를 눌러 게임을 추가해보세요.
+        </p>
       ) : (
-          <div style={styles.grid}>
-              {games.map(g => (
-                  <div key={g._id} style={styles.card}>
-                      <img src={g.main_image} alt="" style={{width:'100%', height:'150px', objectFit:'cover'}} />
-                      <div style={styles.cardHeader}>
-                          <Link to={`/game/${g.slug}`} style={{...styles.cardTitle, color:'#fff', textDecoration:'none'}}>
-                              {g.title_ko || g.title}
-                          </Link>
-                          <button style={styles.removeBtn} onClick={() => removeGame(g.slug)}>✕</button>
-                      </div>
-                      <div style={styles.cardBody}>
-                          <div style={styles.row}><span style={styles.label}>가격</span> <span style={{...styles.val, color:'#46d369'}}>{getPrice(g)}</span></div>
-                          <div style={styles.row}><span style={styles.label}>메타스코어</span> <span style={styles.val}>{g.metacritic_score || '-'}</span></div>
-                          <div style={styles.row}><span style={styles.label}>플레이타임</span> <span style={styles.val}>{g.play_time}</span></div>
-                          <div style={styles.row}><span style={styles.label}>출시일</span> <span style={styles.val}>{g.releaseDate ? g.releaseDate.substring(0,10) : '-'}</span></div>
-                          
-                          <div style={{marginTop:'15px'}}>
-                              <span style={styles.label}>트렌드 점수</span>
-                              <div style={styles.scoreBar}>
-                                  <div style={{width: `${Math.min(g.trend_score / 20, 100)}%`, height:'100%', backgroundColor:'#E50914'}}></div>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              ))}
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
+          {games.map(game => (
+            <div key={game.slug} style={{ backgroundColor: '#181818', borderRadius: '8px', padding: '15px', border: '1px solid #333', position: 'relative' }}>
+              
+              <button onClick={() => removeFromWishlist(game.slug)} style={{ position: 'absolute', top: '10px', right: '10px', background: '#E50914', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '5px 10px', zIndex: 10 }}>
+                삭제 ✕
+              </button>
+              
+              <img src={game.main_image || game.header_image} alt={game.title} style={{ width: '100%', borderRadius: '4px', marginBottom: '15px' }} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
+              
+              <h3 style={{ fontSize: '18px', margin: '0 0 10px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {game.title_ko || game.title}
+              </h3>
+              
+              <p style={{ fontSize: '14px', color: '#bbb', margin: '5px 0' }}>
+                🔥 동접자: {game.steamPlayerCount?.toLocaleString() || 0}명
+              </p>
+              <p style={{ fontSize: '14px', color: '#bbb', margin: '5px 0' }}>
+                💰 가격: {game.price_info?.isFree ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : (game.price_overview?.final_formatted || '정보 없음'))}
+              </p>
+
+              <Link to={`/game/${game.slug || game._id}`} style={{ display: 'block', textAlign: 'center', backgroundColor: '#333', color: '#fff', textDecoration: 'none', padding: '10px', borderRadius: '4px', marginTop: '15px', fontWeight: 'bold' }}>
+                상점 페이지로 이동
+              </Link>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
