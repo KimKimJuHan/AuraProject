@@ -17,6 +17,9 @@ const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
 
+// 만약 백엔드 routes 폴더에 steam.js (또는 steamRoutes.js)가 별도로 존재한다면 아래 주석을 해제하십시오.
+// const steamRoutes = require('./routes/steam');
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -73,7 +76,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api', recoRoutes);
-app.use('/api/advanced', advancedRecoRoutes);
+
+// ★ [수정 핵심] 프론트엔드가 찾는 /api/steam 주소 복구
+// 현재 recommend.js가 5가지 추천 배열(overall 등)을 반환한다고 추정하여 해당 주소로 매핑했습니다.
+app.use('/api/steam', advancedRecoRoutes); 
+app.use('/api/advanced', advancedRecoRoutes); // 기존 연결 유지
+
+// (선택) 만약 실제 추천 로직이 steam.js에 들어있다면 위 코드를 지우고 아래 코드를 쓰십시오.
+// app.use('/api/steam', steamRoutes);
 
 // Global Error Handler (반드시 라우터 마운트 하단, listen 상단에 위치)
 const errorHandler = require('./middleware/errorHandler');
