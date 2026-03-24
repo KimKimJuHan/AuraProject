@@ -9,6 +9,10 @@ import { safeLocalStorage } from '../utils/storage';
 
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
+// ★ Warning 해결: useEffect에서 쓰이는 고정 상수값들을 외부로 이동
+const STRICT_MODE = false;
+const RECOMMEND_K = 12;
+
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '탑다운', '사이드뷰', '쿼터뷰'],
@@ -43,7 +47,6 @@ function GameCard({ game }) {
 
     const isFree = game.price === "무료";
     const isUnknown = game.price === "가격 정보 없음";
-
     const rawPlaytime = game.playtime || "";
     const showPlaytime = rawPlaytime !== "정보 없음" && 
                          !rawPlaytime.includes("Hours") && 
@@ -53,35 +56,22 @@ function GameCard({ game }) {
     return (
         <Link to={`/game/${game.slug || `steam-${game.appid}`}`} className="game-card">
             <div className="thumb-wrapper">
-                <img 
-                    src={imgSrc} 
-                    className="thumb" 
-                    alt={game.name} 
-                    onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_IMAGE; }}
-                />
+                <img src={imgSrc} className="thumb" alt={game.name} onError={(e) => { e.target.onerror = null; e.target.src = FALLBACK_IMAGE; }} />
                 <div className="net-card-gradient"></div>
-                <button className="heart-btn" onClick={toggleWishlist}>
-                    {isWishlisted ? '❤️' : '🤍'}
-                </button>
+                <button className="heart-btn" onClick={toggleWishlist}>{isWishlisted ? '❤️' : '🤍'}</button>
             </div>
             <div className="card-info">
                 <div className="game-title">{game.name}</div>
                 <div className="game-meta-row">
-                    <span 
-                        className="game-price" 
-                        style={{
-                            color: isFree ? '#46d369' : (isUnknown ? '#777' : '#fff'),
-                            fontSize: isUnknown ? '11px' : '13px',
-                            opacity: isUnknown ? 0.7 : 1,
-                            fontWeight: isUnknown ? 'normal' : 'bold'
-                        }}
-                    >
+                    <span className="game-price" style={{
+                        color: isFree ? '#46d369' : (isUnknown ? '#777' : '#fff'),
+                        fontSize: isUnknown ? '11px' : '13px',
+                        opacity: isUnknown ? 0.7 : 1,
+                        fontWeight: isUnknown ? 'normal' : 'bold'
+                    }}>
                         {isUnknown ? "가격 정보 수집 중" : game.price}
                     </span>
-                    
-                    {showPlaytime && (
-                        <span className="game-playtime">⏳ {game.playtime}</span>
-                    )}
+                    {showPlaytime && <span className="game-playtime">⏳ {game.playtime}</span>}
                 </div>
                 <div style={{fontSize:'11px', color:'#888', marginBottom:'4px'}}>추천 점수 {game.score}</div>
                 <div className="score-bar"><div style={{width:`${game.score}%`}}></div></div>
@@ -100,10 +90,7 @@ function RecoSection({ title, games }) {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'15px', borderBottom:'1px solid #333', paddingBottom:'10px' }}>
                 <h3 style={{ margin:0, fontSize:'22px', color:'#e50914' }}>{title}</h3>
                 {games.length > 4 && (
-                    <button 
-                        onClick={() => setExpanded(!expanded)}
-                        style={{ background:'none', border:'none', color:'#ccc', cursor:'pointer', textDecoration:'underline' }}
-                    >
+                    <button onClick={() => setExpanded(!expanded)} style={{ background:'none', border:'none', color:'#ccc', cursor:'pointer', textDecoration:'underline' }}>
                         {expanded ? '접기' : '더보기 +'}
                     </button>
                 )}
@@ -119,8 +106,6 @@ function PersonalRecoPage({ user }) {
   const [term, setTerm] = useState("");
   const [picked, setPicked] = useState(new Set());
   const [validTags, setValidTags] = useState([]); 
-  const strict = false;
-  const k = 12;
   
   const [data, setData] = useState({ overall: [], trend: [], playtime: [], tag: [], price: [] });
   const [err, setErr] = useState("");
@@ -134,7 +119,6 @@ function PersonalRecoPage({ user }) {
     setSteamStatus('LOADING');
     try {
         const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
-        
         if (res.data.linked === false) {
             setSteamStatus('NOT_LINKED'); 
         } else if (res.data.error === "PRIVATE") {
@@ -161,14 +145,10 @@ function PersonalRecoPage({ user }) {
         setLoading(true);
         try {
           const liked = Array.from(picked);
-          const res = await axios.post(
-              `${API_BASE_URL}/api/steam/reco`, 
-              { term, liked, strict, k },
-              { withCredentials: true } 
-          );
+          // ★ 외부 상수로 정의된 STRICT_MODE와 RECOMMEND_K를 사용
+          const res = await axios.post(`${API_BASE_URL}/api/steam/reco`, { term, liked, strict: STRICT_MODE, k: RECOMMEND_K }, { withCredentials: true });
           setData(res.data);
           if (res.data.validTags) setValidTags(res.data.validTags);
-
           if (!res.data.overall?.length && !res.data.trend?.length && !res.data.price?.length) {
               setErr("조건에 맞는 게임이 없습니다.");
           }
@@ -182,7 +162,6 @@ function PersonalRecoPage({ user }) {
   const toggle = (t) => {
     const isSelected = picked.has(t);
     if (picked.size > 0 && validTags.length > 0 && !validTags.includes(t) && !isSelected) return;
-
     setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(t)) next.delete(t);
@@ -208,7 +187,6 @@ function PersonalRecoPage({ user }) {
   return (
     <div className="reco-container">
       <div className="search-panel">
-        {/* ★ [수정] AI 맞춤 추천 -> 게임 맞춤 추천 (타이틀 변경) */}
         <h1>🤖 게임 맞춤 추천</h1>
         <div className="steam-dashboard">
             {!user ? (
@@ -228,7 +206,7 @@ function PersonalRecoPage({ user }) {
                     {steamStatus === 'LINKED' && (
                         <>
                             <div className="steam-header">
-                                <h3 style={{margin:0, color:'#46d369'}}>✅ {user.username}님의 TOP 5</h3>
+                                <h3 style={{margin:0, color:'#46d369'}}>✅ {user.displayName || user.username}님의 TOP 5</h3>
                                 <button onClick={handleUnlinkSteam} style={{background:'none', border:'1px solid #555', color:'#aaa', fontSize:'12px', padding:'4px 8px', borderRadius:'4px', cursor:'pointer'}}>연동 해제</button>
                             </div>
                             <div className="steam-list">
@@ -247,7 +225,7 @@ function PersonalRecoPage({ user }) {
                                                 <div className="steam-tags">
                                                     {g.smart_tags && g.smart_tags.length > 0 ? (
                                                         g.smart_tags.slice(0, 3).map((t, idx) => (<span key={idx} className="steam-tag">{t}</span>))
-                                                    ) : (<span className="steam-tag-empty">태그 데이터 없음</span>)}
+                                                    ) : (<span className="steam-tag-empty">태그 없음</span>)}
                                                 </div>
                                             </div>
                                         </div>
@@ -273,12 +251,7 @@ function PersonalRecoPage({ user }) {
                             const isSelected = picked.has(t);
                             const isDisabled = picked.size > 0 && validTags.length > 0 && !validTags.includes(t) && !isSelected;
                             return (
-                                <div 
-                                    key={t} 
-                                    className={`tag-chip ${isSelected ? 'on' : ''}`} 
-                                    onClick={() => toggle(t)}
-                                    style={isDisabled ? { opacity: 0.3, cursor: 'not-allowed', backgroundColor: '#222', color: '#555', border: '1px solid #333' } : {}}
-                                >
+                                <div key={t} className={`tag-chip ${isSelected ? 'on' : ''}`} onClick={() => toggle(t)} style={isDisabled ? { opacity: 0.3, cursor: 'not-allowed', backgroundColor: '#222', color: '#555', border: '1px solid #333' } : {}}>
                                     {t}
                                 </div>
                             );

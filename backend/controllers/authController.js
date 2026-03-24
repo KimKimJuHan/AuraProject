@@ -1,80 +1,95 @@
 const User = require('../models/User');
+const Otp = require('../models/Otp');
 const bcrypt = require('bcrypt');
+const nodemailer = require('nodemailer');
 
 class AuthController {
-    // 자체 회원가입
+    // OTP 발송 로직 (추가)
+    async sendOtp(req, res) {
+        try {
+            const { email } = req.body;
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + 600000); // 10분 후 만료
+
+            await Otp.findOneAndUpdate({ email }, { code, expiresAt }, { upsert: true });
+
+            const transporter = nodemailer.createTransport({
+                service: 'gmail',
+                auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+            });
+
+            await transporter.sendMail({
+                from: `"AuraProject" <${process.env.EMAIL_USER}>`,
+                to: email,
+                subject: "[AuraProject] 회원가입 인증 코드",
+                text: `인증번호는 [${code}] 입니다.`
+            });
+
+            res.json({ success: true, message: '인증 코드가 발송되었습니다.' });
+        } catch (error) {
+            console.error("OTP 발송 에러:", error);
+            res.status(500).json({ success: false, message: "메일 발송 실패" });
+        }
+    }
+
+    async verifyOtp(req, res) {
+        const { email, code } = req.body;
+        const otp = await Otp.findOne({ email, code });
+        if (!otp || otp.expiresAt < new Date()) {
+            return res.status(400).json({ success: false, message: '인증코드가 틀리거나 만료되었습니다.' });
+        }
+        res.json({ success: true });
+    }
+
     async signup(req, res) {
         try {
             const { username, password, email } = req.body;
-            
-            // 중복 검사
             const existingUser = await User.findOne({ username });
-            if (existingUser) {
-                return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
-            }
+            if (existingUser) return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
 
-            // 비밀번호 암호화 (Salt 10번)
             const hashedPassword = await bcrypt.hash(password, 10);
-            
-            // DB 저장
             const newUser = new User({ username, password: hashedPassword, email });
             await newUser.save();
-
-            res.status(201).json({ success: true, message: '회원가입이 완료되었습니다.' });
-        } catch (error) {
-            console.error('Signup Error:', error);
-            res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
+            res.status(201).json({ success: true });
+        } catch (e) {
+            res.status(500).json({ success: false });
         }
     }
 
-    // 자체 로그인
     async login(req, res) {
         try {
             const { username, password, rememberMe } = req.body;
-            
-            // 유저 찾기
             const user = await User.findOne({ username });
-            if (!user) {
+            if (!user || !(await bcrypt.compare(password, user.password))) {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
             }
 
-            // 비밀번호 검증
-            const isMatch = await bcrypt.compare(password, user.password);
-            if (!isMatch) {
-                return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
-            }
-
-            // 세션 발급
-            req.session.user = { id: user._id, username: user.username };
+            // ★ 수정: 세션에 email과 steamId를 포함하여 마이페이지에서 사용 가능하게 함
+            req.session.user = { 
+                id: user._id, 
+                username: user.username, 
+                email: user.email,
+                steamId: user.steamId 
+            };
             
-            // 동적 세션 제어 (로그인 유지 체크박스)
-            if (rememberMe) {
-                req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30; // 30일 유지
-            } else {
-                req.session.cookie.expires = false; // 브라우저 종료 시 로그아웃
-            }
-
+            if (rememberMe) req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
             res.json({ success: true, user: req.session.user });
-        } catch (error) {
-            console.error('Login Error:', error);
-            res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
+        } catch (e) {
+            res.status(500).json({ success: false });
         }
     }
 
-    // 로그인 상태 확인
     checkStatus(req, res) {
-        if (req.session && req.session.user) {
-            res.json({ isAuthenticated: true, user: req.session.user });
-        } else {
-            res.json({ isAuthenticated: false, user: null });
-        }
+        // 세션에 저장된 user 객체 전체를 반환 (email 포함됨)
+        res.json({ 
+            isAuthenticated: !!(req.session && req.session.user), 
+            user: req.session?.user || null 
+        });
     }
 
-    // 로그아웃
     logout(req, res) {
         req.session.destroy(() => {
-            res.clearCookie('connect.sid'); // 세션 쿠키 삭제
-            res.json({ success: true, message: '로그아웃 되었습니다.' });
+            res.clearCookie('connect.sid').json({ success: true });
         });
     }
 }

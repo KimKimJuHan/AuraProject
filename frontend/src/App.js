@@ -8,8 +8,9 @@ import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
 import SearchResultsPage from './SearchResultsPage';
 import LoginPage from './pages/LoginPage';
-import SignupPage from './pages/SignupPage'; // 회원가입 페이지 임포트 복구
+import SignupPage from './pages/SignupPage'; 
 import PersonalRecoPage from './pages/PersonalRecoPage';
+import MyPage from './pages/MyPage'; // ★ 마이페이지 임포트 추가
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
@@ -74,11 +75,9 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const handleSuggestionClick = (game) => {
     setSearchTerm(game.title); 
     setIsFocused(false);
-    
     const newHistory = [game.title, ...history.filter(h => h !== game.title).slice(0, 4)];
     setHistory(newHistory);
     safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
-    
     navigate(`/game/${game.slug}`); 
   };
 
@@ -86,15 +85,12 @@ function NavigationBar({ user, setUser, region, setRegion }) {
     if(e) e.preventDefault(); 
     const query = searchTerm.trim();
     if (!query) return;
-
     const newHistory = [query, ...history.filter(h => h !== query).slice(0, 4)];
     setHistory(newHistory);
     safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
-    
     const targetGame = suggestions.find(g => g.title.toLowerCase() === query.toLowerCase());
     setIsFocused(false); 
     setSuggestions([]); 
-    
     if (targetGame) {
       setSearchTerm(targetGame.title); 
       navigate(`/game/${targetGame.slug}`);
@@ -106,7 +102,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   const handleKeyDown = (e) => {
     const list = searchTerm.length > 0 ? suggestions : history;
     if (!list || list.length === 0) return;
-
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => (prev < list.length - 1 ? prev + 1 : prev));
@@ -199,6 +194,8 @@ function NavigationBar({ user, setUser, region, setRegion }) {
           
           {user ? (
             <>
+                {/* ★ 마이페이지 링크 추가 */}
+                <Link to="/mypage" style={styles.compareLink}>👤 마이페이지</Link>
                 <span style={styles.userText}>{user.displayName || user.username}님</span>
                 {user.avatar && <img src={user.avatar} alt="profile" style={{width:'32px', height:'32px', borderRadius:'50%'}} />}
                 <button onClick={handleLogout} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
@@ -232,7 +229,6 @@ function App() {
             setLoading(false);
         }
     };
-
     checkAuthStatus();
   }, []);
 
@@ -249,12 +245,11 @@ function App() {
           <Route path="/game/:id" element={<ShopPage region={region} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
-          
-          {/* 로그인/회원가입 라우터 및 상태 관리 함수(setUser) 전달 */}
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
-          
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
+          {/* ★ 마이페이지 라우터 등록 */}
+          <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
         </Routes>
       </div>
     </Router>
