@@ -36,7 +36,7 @@ function LoginPage({ user, setUser }) {
 
   // 소셜 로그인 핸들러
   const handleSocialLogin = (platform) => {
-    window.location.href = `http://localhost:8000/api/auth/${platform}`;
+    window.location.href = `http://43.200.122.206:8000/api/auth/${platform}`;
   };
 
   const pageStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#141414', padding: '20px' };

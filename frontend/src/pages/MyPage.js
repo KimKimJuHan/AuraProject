@@ -5,13 +5,22 @@ import { API_BASE_URL } from '../config';
 import { safeLocalStorage } from '../utils/storage';
 import '../styles/Recommend.css';
 
+// 선택 가능한 전체 태그 목록 (필요시 수정 가능)
+const AVAILABLE_TAGS = ['액션', 'RPG', '오픈월드', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '어드벤처', '로그라이크', '사이버펑크'];
+
 function MyPage({ user, setUser }) {
     const [wishlistGames, setWishlistGames] = useState([]);
     const [steamInfo, setSteamInfo] = useState({ linked: false, games: [] });
+    
+    // ★ 태그 관리를 위한 상태 추가
+    const [isEditingTags, setIsEditingTags] = useState(false);
+    const [currentTags, setCurrentTags] = useState([]);
     const navigate = useNavigate();
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
+        // 유저 정보가 로드되면 기존 선호 태그를 상태에 반영
+        setCurrentTags(user.likedTags?.length > 0 ? user.likedTags : ['액션', 'RPG', '오픈월드']);
         fetchData();
     }, [user, navigate]);
 
@@ -19,79 +28,73 @@ function MyPage({ user, setUser }) {
         try {
             const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || "[]");
             if (wishlist.length > 0) {
-                const res = await axios.post(
-                    `${API_BASE_URL}/api/recommend/wishlist`, 
-                    { slugs: wishlist },
-                    { withCredentials: true }
-                );
+                const res = await axios.post(`${API_BASE_URL}/api/recommend/wishlist`, { slugs: wishlist }, { withCredentials: true });
                 setWishlistGames(res.data.games || []);
             }
-            
-            const steamRes = await axios.get(
-                `${API_BASE_URL}/api/user/games`, 
-                { withCredentials: true }
-            );
+            const steamRes = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
             setSteamInfo(steamRes.data);
-        } catch (e) { 
-            console.error("데이터 로드 실패:", e); 
-        }
+        } catch (e) { console.error("데이터 로드 실패:", e); }
     };
 
     const handleDeleteAccount = async () => {
-        const confirmDelete = window.confirm("정말로 계정을 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.");
-        if (!confirmDelete) return;
-
+        if (!window.confirm("정말로 계정을 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.")) return;
         try {
-            const response = await axios.delete(
-                `${API_BASE_URL}/api/user/account`, 
-                { withCredentials: true }
-            );
+            const response = await axios.delete(`${API_BASE_URL}/api/user/account`, { withCredentials: true });
             if (response.data.success) {
                 alert("계정이 성공적으로 삭제되었습니다.");
                 setUser(null); 
                 navigate('/'); 
             }
-        } catch (error) {
-            alert("계정 삭제에 실패했습니다. 다시 시도해 주세요.");
-            console.error(error);
+        } catch (error) { alert("계정 삭제 실패"); }
+    };
+
+    const handleLinkSteam = () => {
+        window.location.href = `${API_BASE_URL}/api/auth/steam`;
+    };
+
+    // ★ 태그 선택/해제 토글 로직
+    const toggleTag = (tag) => {
+        if (currentTags.includes(tag)) {
+            setCurrentTags(currentTags.filter(t => t !== tag));
+        } else {
+            if (currentTags.length >= 5) return alert("선호 태그는 최대 5개까지만 선택할 수 있습니다.");
+            setCurrentTags([...currentTags, tag]);
         }
     };
 
-    // ★ 추가: 스팀 연동 라우터로 강제 이동시키는 함수
-    const handleLinkSteam = () => {
-        window.location.href = `${API_BASE_URL}/api/auth/steam`;
+    // ★ 백엔드에 태그 저장 요청 로직
+    const handleSaveTags = async () => {
+        try {
+            await axios.post(`${API_BASE_URL}/api/user/tags`, { tags: currentTags }, { withCredentials: true });
+            alert("선호 태그가 성공적으로 저장되었습니다.");
+            setUser({ ...user, likedTags: currentTags }); // 프론트 전역 유저 상태 즉시 업데이트
+            setIsEditingTags(false);
+        } catch (error) {
+            alert("태그 저장에 실패했습니다.");
+            console.error(error);
+        }
     };
 
     return (
         <div className="reco-container" style={{maxWidth:'1000px', margin:'40px auto', padding:'0 20px'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom:'2px solid #333', paddingBottom:'10px'}}>
                 <h1 style={{color:'#e50914', margin: 0}}>👤 마이페이지</h1>
-                <button 
-                    onClick={handleDeleteAccount} 
-                    style={{backgroundColor: 'transparent', border: '1px solid #666', color: '#888', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}
-                >
+                <button onClick={handleDeleteAccount} style={{backgroundColor: 'transparent', border: '1px solid #666', color: '#888', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}>
                     계정 탈퇴
                 </button>
             </div>
             
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px'}}>
-                {/* 기본 정보 세션 */}
                 <div className="search-panel">
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
                     <p><b>이름(닉네임):</b> {user?.displayName || user?.username}</p>
                     <p><b>이메일:</b> {user?.email || "정보 없음"}</p>
-                    {/* ★ 수정: 클릭 이벤트 추가 (기능 미구현 안내) */}
-                    <button 
-                        className="search-btn" 
-                        style={{marginTop:'10px'}} 
-                        onClick={() => alert("비밀번호 변경 화면은 현재 구현 중입니다.")}
-                    >
+                    <button className="search-btn" style={{marginTop:'10px'}} onClick={() => alert("비밀번호 변경 화면은 현재 구현 중입니다.")}>
                         비밀번호 변경
                     </button>
                 </div>
 
-                {/* 스팀 연동 세션 */}
                 <div className="search-panel">
                     <h3>🎮 스팀 연동 상태</h3>
                     {steamInfo.linked ? (
@@ -103,31 +106,57 @@ function MyPage({ user, setUser }) {
                     ) : (
                         <div>
                             <p style={{color:'#888'}}>연동된 계정이 없습니다.</p>
-                            {/* ★ 수정: onClick 이벤트(handleLinkSteam) 추가 */}
-                            <button 
-                                onClick={handleLinkSteam} 
-                                className="search-btn" 
-                                style={{backgroundColor:'#666'}}
-                            >
-                                스팀 계정 연결
-                            </button>
+                            <button onClick={handleLinkSteam} className="search-btn" style={{backgroundColor:'#666'}}>스팀 계정 연결</button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* 선호 태그 관리 */}
+            {/* ★ 완성된 선호 태그 관리 섹션 */}
             <div className="search-panel" style={{marginTop:'20px'}}>
-                <h3>🏷️ 나의 선호 태그</h3>
-                <div style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'10px'}}>
-                    {(user?.likedTags?.length > 0 ? user.likedTags : ['액션', 'RPG', '오픈월드']).map(tag => (
-                        <span key={tag} style={{background:'#333', padding:'5px 12px', borderRadius:'15px', fontSize:'13px'}}>#{tag}</span>
-                    ))}
-                    <button style={{background:'none', border:'1px dashed #666', color:'#666', padding:'5px 12px', borderRadius:'15px'}}>+ 추가</button>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <h3 style={{margin: 0}}>🏷️ 나의 선호 태그</h3>
+                    {isEditingTags ? (
+                        <div>
+                            <button onClick={handleSaveTags} style={{background:'#e50914', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', marginRight:'5px', cursor:'pointer'}}>저장</button>
+                            <button onClick={() => { setIsEditingTags(false); setCurrentTags(user?.likedTags || ['액션', 'RPG', '오픈월드']); }} style={{background:'#666', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', cursor:'pointer'}}>취소</button>
+                        </div>
+                    ) : (
+                        <button onClick={() => setIsEditingTags(true)} style={{background:'none', border:'1px dashed #666', color:'#ccc', padding:'5px 12px', borderRadius:'15px', cursor:'pointer'}}>+ 수정</button>
+                    )}
                 </div>
+
+                {isEditingTags ? (
+                    <div style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                        {AVAILABLE_TAGS.map(tag => {
+                            const isSelected = currentTags.includes(tag);
+                            return (
+                                <span 
+                                    key={tag} 
+                                    onClick={() => toggleTag(tag)}
+                                    style={{
+                                        background: isSelected ? '#e50914' : '#333',
+                                        color: isSelected ? '#fff' : '#888',
+                                        padding: '5px 12px', 
+                                        borderRadius: '15px', 
+                                        fontSize: '13px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}>
+                                    #{tag}
+                                </span>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                        {currentTags.map(tag => (
+                            <span key={tag} style={{background:'#333', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'#fff'}}>#{tag}</span>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {/* 찜 목록 */}
             <div className="result-panel" style={{marginTop:'20px'}}>
                 <h3>❤️ 나의 찜 목록 ({wishlistGames.length})</h3>
                 <div className="game-grid" style={{gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'15px'}}>
