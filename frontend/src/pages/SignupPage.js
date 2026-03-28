@@ -67,7 +67,7 @@ function SignupPage() {
 
   // ★ 추가: 소셜 가입(로그인) 핸들러
   const handleSocialSignup = (platform) => {
-      window.location.href = `http://localhost:8000/api/auth/${platform}`;
+      window.location.href = `http://43.200.122.206:8000/api/auth/${platform}`;
   };
 
   // 스타일 객체
