@@ -1,5 +1,5 @@
 // backend/scripts/collector.js
-// 기능: HLTB 데이터 정규화(숫자 변환) 적용된 수집기
+// 기능: 실무형 타겟팅 수집기 (인기 신작 탐지, 누락 데이터 보강, 인기작 우선 갱신)
 
 require('dotenv').config({ path: '../.env' });
 const mongoose = require('mongoose');
@@ -23,31 +23,20 @@ if (!ITAD_API_KEY) { console.error('❌ ITAD_API_KEY 누락'); process.exit(1); 
 
 const STEAM_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=english;'
+  'Cookie': 'birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1; timezoneOffset=32400,0; Steam_Language=korean;'
 };
 
-// ★ [신규] HLTB 문자열 파싱 함수 (지시서 기반 구현)
 function parseHLTBTime(raw) {
     if (!raw || typeof raw !== 'string') return null;
-
-    // 특수문자 및 공백 정리 (½ -> .5)
-    const normalize = raw
-        .replace('½', '.5')
-        .replace(/½/g, '.5') // 혹시 몰라 전역 치환
-        .replace(/\s+/g, ' ')
-        .toLowerCase();
-
-    // 정규식으로 숫자 추출
+    const normalize = raw.replace('½', '.5').replace(/½/g, '.5').replace(/\s+/g, ' ').toLowerCase();
     const extract = (label) => {
-        // 예: "main story 8.5 hours" -> 8.5 추출
         const regex = new RegExp(label + '.*?([0-9]+(\\.[0-9]+)?)');
         const match = normalize.match(regex);
         return match ? parseFloat(match[1]) : null;
     };
-
     return {
         main: extract('main story'),
-        extra: extract('main \\+ extra'), // +는 정규식 특수문자라 이스케이프
+        extra: extract('main \\+ extra'),
         completionist: extract('completionist'),
         raw: raw
     };
@@ -138,7 +127,7 @@ async function getSteamCCU(appId) {
 async function getSteamReviews(appId) {
   const result = { overall: { summary: "정보 없음", positive: 0, total: 0, percent: 0 }, recent: { summary: "정보 없음", positive: 0, total: 0, percent: 0 } };
   try {
-    const { data: html } = await axios.get(`https://store.steampowered.com/app/${appId}/?l=english`, { headers: STEAM_HEADERS, timeout: 8000 });
+    const { data: html } = await axios.get(`https://store.steampowered.com/app/${appId}/?l=koreana`, { headers: STEAM_HEADERS, timeout: 8000 });
     const recentMatch = html.match(/Recent Reviews:[\s\S]*?game_review_summary[^>]*?>([\s\S]*?)<[\s\S]*?responsive_hidden[^>]*?>\s*\(([\d,]+)\)/);
     if (recentMatch) result.recent = { summary: recentMatch[1].trim(), positive: 0, total: parseInt(recentMatch[2].replace(/,/g, '')) || 0, percent: 0 };
     const overallMatch = html.match(/All Reviews:[\s\S]*?game_review_summary[^>]*?>([\s\S]*?)<[\s\S]*?responsive_hidden[^>]*?>\s*\(([\d,]+)\)/);
@@ -211,25 +200,67 @@ async function fetchPriceInfo(originalAppId, initialSteamData, metadata) {
   return { regular_price: 0, current_price: 0, discount_percent: 0, historical_low: 0, deals: [], store_name: 'Steam', store_url: `https://store.steampowered.com/app/${originalAppId}`, isFree };
 }
 
+// ★ [신규] SteamSpy API를 이용해 최근 유행하는 게임 자동 탐지
+async function getTrendingAppIds() {
+    try {
+        const res = await axios.get('https://steamspy.com/api.php?request=top100in2weeks', { timeout: 8000 });
+        if (res.data) {
+            return Object.values(res.data).map(game => ({ steamAppId: game.appid, title: game.name, source: 'Trending' }));
+        }
+    } catch(e) { console.error("SteamSpy 가져오기 실패"); }
+    return [];
+}
+
 async function collectGamesData() {
   await mongoose.connect(MONGODB_URI);
-  console.log('✅ DB Connected. 수집기 시작...');
+  console.log('✅ DB Connected. 스마트 타겟팅 수집기 시작...');
 
-  const existingGames = await Game.find({}).select('steam_appid play_time price_info').lean();
+  const existingGames = await Game.find({}).select('steam_appid play_time price_info trend_score updatedAt').lean();
   const existingGameMap = new Map();
-  existingGames.forEach(g => existingGameMap.set(g.steam_appid, g));
+  const existingAppIds = new Set();
+  
+  existingGames.forEach(g => {
+      existingGameMap.set(g.steam_appid, g);
+      existingAppIds.add(g.steam_appid);
+  });
 
-  const metadatas = await GameMetadata.find({})
-    .sort({ lastUpdated: 1 }) 
-    .limit(100); 
+  // 1. 신규 인기 게임 탐지 (Discovery)
+  const trendingGames = await getTrendingAppIds();
+  const newHotGames = trendingGames.filter(g => !existingAppIds.has(g.steamAppId)).slice(0, 10); // 최대 10개만 신규 추가
 
-  console.log(`🚀 이번 실행 처리 대상: ${metadatas.length}개 (안정성을 위한 분할 처리)`);
+  // 2. 누락 데이터 보강 대상 추출 (Fill Missing Data) - 인기 있는 게임 중 플탐이 없는 것
+  const missingDataGames = existingGames
+    .filter(g => !g.play_time || (typeof g.play_time === 'object' && !g.play_time.main && !g.play_time.raw))
+    .sort((a, b) => (b.trend_score || 0) - (a.trend_score || 0))
+    .slice(0, 15)
+    .map(g => ({ steamAppId: g.steam_appid, title: g.title, source: 'MissingData' }));
+
+  // 3. 기존 대작 최신화 대상 추출 (Update Popular) - 업데이트된지 24시간 넘은 인기 게임
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const outdatedPopularGames = existingGames
+    .filter(g => new Date(g.updatedAt) < oneDayAgo)
+    .sort((a, b) => (b.trend_score || 0) - (a.trend_score || 0))
+    .slice(0, 25)
+    .map(g => ({ steamAppId: g.steam_appid, title: g.title, source: 'OutdatedPopular' }));
+
+  // 타겟 큐 통합 및 중복 제거
+  const combinedQueue = [...newHotGames, ...missingDataGames, ...outdatedPopularGames];
+  const uniqueQueueMap = new Map();
+  combinedQueue.forEach(item => uniqueQueueMap.set(item.steamAppId, item));
+  const targetMetadatas = Array.from(uniqueQueueMap.values());
+
+  console.log(`🚀 타겟팅 완료: 총 ${targetMetadatas.length}개 처리 예정 (신규: ${newHotGames.length}, 보강: ${missingDataGames.length}, 갱신: ${outdatedPopularGames.length})`);
+
+  if (targetMetadatas.length === 0) {
+      console.log("처리할 항목이 없습니다. 종료합니다.");
+      process.exit(0);
+  }
 
   const chromePath = findChromePath();
   if (!chromePath) { console.error('❌ Chrome 경로 없음'); process.exit(1); }
 
   const BATCH_SIZE = 5; 
-  const batches = chunkArray(metadatas, BATCH_SIZE);
+  const batches = chunkArray(targetMetadatas, BATCH_SIZE);
   let processedCount = 0;
 
   let browser = null;
@@ -240,21 +271,10 @@ async function collectGamesData() {
       browser = await puppeteer.launch({
           executablePath: chromePath,
           headless: 'new',
-          args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage', 
-            '--disable-gpu', 
-            '--no-first-run',
-            '--disable-extensions', 
-            '--mute-audio'          
-          ]
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--disable-extensions', '--mute-audio']
       });
       page = await browser.newPage();
       await page.setUserAgent(STEAM_HEADERS['User-Agent']);
-      try {
-          await page.goto('https://howlongtobeat.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
-      } catch(e) {}
   };
 
   await launchBrowser();
@@ -263,7 +283,7 @@ async function collectGamesData() {
     const batch = batches[i];
     console.log(`\n🔄 Batch ${i + 1}/${batches.length} 진행 중...`);
 
-    if (i > 0 && i % 20 === 0) {
+    if (i > 0 && i % 4 === 0) {
         console.log("♻️ 메모리 정리를 위해 브라우저 재시작...");
         await launchBrowser();
     }
@@ -273,18 +293,14 @@ async function collectGamesData() {
           const steamId = metadata.steamAppId;
           const existingData = existingGameMap.get(steamId);
           const isNewGame = !existingData;
-          // play_time이 없거나, 문자열 '정보 없음'인 경우 재수집 대상
-          const isMissingPlaytime = existingData && (!existingData.play_time || existingData.play_time === '정보 없음');
+          const isMissingPlaytime = existingData && (!existingData.play_time || (typeof existingData.play_time === 'object' && !existingData.play_time.main && !existingData.play_time.raw));
           
           await sleep(isNewGame ? 1500 : 500);
           
           const steamRes = await axios.get(`https://store.steampowered.com/api/appdetails`, { params: { appids: steamId, l: 'korean', cc: 'kr' }, headers: STEAM_HEADERS, timeout: 10000 });
           const data = steamRes.data?.[steamId]?.data;
           
-          if (!data && !existingData) {
-             await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
-             continue; 
-          }
+          if (!data && !existingData) continue;
           
           let scrapedTags = [];
           if (isNewGame && data && page) {
@@ -306,7 +322,6 @@ async function collectGamesData() {
           const priceInfo = data ? await fetchPriceInfo(steamId, data, metadata) : (existingData?.price_info || {});
           const steamReviews = await getSteamReviews(steamId);
 
-          // ★ [핵심] HLTB 데이터 구조화 로직 적용
           let playTime = existingData?.play_time || null;
           
           if (page && (isNewGame || isMissingPlaytime)) {
@@ -341,7 +356,6 @@ async function collectGamesData() {
                         }, steamYear);
 
                         if (resultText) {
-                            // ★ 문자열 파싱하여 구조화된 객체 생성
                             playTime = parseHLTBTime(resultText);
                             break; 
                         }
@@ -358,7 +372,7 @@ async function collectGamesData() {
               steam_ccu: steamCCU,
               steam_reviews: steamReviews,
               price_info: priceInfo,
-              play_time: playTime, // 구조화된 객체 저장
+              play_time: playTime,
               lastUpdated: new Date()
           };
 
@@ -379,11 +393,8 @@ async function collectGamesData() {
           await Game.findOneAndUpdate({ steam_appid: steamId }, updateData, { upsert: true });
           await new TrendHistory({ steam_appid: steamId, trend_score: trendScore, twitch_viewers: trends.twitch.value, chzzk_viewers: trends.chzzk.value, steam_ccu: steamCCU, recordedAt: new Date() }).save();
           
-          await GameMetadata.updateOne({ _id: metadata._id }, { lastUpdated: new Date() });
-
           processedCount++;
-          const status = isNewGame ? "✨ 신규" : (isMissingPlaytime ? "🔧 보강" : "🔄 갱신");
-          // 로그에는 보기 좋게 메인 스토리 시간 표시
+          const status = metadata.source === 'Trending' ? "✨ 핫신작" : (metadata.source === 'MissingData' ? "🔧 보강" : "🔄 인기갱신");
           const timeLog = playTime?.main ? `${playTime.main}H` : 'N/A';
           console.log(`✅ [${status}] ${metadata.title} | Time=${timeLog} | Trend=${trendScore}`);
           
@@ -394,7 +405,7 @@ async function collectGamesData() {
   }
 
   if (browser) await browser.close();
-  console.log(`\n🎉 부분 수집 완료 (총 처리: ${processedCount}개)`);
+  console.log(`\n🎉 스마트 수집 완료 (총 처리: ${processedCount}개)`);
   process.exit(0);
 }
 
