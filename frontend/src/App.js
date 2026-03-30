@@ -10,7 +10,7 @@ import SearchResultsPage from './SearchResultsPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage'; 
 import PersonalRecoPage from './pages/PersonalRecoPage';
-import MyPage from './pages/MyPage'; // ★ 마이페이지 임포트 추가
+import MyPage from './pages/MyPage';
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
@@ -174,7 +174,23 @@ function NavigationBar({ user, setUser, region, setRegion }) {
                                 <span>{item.title}</span>
                                 {item.title_ko && <span style={{color:'#888', fontSize:'12px', marginLeft:'10px'}}>{item.title_ko}</span>}
                             </div>
-                        ) : item}
+                        ) : (
+                            // 🔥 추가된 부분 (개별 삭제 버튼)
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <span>{item}</span>
+                                <span
+                                    onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        const newHistory = history.filter(h => h !== item);
+                                        setHistory(newHistory);
+                                        safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+                                    }}
+                                    style={{color:'#999', cursor:'pointer'}}
+                                >
+                                    ✕
+                                </span>
+                            </div>
+                        )}
                     </li>
                 ))}
                 {searchTerm.length === 0 && history.length > 0 && ( <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>기록 삭제</li> )}
@@ -194,7 +210,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
           
           {user ? (
             <>
-                {/* ★ 마이페이지 링크 추가 */}
                 <Link to="/mypage" style={styles.compareLink}>👤 마이페이지</Link>
                 <span style={styles.userText}>{user.displayName || user.username}님</span>
                 {user.avatar && <img src={user.avatar} alt="profile" style={{width:'32px', height:'32px', borderRadius:'50%'}} />}
@@ -248,7 +263,6 @@ function App() {
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
-          {/* ★ 마이페이지 라우터 등록 */}
           <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
         </Routes>
       </div>

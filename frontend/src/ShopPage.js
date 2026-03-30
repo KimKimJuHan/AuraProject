@@ -88,6 +88,49 @@ function getReviewColor(summary) {
     return '#b9a074';
 }
 
+// ★ 추가: 최근 본 게임 컴포넌트
+function RecentGames({ currentSlug }) {
+  const [games, setGames] = useState([]);
+
+  useEffect(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem('recentGames') || '[]');
+      const filtered = Array.isArray(data)
+        ? data.filter(game => game && game.slug && game.slug !== currentSlug)
+        : [];
+      setGames(filtered.slice(0, 5));
+    } catch (e) {
+      setGames([]);
+    }
+  }, [currentSlug]);
+
+  if (games.length === 0) {
+    return <div style={{ color: '#666' }}>최근 본 게임 없음</div>;
+  }
+
+  return (
+    <div style={{ display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'10px' }}>
+      {games.map(game => (
+        <a
+          key={game.slug}
+          href={`/game/${game.slug}`}
+          style={{ minWidth:'150px', textDecoration:'none', color:'#fff', flexShrink:0 }}
+        >
+          <img
+            src={game.main_image}
+            alt={game.title}
+            style={{ width:'150px', height:'84px', borderRadius:'4px', objectFit:'cover', display:'block', marginBottom:'6px' }}
+            onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"}
+          />
+          <div style={{ fontSize:'12px', color:'#ddd', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {game.title_ko || game.title}
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function ShopPage({ region }) { 
   const { id } = useParams(); 
   const [gameData, setGameData] = useState(null);
@@ -161,6 +204,30 @@ function ShopPage({ region }) {
     };
     fetchDetails();
   }, [id]); 
+
+  // ★ 추가: 최근 본 게임 저장
+  useEffect(() => {
+    if (!gameData) return;
+
+    try {
+      const recent = JSON.parse(localStorage.getItem('recentGames') || '[]');
+      const safeRecent = Array.isArray(recent) ? recent : [];
+
+      const recentGame = {
+        slug: gameData.slug,
+        title: gameData.title,
+        title_ko: gameData.title_ko,
+        main_image: gameData.main_image
+      };
+
+      const updated = [
+        recentGame,
+        ...safeRecent.filter(g => g && g.slug !== gameData.slug)
+      ].slice(0, 6);
+
+      localStorage.setItem('recentGames', JSON.stringify(updated));
+    } catch (e) {}
+  }, [gameData]);
 
   const handleMediaSelect = (media) => { setSelectedMedia(media); setIsPlaying(false); };
   const handlePlayVideo = () => { setIsPlaying(true); if (videoRef.current) videoRef.current.play(); };
@@ -410,8 +477,15 @@ function ShopPage({ region }) {
                 </div>
             </div>
         </div>
+
+        {/* ★ 추가: 최근 본 게임 */}
+        <div style={{ marginTop:'60px' }}>
+          <h3 className="net-section-title">👀 최근 본 게임</h3>
+          <RecentGames currentSlug={gameData.slug} />
+        </div>
       </div>
     </div>
   );
 }
+
 export default ShopPage;
