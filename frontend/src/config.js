@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-// '/api'가 중복으로 붙지 않도록 포트번호까지만 남깁니다.
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://43.200.122.206:8000';
+// AWS IP 하드코딩 제거. 환경 변수가 없으면 로컬호스트(개발 환경)로 폴백.
+// AWS 서버에서는 .env 파일에 REACT_APP_API_URL=http://43.200.122.206:8000 을 주입합니다.
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-// 새롭게 추가한 세션/쿠키 통신용 글로벌 인스턴스 (이 인스턴스를 쓸 때만 자동으로 /api가 붙음)
 export const apiClient = axios.create({
     baseURL: `${API_BASE_URL}/api`,
     withCredentials: true,
@@ -12,5 +12,4 @@ export const apiClient = axios.create({
     }
 });
 
-// 호환성을 위한 fallback
 export default API_BASE_URL;
