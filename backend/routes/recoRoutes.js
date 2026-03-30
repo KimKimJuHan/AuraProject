@@ -8,6 +8,13 @@ const TrendHistory = require('../models/TrendHistory');
 const { authenticateToken } = require('../middleware/auth');
 
 /**
+ * 검색어용 정규식 이스케이프
+ */
+function escapeRegex(text = '') {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * 1. [상세 페이지용] 단일 게임 정보 조회
  * GET /api/games/:id
  */
@@ -113,36 +120,71 @@ router.post('/games/:id/vote', authenticateToken, async (req, res) => {
 });
 
 /**
- * 4. 메인 추천 API (기존 로직 유지)
+ * 4. 메인 추천 API + 검색 기능 추가
+ * POST /api/recommend
  */
 router.post('/recommend', async (req, res) => {
     try {
-        const { tags = [], sortBy = 'popular', page = 1 } = req.body;
+        const { tags = [], sortBy = 'popular', page = 1, searchQuery = '' } = req.body;
         const limit = 20;
-        const skip = (page - 1) * limit;
+        const currentPage = Number(page) || 1;
+        const skip = (currentPage - 1) * limit;
 
         let query = {};
-        if (tags && tags.length > 0) query.tags = { $all: tags };
+
+        // 태그 필터
+        if (tags && tags.length > 0) {
+            query.tags = { $all: tags };
+        }
+
+        // 검색어 필터 추가
+        const trimmedQuery = String(searchQuery || '').trim();
+        if (trimmedQuery) {
+            const safeQuery = escapeRegex(trimmedQuery);
+            const regex = new RegExp(safeQuery, 'i');
+
+            query.$or = [
+                { title: regex },
+                { title_ko: regex },
+                { slug: regex }
+            ];
+        }
 
         let sortOption = {};
         switch (sortBy) {
-            case 'hype': sortOption = { twitchViewerCount: -1, steamPlayerCount: -1 }; break;
-            case 'new': sortOption = { releaseDate: -1 }; break;
-            case 'discount': sortOption = { 'price_info.discount_percent': -1 }; break;
-            case 'price': sortOption = { 'price_info.current_price': 1 }; break;
-            default: sortOption = { steamPlayerCount: -1 }; break;
+            case 'hype':
+                sortOption = { twitchViewerCount: -1, steamPlayerCount: -1 };
+                break;
+            case 'new':
+                sortOption = { releaseDate: -1 };
+                break;
+            case 'discount':
+                sortOption = { 'price_info.discount_percent': -1 };
+                break;
+            case 'price':
+                sortOption = { 'price_info.current_price': 1 };
+                break;
+            default:
+                sortOption = { steamPlayerCount: -1 };
+                break;
         }
 
-        const games = await Game.find(query).sort(sortOption).skip(skip).limit(limit).lean();
+        const games = await Game.find(query)
+            .sort(sortOption)
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
         const totalCount = await Game.countDocuments(query);
 
         res.json({
             success: true,
             games,
             totalPages: Math.ceil(totalCount / limit),
-            currentPage: page
+            currentPage
         });
     } catch (error) {
+        console.error('Recommend API Error:', error);
         res.status(500).json({ success: false, message: '서버 에러' });
     }
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
-import { API_BASE_URL } from './config'; // ★ 설정 파일 import
+import { API_BASE_URL } from './config';
 
 const styles = {
   container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
@@ -13,7 +13,7 @@ const styles = {
   cardBody: { padding: '10px' },
   title: { fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '5px' },
   meta: { fontSize: '12px', color: '#ccc', display: 'flex', justifyContent: 'space-between' },
-  empty: { textAlign: 'center', marginTop: '50px', color: '#666', fontSize: '18px' }
+  empty: { textAlign: 'center', marginTop: '80px', color: '#bbb', fontSize: '18px' }
 };
 
 function SearchResultsPage() {
@@ -28,11 +28,10 @@ function SearchResultsPage() {
     const fetchResults = async () => {
       setLoading(true);
       try {
-        // ★ API 주소 변수 사용
         const response = await fetch(`${API_BASE_URL}/api/recommend`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ searchQuery: query }) // 검색어 전달
+            body: JSON.stringify({ searchQuery: query })
         });
         const data = await response.json();
         setResults(data.games || []);
@@ -72,7 +71,27 @@ function SearchResultsPage() {
           ))}
         </div>
       ) : (
-        <div style={styles.empty}>검색 결과가 없습니다.</div>
+        // 🔥 UX 개선된 부분
+        <div style={styles.empty}>
+          <div style={{fontSize:'22px', marginBottom:'10px'}}>😢 검색 결과가 없습니다</div>
+          <div style={{fontSize:'14px', color:'#888', marginBottom:'20px'}}>
+            다른 키워드로 검색하거나 인기 게임을 확인해보세요
+          </div>
+
+          <Link 
+            to="/" 
+            style={{
+              background:'#E50914',
+              color:'#fff',
+              padding:'10px 20px',
+              borderRadius:'4px',
+              textDecoration:'none',
+              fontWeight:'bold'
+            }}
+          >
+            🔥 인기 게임 보러가기
+          </Link>
+        </div>
       )}
     </div>
   );
