@@ -21,7 +21,11 @@ const advancedRecoRoutes = require('./routes/recommend');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://43.200.122.206:3000', credentials: true }));
+// 환경 변수 기반 URL 설정. 기본값은 로컬(localhost)
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -36,30 +40,27 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// 1. Steam Strategy (★ DB 연동 및 업데이트 로직 전면 수정)
+// 1. Steam Strategy
 try {
     passport.use(new SteamStrategy({
-        returnURL: `${process.env.BACKEND_URL || 'http://localhost:8000'}/api/auth/steam/return`,
-        realm: `${process.env.BACKEND_URL || 'http://localhost:8000'}/`,
+        returnURL: `${BACKEND_URL}/api/auth/steam/return`,
+        realm: `${BACKEND_URL}/`,
         apiKey: process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY,
-        passReqToCallback: true // ★ 핵심: 세션 정보(현재 로그인한 유저)를 가져오기 위해 req 허용
+        passReqToCallback: true
     }, async (req, identifier, profile, done) => {
         try {
-            // 라우터에서 전달한 '현재 로그인 중인 유저 ID' 확인
             const linkingUserId = req.session?.steamLinkingUserId;
 
-            // 케이스 A: 이미 구글/네이버/일반으로 로그인한 상태에서 '스팀 연동'을 누른 경우
             if (linkingUserId) {
                 const user = await User.findById(linkingUserId);
                 if (user) {
-                    user.steamId = profile.id; // 스팀 ID 추가
+                    user.steamId = profile.id;
                     await user.save();
-                    delete req.session.steamLinkingUserId; // 완료 후 세션 청소
+                    delete req.session.steamLinkingUserId;
                     return done(null, user);
                 }
             }
 
-            // 케이스 B: 로그인하지 않은 상태에서 '스팀으로 로그인/가입'을 누른 경우
             let user = await User.findOne({ steamId: profile.id });
             if (!user) {
                 user = await User.create({
