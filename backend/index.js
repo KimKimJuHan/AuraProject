@@ -21,20 +21,29 @@ const advancedRecoRoutes = require('./routes/recommend');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// 환경 변수 기반 URL 설정. 기본값은 로컬(localhost)
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+// 환경 변수 기반 URL 설정
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
+
+// ⚠️ 핵심 팩트: Nginx 리버스 프록시 뒤에 있으므로 HTTPS 프로토콜과 실제 IP를 신뢰하도록 설정
+app.set('trust proxy', 1);
 
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// 세션 설정
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret_key_aura',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, httpOnly: true, maxAge: 1000 * 60 * 60 * 24 }
+    // HTTPS 환경에서는 proxy 통신 시 쿠키 도메인 및 프로토콜 처리를 위해 아래 설정 유지
+    cookie: { 
+        secure: process.env.NODE_ENV === 'production', // 실무(AWS) 환경에서는 자동 true 적용
+        httpOnly: true, 
+        maxAge: 1000 * 60 * 60 * 24 
+    }
 }));
 
 app.use(passport.initialize());
