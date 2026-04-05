@@ -21,7 +21,6 @@ const advancedRecoRoutes = require('./routes/recommend');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// 환경 변수 기반 URL 설정
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 
@@ -36,16 +35,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ⚠️ 수정 팩트: proxy 속성 추가 및 sameSite 명시적 지정
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret_key_aura',
     resave: false,
     saveUninitialized: false,
-    proxy: true, // 프록시 뒤에서 안전한 쿠키 통신 강제
+    proxy: true, 
     cookie: { 
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        sameSite: 'lax', // 자사 도메인 간 쿠키 전송 허용
+        sameSite: 'lax', 
         maxAge: 1000 * 60 * 60 * 24 
     }
 }));
@@ -93,7 +91,7 @@ try {
     console.error("Steam Strategy Setup Failed:", e);
 }
 
-// 2. Google Strategy (⚠️ 절대 경로로 변경)
+// 2. Google Strategy
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -106,6 +104,17 @@ passport.use(new GoogleStrategy({
         const googleAvatar = (profile.photos && profile.photos.length > 0) ? profile.photos[0].value : '';
 
         if (!user) {
+            // ★ 팩트: DB 중복 에러 방지용 기존 이메일 체크 및 계정 자동 연동
+            let existingUserByEmail = await User.findOne({ email: googleEmail });
+            
+            if (existingUserByEmail && googleEmail !== 'no-email@google.com') {
+                existingUserByEmail.googleId = profile.id; // 기존 계정에 구글 ID 추가 결합
+                if (!existingUserByEmail.avatar && googleAvatar) existingUserByEmail.avatar = googleAvatar;
+                await existingUserByEmail.save();
+                return done(null, existingUserByEmail);
+            }
+
+            // 중복 이메일이 없을 경우에만 새로 생성
             user = await User.create({
                 googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar
             });
@@ -119,7 +128,7 @@ passport.use(new GoogleStrategy({
     } catch (err) { return done(err); }
 }));
 
-// 3. Naver Strategy (⚠️ 절대 경로로 변경)
+// 3. Naver Strategy
 passport.use(new NaverStrategy({
     clientID: process.env.NAVER_CLIENT_ID,
     clientSecret: process.env.NAVER_CLIENT_SECRET,
@@ -132,6 +141,17 @@ passport.use(new NaverStrategy({
         const naverAvatar = profile.profileImage || (profile._json && profile._json.profile_image) || '';
 
         if (!user) {
+            // ★ 팩트: DB 중복 에러 방지용 기존 이메일 체크 및 계정 자동 연동
+            let existingUserByEmail = await User.findOne({ email: naverEmail });
+            
+            if (existingUserByEmail && naverEmail !== 'no-email@naver.com') {
+                existingUserByEmail.naverId = profile.id; // 기존 계정에 네이버 ID 추가 결합
+                if (!existingUserByEmail.avatar && naverAvatar) existingUserByEmail.avatar = naverAvatar;
+                await existingUserByEmail.save();
+                return done(null, existingUserByEmail);
+            }
+
+            // 중복 이메일이 없을 경우에만 새로 생성
             user = await User.create({
                 naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar
             });
