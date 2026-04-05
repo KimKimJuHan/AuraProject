@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// AWS IP 하드코딩 제거. 환경 변수가 없으면 로컬호스트(개발 환경)로 폴백.
-// AWS 서버에서는 .env 파일에 REACT_APP_API_URL=http://43.200.122.206:8000 을 주입합니다.
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// 팩트: 환경 변수에 의존하지 않고, 브라우저가 현재 접속 중인 도메인을 직접 판별
+export const API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000' 
+    : 'https://playforyou.net';
 
 export const apiClient = axios.create({
     baseURL: `${API_BASE_URL}/api`,
