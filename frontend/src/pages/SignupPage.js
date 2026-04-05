@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { apiClient } from '../config';
+import { apiClient, API_BASE_URL } from '../config';
 
 function SignupPage() {
   const [step, setStep] = useState(1); // 1: 정보입력, 2: 인증코드확인
@@ -63,10 +63,9 @@ function SignupPage() {
     }
   };
 
-  // ★ 추가: 소셜 가입(로그인) 핸들러 (하드코딩 IP 제거 및 도메인 적용)
+  // ★ 추가: 소셜 가입(로그인) 핸들러 (.env 의존 제거 및 config 동적 URL 사용)
   const handleSocialSignup = (platform) => {
-      const baseUrl = process.env.REACT_APP_API_URL || 'https://playforyou.net';
-      window.location.href = `${baseUrl}/api/auth/${platform}`;
+      window.location.href = `${API_BASE_URL}/api/auth/${platform}`;
   };
 
   // 스타일 객체
