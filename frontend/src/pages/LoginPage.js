@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { apiClient } from '../config';
+import { apiClient, API_BASE_URL } from '../config';
 
 function LoginPage({ user, setUser }) {
   const [formData, setFormData] = useState({ username: '', password: '' });
@@ -34,10 +34,9 @@ function LoginPage({ user, setUser }) {
     }
   };
 
-  // 소셜 로그인 핸들러 (하드코딩 IP 제거 및 도메인 적용)
+  // 소셜 로그인 핸들러 (.env 의존 제거 및 config 동적 URL 사용)
   const handleSocialLogin = (platform) => {
-    const baseUrl = process.env.REACT_APP_API_URL || 'https://playforyou.net';
-    window.location.href = `${baseUrl}/api/auth/${platform}`;
+    window.location.href = `${API_BASE_URL}/api/auth/${platform}`;
   };
 
   const pageStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#141414', padding: '20px' };
