@@ -25,23 +25,27 @@ const PORT = process.env.PORT || 8000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 
-// ⚠️ 핵심 팩트: Nginx 리버스 프록시 뒤에 있으므로 HTTPS 프로토콜과 실제 IP를 신뢰하도록 설정
+// Nginx 리버스 프록시 HTTPS 환경 완벽 신뢰
 app.set('trust proxy', 1);
 
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+app.use(cors({ 
+    origin: FRONTEND_URL, 
+    credentials: true 
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 세션 설정
+// ⚠️ 수정 팩트: proxy 속성 추가 및 sameSite 명시적 지정
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret_key_aura',
     resave: false,
     saveUninitialized: false,
-    // HTTPS 환경에서는 proxy 통신 시 쿠키 도메인 및 프로토콜 처리를 위해 아래 설정 유지
+    proxy: true, // 프록시 뒤에서 안전한 쿠키 통신 강제
     cookie: { 
-        secure: process.env.NODE_ENV === 'production', // 실무(AWS) 환경에서는 자동 true 적용
-        httpOnly: true, 
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: 'lax', // 자사 도메인 간 쿠키 전송 허용
         maxAge: 1000 * 60 * 60 * 24 
     }
 }));
@@ -89,11 +93,11 @@ try {
     console.error("Steam Strategy Setup Failed:", e);
 }
 
-// 2. Google Strategy
+// 2. Google Strategy (⚠️ 절대 경로로 변경)
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/api/auth/google/callback"
+    callbackURL: `${BACKEND_URL}/api/auth/google/callback`
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         let user = await User.findOne({ googleId: profile.id });
@@ -115,11 +119,11 @@ passport.use(new GoogleStrategy({
     } catch (err) { return done(err); }
 }));
 
-// 3. Naver Strategy
+// 3. Naver Strategy (⚠️ 절대 경로로 변경)
 passport.use(new NaverStrategy({
     clientID: process.env.NAVER_CLIENT_ID,
     clientSecret: process.env.NAVER_CLIENT_SECRET,
-    callbackURL: "/api/auth/naver/callback"
+    callbackURL: `${BACKEND_URL}/api/auth/naver/callback`
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         let user = await User.findOne({ naverId: profile.id });
