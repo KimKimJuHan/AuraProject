@@ -34,9 +34,10 @@ function LoginPage({ user, setUser }) {
     }
   };
 
-  // 소셜 로그인 핸들러
+  // 소셜 로그인 핸들러 (하드코딩 IP 제거 및 도메인 적용)
   const handleSocialLogin = (platform) => {
-    window.location.href = `http://43.200.122.206:8000/api/auth/${platform}`;
+    const baseUrl = process.env.REACT_APP_API_URL || 'https://playforyou.net';
+    window.location.href = `${baseUrl}/api/auth/${platform}`;
   };
 
   const pageStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#141414', padding: '20px' };
