@@ -1,5 +1,3 @@
-// frontend/src/pages/SignupPage.js
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../config';
@@ -65,9 +63,10 @@ function SignupPage() {
     }
   };
 
-  // ★ 추가: 소셜 가입(로그인) 핸들러
+  // ★ 추가: 소셜 가입(로그인) 핸들러 (하드코딩 IP 제거 및 도메인 적용)
   const handleSocialSignup = (platform) => {
-      window.location.href = `http://43.200.122.206:8000/api/auth/${platform}`;
+      const baseUrl = process.env.REACT_APP_API_URL || 'https://playforyou.net';
+      window.location.href = `${baseUrl}/api/auth/${platform}`;
   };
 
   // 스타일 객체
@@ -122,5 +121,5 @@ function SignupPage() {
     </div>
   );
 }
-
+ 
 export default SignupPage;
