@@ -4,14 +4,14 @@ const TAG_MAPPING = {
   // === 장르 ===
   "RPG": "RPG",
   "Role-Playing": "RPG",
-  "Role Playing": "RPG", // 띄어쓰기 추가
+  "Role Playing": "RPG", 
   "JRPG": "RPG",
   "Action RPG": "RPG",
   "ARPG": "RPG",
   
   "FPS": "FPS",
   "First-Person Shooter": "FPS",
-  "First Person Shooter": "FPS", // 띄어쓰기 추가
+  "First Person Shooter": "FPS", 
   "Shooter": "FPS",
   
   "Simulation": "시뮬레이션",
@@ -44,11 +44,11 @@ const TAG_MAPPING = {
   
   // === 시점 ===
   "First-Person": "1인칭",
-  "First Person": "1인칭", // ★ 핵심 수정 (띄어쓰기 추가)
+  "First Person": "1인칭", 
   "1st Person": "1인칭",
   
   "Third-Person": "3인칭",
-  "Third Person": "3인칭", // ★ 핵심 수정
+  "Third Person": "3인칭", 
   "3rd Person": "3인칭",
   
   "Isometric": "쿼터뷰",
@@ -88,8 +88,8 @@ const TAG_MAPPING = {
   "Post Apocalyptic": "포스트아포칼립스",
   
   // === 특징 ===
-  "Open World": "오픈 월드",
-  "Open-World": "오픈 월드",
+  "Open World": "오픈월드", // ★ 팩트: 프론트엔드 배열과 정확히 일치하도록 띄어쓰기 제거
+  "Open-World": "오픈월드",
   
   "Resource Management": "자원관리",
   "Management": "자원관리",
@@ -130,7 +130,6 @@ const TAG_MAPPING = {
   "Soulslike": "소울라이크"
 };
 
-// 역방향 매핑 (한글 -> [영어1, 영어2, ...])
 const REVERSE_MAP = {};
 Object.keys(TAG_MAPPING).forEach(eng => {
     const kor = TAG_MAPPING[eng];
@@ -138,16 +137,13 @@ Object.keys(TAG_MAPPING).forEach(eng => {
     REVERSE_MAP[kor].push(eng);
 });
 
-// 스팀 태그를 한글로 변환
 function mapSteamTags(steamTags) {
   if (!steamTags || !Array.isArray(steamTags)) return [];
   const mapped = new Set();
   steamTags.forEach(tag => {
-    // 1. 정확한 매핑 확인
     if (TAG_MAPPING[tag]) {
       mapped.add(TAG_MAPPING[tag]);
     } else {
-        // 2. 대소문자 무시 매핑 확인
         const key = Object.keys(TAG_MAPPING).find(k => k.toLowerCase() === tag.toLowerCase());
         if (key) mapped.add(TAG_MAPPING[key]);
     }
@@ -155,17 +151,14 @@ function mapSteamTags(steamTags) {
   return Array.from(mapped);
 }
 
-// ★ [핵심] 한글 태그를 넣으면 관련된 모든 영문 태그(띄어쓰기 포함)를 찾는 정규식 반환
 function getQueryTags(koreanTag) {
     const originals = REVERSE_MAP[koreanTag] || [];
     const allTags = [koreanTag, ...originals];
 
-    // 사이드뷰 검색 시 횡스크롤도 같이 찾기
     if (koreanTag === "사이드뷰") {
         allTags.push("횡스크롤");
     }
 
-    // 예: /^First Person$/i, /^First-Person$/i 모두 생성
     return allTags.map(t => new RegExp(`^${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
 }
 
