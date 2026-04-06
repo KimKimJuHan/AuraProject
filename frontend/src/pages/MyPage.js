@@ -5,21 +5,17 @@ import { API_BASE_URL } from '../config';
 import { safeLocalStorage } from '../utils/storage';
 import '../styles/Recommend.css';
 
-// 선택 가능한 전체 태그 목록 (필요시 수정 가능)
 const AVAILABLE_TAGS = ['액션', 'RPG', '오픈월드', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '어드벤처', '로그라이크', '사이버펑크'];
 
 function MyPage({ user, setUser }) {
     const [wishlistGames, setWishlistGames] = useState([]);
     const [steamInfo, setSteamInfo] = useState({ linked: false, games: [] });
-    
-    // ★ 태그 관리를 위한 상태 추가
     const [isEditingTags, setIsEditingTags] = useState(false);
     const [currentTags, setCurrentTags] = useState([]);
     const navigate = useNavigate();
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
-        // 유저 정보가 로드되면 기존 선호 태그를 상태에 반영
         setCurrentTags(user.likedTags?.length > 0 ? user.likedTags : ['액션', 'RPG', '오픈월드']);
         fetchData();
     }, [user, navigate]);
@@ -52,7 +48,19 @@ function MyPage({ user, setUser }) {
         window.location.href = `${API_BASE_URL}/api/auth/steam`;
     };
 
-    // ★ 태그 선택/해제 토글 로직
+    // ★ 스팀 연동 해제 처리 로직
+    const handleUnlinkSteam = async () => {
+        if (!window.confirm("스팀 연동을 해제하시겠습니까? 보유 게임 기록이 제거됩니다.")) return;
+        try {
+            const response = await axios.delete(`${API_BASE_URL}/api/user/steam`, { withCredentials: true });
+            if (response.data.message === "해제됨") {
+                alert("스팀 연동이 성공적으로 해제되었습니다.");
+                setSteamInfo({ linked: false, games: [] }); // UI 즉각 갱신
+                fetchData();
+            }
+        } catch (error) { alert("해제 처리에 실패했습니다."); }
+    };
+
     const toggleTag = (tag) => {
         if (currentTags.includes(tag)) {
             setCurrentTags(currentTags.filter(t => t !== tag));
@@ -62,17 +70,13 @@ function MyPage({ user, setUser }) {
         }
     };
 
-    // ★ 백엔드에 태그 저장 요청 로직
     const handleSaveTags = async () => {
         try {
             await axios.post(`${API_BASE_URL}/api/user/tags`, { tags: currentTags }, { withCredentials: true });
             alert("선호 태그가 성공적으로 저장되었습니다.");
-            setUser({ ...user, likedTags: currentTags }); // 프론트 전역 유저 상태 즉시 업데이트
+            setUser({ ...user, likedTags: currentTags });
             setIsEditingTags(false);
-        } catch (error) {
-            alert("태그 저장에 실패했습니다.");
-            console.error(error);
-        }
+        } catch (error) { alert("태그 저장에 실패했습니다."); }
     };
 
     return (
@@ -101,7 +105,11 @@ function MyPage({ user, setUser }) {
                         <div>
                             <p style={{color:'#4CAF50'}}>✅ 연동 완료</p>
                             <p>보유 게임: {steamInfo.games.length}개</p>
-                            <button onClick={() => navigate('/recommend/personal')} className="search-btn">맞춤 추천 보기</button>
+                            {/* ★ 맞춤 추천과 연동 해제 버튼 동시 배치 */}
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                                <button onClick={() => navigate('/recommend/personal')} className="search-btn" style={{flex: 1}}>맞춤 추천 보기</button>
+                                <button onClick={handleUnlinkSteam} className="search-btn" style={{backgroundColor:'#e50914', flex: 1}}>연동 해제</button>
+                            </div>
                         </div>
                     ) : (
                         <div>
@@ -112,7 +120,6 @@ function MyPage({ user, setUser }) {
                 </div>
             </div>
 
-            {/* ★ 완성된 선호 태그 관리 섹션 */}
             <div className="search-panel" style={{marginTop:'20px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <h3 style={{margin: 0}}>🏷️ 나의 선호 태그</h3>

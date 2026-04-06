@@ -24,7 +24,6 @@ const PORT = process.env.PORT || 8000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 
-// Nginx 리버스 프록시 HTTPS 환경 완벽 신뢰
 app.set('trust proxy', 1);
 
 app.use(cors({ 
@@ -104,17 +103,15 @@ passport.use(new GoogleStrategy({
         const googleAvatar = (profile.photos && profile.photos.length > 0) ? profile.photos[0].value : '';
 
         if (!user) {
-            // ★ 팩트: DB 중복 에러 방지용 기존 이메일 체크 및 계정 자동 연동
             let existingUserByEmail = await User.findOne({ email: googleEmail });
             
             if (existingUserByEmail && googleEmail !== 'no-email@google.com') {
-                existingUserByEmail.googleId = profile.id; // 기존 계정에 구글 ID 추가 결합
+                existingUserByEmail.googleId = profile.id; 
                 if (!existingUserByEmail.avatar && googleAvatar) existingUserByEmail.avatar = googleAvatar;
                 await existingUserByEmail.save();
                 return done(null, existingUserByEmail);
             }
 
-            // 중복 이메일이 없을 경우에만 새로 생성
             user = await User.create({
                 googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar
             });
@@ -136,22 +133,23 @@ passport.use(new NaverStrategy({
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         let user = await User.findOne({ naverId: profile.id });
-        const naverName = profile.displayName || (profile._json && profile._json.nickname) || (profile._json && profile._json.name) || `네이버유저_${profile.id.substring(0, 4)}`;
-        const naverEmail = (profile.emails && profile.emails.length > 0 && profile.emails[0].value) || (profile._json && profile._json.email) || 'no-email@naver.com';
-        const naverAvatar = profile.profileImage || (profile._json && profile._json.profile_image) || '';
+        
+        // ★ 팩트: 네이버 API 이중 JSON 구조 정밀 파싱 적용 (이름 누락 방어)
+        const responseData = (profile._json && profile._json.response) ? profile._json.response : (profile._json || {});
+        const naverName = profile.displayName || profile.name || responseData.nickname || responseData.name || `네이버유저_${profile.id.substring(0, 4)}`;
+        const naverEmail = (profile.emails && profile.emails.length > 0 && profile.emails[0].value) || profile.email || responseData.email || `naver_${profile.id}@no-email.com`;
+        const naverAvatar = profile.profileImage || responseData.profile_image || '';
 
         if (!user) {
-            // ★ 팩트: DB 중복 에러 방지용 기존 이메일 체크 및 계정 자동 연동
             let existingUserByEmail = await User.findOne({ email: naverEmail });
             
-            if (existingUserByEmail && naverEmail !== 'no-email@naver.com') {
-                existingUserByEmail.naverId = profile.id; // 기존 계정에 네이버 ID 추가 결합
+            if (existingUserByEmail && !naverEmail.includes('@no-email.com')) {
+                existingUserByEmail.naverId = profile.id; 
                 if (!existingUserByEmail.avatar && naverAvatar) existingUserByEmail.avatar = naverAvatar;
                 await existingUserByEmail.save();
                 return done(null, existingUserByEmail);
             }
 
-            // 중복 이메일이 없을 경우에만 새로 생성
             user = await User.create({
                 naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar
             });
