@@ -9,13 +9,11 @@ class RecoService {
     const skip = (page - 1) * limit;
     const filter = { isAdult: { $ne: true } };
 
-    // 1. 태그 필터링
     if (tags && tags.length > 0) {
         const andConditions = tags.map(tag => ({ smart_tags: { $in: getQueryTags(tag) } }));
         filter.$and = andConditions;
     }
 
-    // 2. 검색어 필터링
     if (searchQuery) {
         const q = searchQuery.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         filter.$or = [
@@ -24,14 +22,12 @@ class RecoService {
         ];
     }
 
-    // 3. 메타데이터 (유효 태그) 추출
     const allMatches = await Game.find(filter).select('smart_tags').lean();
     const validTagsSet = new Set();
     allMatches.forEach(g => {
         if (g.smart_tags) g.smart_tags.forEach(t => validTagsSet.add(t));
     });
 
-    // 4. 정렬 조건 산출
     let sortRule = { trend_score: -1, _id: -1 };
     if (sortBy === 'discount') { 
         sortRule = { 'price_info.discount_percent': -1 }; 
@@ -46,10 +42,8 @@ class RecoService {
         filter['price_info.isFree'] = { $ne: true };
     }
 
-    // 5. 최종 데이터 쿼리
     const games = await Game.find(filter).sort(sortRule).skip(skip).limit(limit).lean();
 
-    // 6. 결과 없음 처리 (인기 게임 폴백)
     if (allMatches.length === 0 && !searchQuery && (!tags || tags.length === 0)) {
         const popGames = await Game.find({ isAdult: { $ne: true } })
                                    .sort({ trend_score: -1 })
@@ -72,10 +66,14 @@ class RecoService {
   async getGameHistory(slug) {
     const game = await Game.findOne({ slug }).select('steam_appid');
     if (!game) return null;
-    return await TrendHistory.find({ steam_appid: game.steam_appid })
-                             .sort({ recordedAt: 1 })
-                             .limit(100)
+    
+    // ★ 팩트: DB 수정 없이, 오래된 데이터(12월 더미)를 무시하고 가장 최신 데이터 30개를 가져와 차트에 맞게 정렬합니다.
+    const history = await TrendHistory.find({ steam_appid: game.steam_appid })
+                             .sort({ recordedAt: -1 })
+                             .limit(30)
                              .lean();
+                             
+    return history.reverse();
   }
 
   async getAutocomplete(query) {
