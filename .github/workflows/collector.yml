@@ -2,18 +2,28 @@ name: Game Data Collector
 
 on:
   schedule:
-    # ⚠️ 주의: GitHub Actions는 UTC(세계 표준시) 기준입니다.
-    # '0 10 * * *' = UTC 10:00 = 한국 시간(KST) 오후 7:00
-    # 한국 시간 새벽 4시에 돌리고 싶다면 '0 19 * * *' (전날 오후 7시 UTC) 등으로 설정해야 합니다.
-    - cron: '0 10 * * *' 
+    # 1. 시청자/트렌드 전수조사 (매일 KST 오후 7시 = UTC 10:00)
+    - cron: '0 10 * * *'
     
-  workflow_dispatch: # 수동 실행 버튼도 유지 (테스트용)
+    # 2. 신작/플탐/메타데이터 무거운 수집 (매일 KST 새벽 3시 = UTC 18:00)
+    - cron: '0 18 * * *'
+    
+  workflow_dispatch:
+    inputs:
+      job_type:
+        description: '강제 실행할 작업을 선택하세요'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - trend (시청자 수만 갱신)
+          - game (신작/메타데이터만 수집)
+          - all (전체 실행)
 
 jobs:
-  build:
+  collect:
     runs-on: ubuntu-latest
 
-    # 환경 변수 설정
     env:
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
@@ -36,20 +46,24 @@ jobs:
         cd backend
         npm install
 
-    # 1단계: 메타데이터 수집
-    - name: 1. Seed Game Metadata (Price & Game List)
+    # ==========================================
+    # Task A: 시청자 전수조사 (UTC 10:00 또는 수동 실행 시)
+    # ==========================================
+    - name: Run Trend Collector
+      if: github.event.schedule == '0 10 * * *' || github.event.inputs.job_type == 'trend' || github.event.inputs.job_type == 'all'
       run: |
+        echo "🚀 시청자 트렌드 전수조사 가동"
+        cd backend
+        node scripts/trend_collector.js
+
+    # ==========================================
+    # Task B: 신작 및 메타데이터 수집 (UTC 18:00 또는 수동 실행 시)
+    # ==========================================
+    - name: Run Game Metadata Collector
+      if: github.event.schedule == '0 18 * * *' || github.event.inputs.job_type == 'game' || github.event.inputs.job_type == 'all'
+      run: |
+        echo "🚀 게임 메타데이터 수집 가동"
         cd backend
         node scripts/metadata_seeder.js
-
-    # 2단계: 카테고리 매핑
-    - name: 2. Seed Category Mapping (Trend Source)
-      run: |
-        cd backend
         node scripts/category_seeder.js
-
-    # 3단계: 메인 수집기 실행
-    - name: 3. Run Main Collector
-      run: |
-        cd backend
-        node scripts/collector.js
+        node scripts/game_collector.js
