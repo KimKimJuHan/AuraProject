@@ -13,10 +13,13 @@ function MyPage({ user, setUser }) {
     const [isEditingTags, setIsEditingTags] = useState(false);
     const [currentTags, setCurrentTags] = useState([]);
     const navigate = useNavigate();
+    const [isEditingNickname, setIsEditingNickname] = useState(false);
+    const [newDisplayName, setNewDisplayName] = useState('');
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
         setCurrentTags(user.likedTags?.length > 0 ? user.likedTags : ['액션', 'RPG', '오픈월드']);
+        setNewDisplayName(user?.displayName || user?.username || '');
         fetchData();
     }, [user, navigate]);
 
@@ -69,6 +72,7 @@ function MyPage({ user, setUser }) {
             setCurrentTags([...currentTags, tag]);
         }
     };
+    
 
     const handleSaveTags = async () => {
         try {
@@ -78,6 +82,31 @@ function MyPage({ user, setUser }) {
             setIsEditingTags(false);
         } catch (error) { alert("태그 저장에 실패했습니다."); }
     };
+    const handleSaveNickname = async () => {
+  const value = String(newDisplayName || '').trim();
+  if (!value) return alert('닉네임을 입력해주세요.');
+  if (value.length < 2 || value.length > 20) return alert('닉네임은 2~20자로 입력해주세요.');
+
+  try {
+    const res = await axios.patch(
+      `${API_BASE_URL}/api/user/me/displayName`,
+      { displayName: value },
+      { withCredentials: true }
+    );
+
+    // 서버가 업데이트된 user를 내려줌
+    const updatedUser = res.data;
+
+    setUser(updatedUser);
+    // 혹시 localStorage에도 user를 저장하는 구조면 같이 갱신
+    safeLocalStorage.setItem('user', JSON.stringify(updatedUser));
+
+    alert('닉네임이 변경되었습니다.');
+    setIsEditingNickname(false);
+  } catch (e) {
+    alert(e?.response?.data?.message || '닉네임 변경 실패');
+  }
+};
 
     return (
         <div className="reco-container" style={{maxWidth:'1000px', margin:'40px auto', padding:'0 20px'}}>
@@ -92,11 +121,62 @@ function MyPage({ user, setUser }) {
                 <div className="search-panel">
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
-                    <p><b>이름(닉네임):</b> {user?.displayName || user?.username}</p>
+                    <div style={{ marginBottom: '8px' }}>
+  <p style={{ margin: 0 }}>
+    <b>이름(닉네임):</b> {user?.displayName || user?.username}
+  </p>
+
+  {isEditingNickname ? (
+    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+      <input
+        value={newDisplayName}
+        onChange={(e) => setNewDisplayName(e.target.value)}
+        placeholder="새 닉네임 (2~20자)"
+        style={{
+          flex: 1,
+          padding: '8px 10px',
+          borderRadius: '6px',
+          border: '1px solid #444',
+          background: '#111',
+          color: '#fff',
+        }}
+      />
+      <button
+        onClick={handleSaveNickname}
+        className="search-btn"
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        저장
+      </button>
+      <button
+        onClick={() => {
+          setIsEditingNickname(false);
+          setNewDisplayName(user?.displayName || user?.username || '');
+        }}
+        className="search-btn"
+        style={{ backgroundColor: '#666', whiteSpace: 'nowrap' }}
+      >
+        취소
+      </button>
+    </div>
+  ) : (
+    <button
+      onClick={() => setIsEditingNickname(true)}
+      className="search-btn"
+      style={{ marginTop: '10px', backgroundColor: '#666' }}
+    >
+      닉네임 변경
+    </button>
+  )}
+</div>
                     <p><b>이메일:</b> {user?.email || "정보 없음"}</p>
-                    <button className="search-btn" style={{marginTop:'10px'}} onClick={() => alert("비밀번호 변경 화면은 현재 구현 중입니다.")}>
-                        비밀번호 변경
-                    </button>
+                    <button
+  className="search-btn"
+  style={{ marginTop: '10px' }}
+  onClick={() => navigate('/change-password')}
+>
+  비밀번호 변경
+</button>
                 </div>
 
                 <div className="search-panel">

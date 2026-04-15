@@ -46,7 +46,7 @@ function ComparisonPage({ region, user }) {
   };
 
   const getGamePrice = (game) => {
-    if (game.price_info?.isFree || game.price_info?.current_price === 0) return 0;
+    if (game.price_info?.isFree) return 0;
     if (typeof game.price_info?.current_price === 'number') return game.price_info.current_price;
     return Number.MAX_SAFE_INTEGER;
   };
@@ -153,12 +153,12 @@ function ComparisonPage({ region, user }) {
                 </p>
               )}
               
+              {/* 수정된 부분: steamPlayerCount -> steam_ccu */}
               <p style={{ fontSize: '14px', color: '#bbb', margin: '5px 0' }}>
                 🔥 동접자: {game.steam_ccu?.toLocaleString() || 0}명
               </p>
               <p style={{ fontSize: '14px', color: '#bbb', margin: '5px 0' }}>
-                {/* 0원 강제 무료 표기 적용 */}
-                💰 가격: {game.price_info?.isFree || game.price_info?.current_price === 0 ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : (game.price_overview?.final_formatted || '정보 없음'))}
+                💰 가격: {game.price_info?.isFree ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : (game.price_overview?.final_formatted || '정보 없음'))}
               </p>
 
               <Link to={`/game/${game.slug || game._id}`} style={{ display: 'block', textAlign: 'center', backgroundColor: '#333', color: '#fff', textDecoration: 'none', padding: '10px', borderRadius: '4px', marginTop: '15px', fontWeight: 'bold' }}>
