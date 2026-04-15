@@ -18,6 +18,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
 const authRoutes = require('./routes/auth');
+console.log('AUTH ROUTE LOADED FROM:', require.resolve('./routes/auth'));
 const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
@@ -187,6 +188,13 @@ if (process.env.MONGODB_URI) {
         .then(() => console.log('✅ MongoDB Connected'))
         .catch(err => console.error('❌ DB Error:', err));
 }
+console.log('typeof authRoutes:', typeof authRoutes);
+console.log('typeof userRoutes:', typeof userRoutes);
+console.log('typeof recoRoutes:', typeof recoRoutes);
+console.log('typeof advancedRecoRoutes:', typeof advancedRecoRoutes);
+console.log('typeof supportRoutes:', typeof supportRoutes);
+
+console.log('advancedRecoRoutes keys:', advancedRecoRoutes && Object.keys(advancedRecoRoutes));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);

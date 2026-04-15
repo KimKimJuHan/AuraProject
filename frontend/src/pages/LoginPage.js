@@ -66,7 +66,7 @@ function LoginPage({ user, setUser }) {
           </div>
         </form>
 
-        {/* ★ 소셜 로그인 버튼 영역 추가 */}
+        {/* ★ 소셜 로그인 버튼 영역 추가 */} 
         <div style={{ marginTop: '25px', borderTop: '1px solid #333', paddingTop: '25px' }}>
           <button onClick={() => handleSocialLogin('google')} style={{ ...socialBtnStyle, backgroundColor: '#fff', color: '#000' }}>Google 계정으로 로그인</button>
           <button onClick={() => handleSocialLogin('naver')} style={{ ...socialBtnStyle, backgroundColor: '#03C75A', color: '#fff' }}>네이버로 로그인</button>

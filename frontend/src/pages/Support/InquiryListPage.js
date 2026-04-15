@@ -92,7 +92,7 @@ export default function InquiryListPage({ user }) {
         setLoading(true);
         const data = await fetchMyInquiries();
         if (!mounted) return;
-        setList(Array.isArray(data) ? data : []);
+        setList(Array.isArray(data?.inquiries) ? data.inquiries : []);
       } catch (e) {
         console.error(e);
         setError('문의 목록을 불러오지 못했습니다.');

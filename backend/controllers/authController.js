@@ -64,12 +64,13 @@ class AuthController {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
             }
 
-            // ★ 수정: 세션에 email과 steamId를 포함하여 마이페이지에서 사용 가능하게 함
+            // ✅ 수정: 세션에 role 포함 (관리자 판별용)
             req.session.user = { 
                 id: user._id, 
                 username: user.username, 
                 email: user.email,
-                steamId: user.steamId 
+                steamId: user.steamId,
+                role: user.role
             };
             
             if (rememberMe) req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
@@ -79,12 +80,34 @@ class AuthController {
         }
     }
 
-    checkStatus(req, res) {
-        // 세션에 저장된 user 객체 전체를 반환 (email 포함됨)
-        res.json({ 
-            isAuthenticated: !!(req.session && req.session.user), 
-            user: req.session?.user || null 
-        });
+    // ✅ 수정: role이 없는 기존 세션/소셜로그인 세션도 DB에서 role 보강
+    async checkStatus(req, res) {
+        try {
+            const sessionUser = req.session?.user;
+
+            if (!sessionUser) {
+                return res.json({ isAuthenticated: false, user: null });
+            }
+
+            // 이미 role이 있으면 그대로
+            if (sessionUser.role) {
+                return res.json({ isAuthenticated: true, user: sessionUser });
+            }
+
+            // role이 없으면 DB에서 가져와서 세션도 업데이트
+            const dbUser = await User.findById(sessionUser.id).select('role');
+            if (!dbUser) {
+                return res.json({ isAuthenticated: false, user: null });
+            }
+
+            const patchedUser = { ...sessionUser, role: dbUser.role };
+            req.session.user = patchedUser;
+
+            return res.json({ isAuthenticated: true, user: patchedUser });
+        } catch (e) {
+            console.error('인증 상태 확인 실패:', e);
+            return res.status(500).json({ isAuthenticated: false, user: null });
+        }
     }
 
     logout(req, res) {

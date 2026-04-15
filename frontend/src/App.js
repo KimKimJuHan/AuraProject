@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
+import AdminInquiryPage from './pages/Support/AdminInquiryPage';
 
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
@@ -304,7 +305,6 @@ function NavigationBar({ user, setUser, region, setRegion }) {
         </select>
 
         <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
-        <Link to="/support/inquiry" style={styles.compareLink}>✉️ 1:1 문의</Link>
         <Link to="/support/faq" style={styles.compareLink}>🛎️ 고객센터</Link>
         {user ? (
           <>
@@ -330,6 +330,7 @@ function App() {
     const checkAuthStatus = async () => {
       try {
         const response = await apiClient.get('/auth/status');
+        console.log('AUTH_STATUS_RESPONSE', response.data);
         if (response.data.isAuthenticated) {
           setUser(response.data.user);
         } else {
@@ -369,6 +370,7 @@ function App() {
           <Route path="/support/faq" element={<FaqPage />} />
           <Route path="/support/inquiry" element={<InquiryListPage user={user} />} />
           <Route path="/support/inquiry/new" element={<InquiryNewPage user={user} />} />
+          <Route path="/admin/support/inquiries" element={<AdminInquiryPage user={user} />} />
         </Routes>
       </div>
     </Router>
