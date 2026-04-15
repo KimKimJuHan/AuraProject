@@ -11,6 +11,18 @@ router.post('/logout', authController.logout);
 router.post('/send-otp', authController.sendOtp);
 router.post('/verify-otp', authController.verifyOtp);
 
+// 아이디 찾기
+router.post('/find-username/send-otp', authController.sendFindUsernameOtp);
+router.post('/find-username/verify-otp', authController.verifyFindUsernameOtp);
+
+// 비밀번호 재설정
+router.post('/reset-password/send-otp', authController.sendResetPasswordOtp);
+router.post('/reset-password/verify-otp', authController.verifyResetPasswordOtp); // resetToken 발급
+router.post('/reset-password/confirm', authController.confirmResetPassword);     // 새 비번 설정
+
+// 로그인 후 비밀번호 변경
+router.post('/change-password', authController.changePassword);
+
 // 구글
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(

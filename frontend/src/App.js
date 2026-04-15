@@ -3,7 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate } f
 import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 import AdminInquiryPage from './pages/Support/AdminInquiryPage';
-
+import FindIdPage from './pages/FindIdPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
@@ -15,6 +17,7 @@ import MyPage from './pages/MyPage';
 import InquiryNewPage from './pages/Support/InquiryNewPage';
 import InquiryListPage from './pages/Support/InquiryListPage';
 import FaqPage from './pages/Support/FaqPage';
+
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
@@ -371,6 +374,9 @@ function App() {
           <Route path="/support/inquiry" element={<InquiryListPage user={user} />} />
           <Route path="/support/inquiry/new" element={<InquiryNewPage user={user} />} />
           <Route path="/admin/support/inquiries" element={<AdminInquiryPage user={user} />} />
+          <Route path="/find-id" element={<FindIdPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
         </Routes>
       </div>
     </Router>
