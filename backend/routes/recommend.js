@@ -1,12 +1,11 @@
 const express = require("express");
 const router = express.Router();
-// ★ 팩트: 기존 recommendController가 아니라, 팀원이 추천 이유(reason) 로직을 새로 작성해둔 recoController를 불러와야 합니다.
-const recoController = require("../controllers/recoController");
+const recommendController = require("../controllers/recommendController");
 
-// 프론트엔드의 axios.post('/api/steam/reco') 요청을 정확히 받아냅니다.
-router.post("/reco", (req, res) => recoController.getPersonalRecommendations(req, res));
+// 기존 주소 (유지)
+router.post("/personal", recommendController.getPersonalRecommendations);
 
-// (만약 프론트엔드가 /api/advanced/recommend/personal 로 요청할 경우를 대비한 호환성 라우터)
-router.post("/personal", (req, res) => recoController.getPersonalRecommendations(req, res));
+// ★ [수정] 프론트엔드(PersonalRecoPage)의 요청 주소와 일치하는 엔드포인트 추가
+router.post("/reco", recommendController.getPersonalRecommendations);
 
 module.exports = router;

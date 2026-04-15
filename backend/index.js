@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -9,11 +12,13 @@ const SteamStrategy = require('passport-steam').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const NaverStrategy = require('passport-naver-v2').Strategy;
 const User = require('./models/User');
+const supportRoutes = require('./routes/support');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
 const authRoutes = require('./routes/auth');
+console.log('AUTH ROUTE LOADED FROM:', require.resolve('./routes/auth'));
 const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
@@ -183,6 +188,13 @@ if (process.env.MONGODB_URI) {
         .then(() => console.log('✅ MongoDB Connected'))
         .catch(err => console.error('❌ DB Error:', err));
 }
+console.log('typeof authRoutes:', typeof authRoutes);
+console.log('typeof userRoutes:', typeof userRoutes);
+console.log('typeof recoRoutes:', typeof recoRoutes);
+console.log('typeof advancedRecoRoutes:', typeof advancedRecoRoutes);
+console.log('typeof supportRoutes:', typeof supportRoutes);
+
+console.log('advancedRecoRoutes keys:', advancedRecoRoutes && Object.keys(advancedRecoRoutes));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
@@ -190,6 +202,7 @@ app.use('/api/user', userRoutes);
 app.use('/api', recoRoutes);
 app.use('/api/steam', advancedRecoRoutes); 
 app.use('/api/advanced', advancedRecoRoutes); 
+app.use('/api/support', supportRoutes);
 
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);

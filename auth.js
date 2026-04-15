@@ -69,7 +69,7 @@ router.post('/login', async (req, res) => {
         const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secretKey', { expiresIn });
 
         res.cookie('token', token, { httpOnly: true, maxAge });
-        res.json({ user, token });
+        res.json({ user, token });  
     } catch (e) {
         res.status(500).json({ error: "서버 오류" });
     }

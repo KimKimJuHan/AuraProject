@@ -1,3 +1,5 @@
+// frontend/src/MainPage.js
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
@@ -24,12 +26,15 @@ const styles = {
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
+  // 비활성화 스타일
   tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 }
 };
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
     const [isOpen, setIsOpen] = useState(false); 
+    
+    // 태그 선택 여부 확인 (하나라도 선택되었는지)
     const hasSelection = selectedTags.length > 0;
 
     return (
@@ -42,11 +47,17 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                 <div style={styles.filterContent}>
                     {tags.map(tag => {
                         const isSelected = selectedTags.includes(tag);
+                        // ★ 유효하지 않은 태그 비활성화 로직
+                        // 선택된 게 있고 + 현재 태그가 선택 안 됐고 + 유효 목록에도 없으면 -> 비활성화
                         const isDisabled = hasSelection && !isSelected && !validTags.includes(tag);
+
                         return (
                             <button 
                                 key={tag} 
-                                style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn} 
+                                style={
+                                    isSelected ? styles.tagBtnActive : 
+                                    isDisabled ? styles.tagBtnDisabled : styles.tagBtn
+                                } 
                                 onClick={() => !isDisabled && onToggleTag(tag)}
                                 disabled={isDisabled}
                             >
@@ -60,8 +71,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
     );
 };
 
-// 환율 및 0원=무료 연산 처리 컴포넌트
-function GameListItem({ game, region, exchangeRates }) {
+function GameListItem({ game }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   useEffect(() => {
@@ -79,22 +89,10 @@ function GameListItem({ game, region, exchangeRates }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  const formatPrice = () => {
-    // 0원 또는 isFree 명시 시 환율 계산 없이 즉시 '무료' 리턴
-    if (game.price_info?.isFree || game.price_info?.current_price === 0) return '무료';
-    if (!game.price_info?.current_price) return '정보 없음';
-
-    const priceKRW = game.price_info.current_price;
-    if (region === 'KR' || !region) return `₩${priceKRW.toLocaleString()}`;
-
-    const rate = exchangeRates[region] || 1;
-    const converted = (priceKRW * rate).toFixed(2);
-    return region === 'US' ? `$${converted}` : `¥${Math.round(priceKRW * rate).toLocaleString()}`;
-  };
-
-  const formattedPriceText = formatPrice();
-  const isFreeDisplay = formattedPriceText === '무료';
-  const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
+  const price = game.price_info || {};
+  const isFree = price.isFree;
+  const currentPrice = price.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
+  const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
 
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
@@ -108,8 +106,8 @@ function GameListItem({ game, region, exchangeRates }) {
             <div className="net-card-title">{game.title_ko || game.title}</div>
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
-                    <span style={{color: isFreeDisplay ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
-                        {formattedPriceText}
+                    <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
+                        {isFree ? "무료" : currentPrice}
                     </span>
                 </div>
             </div>
@@ -118,37 +116,15 @@ function GameListItem({ game, region, exchangeRates }) {
   );
 }
 
-function MainPage({ user, region }) {
+function MainPage({ user }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [validTags, setValidTags] = useState([]); 
+  const [validTags, setValidTags] = useState([]); // ★ 유효 태그 목록 상태
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
   const [error, setError] = useState(null);
-  
-  // 환율 상태값 및 캐싱 로직 (서버 부하 방지용 1일 1회 호출)
-  const [exchangeRates, setExchangeRates] = useState({ US: 0.00075, JP: 0.11, KR: 1 });
-
-  useEffect(() => {
-      const fetchRates = async () => {
-          const cached = JSON.parse(localStorage.getItem('exchangeRates'));
-          const now = new Date().getTime();
-          // 하루(86400000ms) 지나지 않았으면 API 호출 생략
-          if (cached && (now - cached.timestamp < 86400000)) {
-              setExchangeRates(cached.rates); return;
-          }
-          try {
-              const res = await fetch('https://api.exchangerate-api.com/v4/latest/KRW');
-              const data = await res.json();
-              const rates = { US: data.rates.USD, JP: data.rates.JPY, KR: 1 };
-              localStorage.setItem('exchangeRates', JSON.stringify({ timestamp: now, rates }));
-              setExchangeRates(rates);
-          } catch (e) { console.error('환율 로드 에러:', e); }
-      };
-      fetchRates();
-  }, []);
 
   useEffect(() => {
     setGames([]); 
@@ -157,6 +133,8 @@ function MainPage({ user, region }) {
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
+    // hasMore 체크를 처음에 안 하고 일단 요청을 보냄 (필터 변경 시 갱신 위해)
+    // 단, page > 1 일 때는 hasMore가 false면 중단
     if (page > 1 && !hasMore) return;
     
     const fetchGames = async () => {
@@ -171,7 +149,10 @@ function MainPage({ user, region }) {
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
             
-            if (data.validTags) setValidTags(data.validTags);
+            // ★ 유효 태그 목록 업데이트
+            if (data.validTags) {
+                setValidTags(data.validTags);
+            }
 
             setGames(prev => {
                 if (page === 1) return data.games;
@@ -180,6 +161,7 @@ function MainPage({ user, region }) {
             });
             setHasMore(page < data.totalPages); 
         } catch (err) {
+            console.error(err);
             setError("서버와 연결할 수 없습니다.");
         } finally {
             setLoading(false);
@@ -187,7 +169,7 @@ function MainPage({ user, region }) {
     };
     
     fetchGames();
-  }, [page, selectedTags, activeTab]); 
+  }, [page, selectedTags, activeTab]); // hasMore 제거 (무한루프 방지 및 즉시 갱신)
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -204,8 +186,12 @@ function MainPage({ user, region }) {
       <div style={styles.filterContainer}>
           {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
               <FilterCategoryBox 
-                key={category} title={category} tags={tags} 
-                selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags}
+                key={category} 
+                title={category} 
+                tags={tags} 
+                selectedTags={selectedTags} 
+                onToggleTag={toggleTag} 
+                validTags={validTags} // ★ 유효 태그 전달
               />
           ))}
       </div>
@@ -221,8 +207,7 @@ function MainPage({ user, region }) {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => <GameListItem key={game.slug} game={game} region={region} exchangeRates={exchangeRates} />)}
-          {/* 스켈레톤 로딩 UI 적용 */}
+          {games.map(game => <GameListItem key={game.slug} game={game} />)}
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}

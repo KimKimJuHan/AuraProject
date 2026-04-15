@@ -6,6 +6,9 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String },      // ★ 추가: 프로필 사진 연동
     password: { type: String }, 
     email: { type: String, required: true },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    passwordResetTokenHash: { type: String },
+    passwordResetTokenExpiresAt: { type: Date },
     googleId: { type: String }, 
     naverId: { type: String },  
     steamId: { type: String },

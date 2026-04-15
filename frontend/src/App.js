@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
 import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
-
+import AdminInquiryPage from './pages/Support/AdminInquiryPage';
+import FindIdPage from './pages/FindIdPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import MainPage from './MainPage';
 import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
@@ -11,6 +14,10 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage'; 
 import PersonalRecoPage from './pages/PersonalRecoPage';
 import MyPage from './pages/MyPage';
+import InquiryNewPage from './pages/Support/InquiryNewPage';
+import InquiryListPage from './pages/Support/InquiryListPage';
+import FaqPage from './pages/Support/FaqPage';
+
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
@@ -301,10 +308,10 @@ function NavigationBar({ user, setUser, region, setRegion }) {
         </select>
 
         <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
-        
+        <Link to="/support/faq" style={styles.compareLink}>🛎️ 고객센터</Link>
         {user ? (
           <>
-            <Link to="/mypage" style={styles.compareLink}>👤 마이페이지</Link>
+            <Link to="/mypage" style={styles.compareLink}>👤 마이페이지</Link>         
             <span style={styles.userText}>{user.displayName || user.username}님</span>
             {user.avatar && <img src={user.avatar} alt="profile" style={{width:'32px', height:'32px', borderRadius:'50%'}} />}
             <button onClick={handleLogout} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
@@ -326,6 +333,7 @@ function App() {
     const checkAuthStatus = async () => {
       try {
         const response = await apiClient.get('/auth/status');
+        console.log('AUTH_STATUS_RESPONSE', response.data);
         if (response.data.isAuthenticated) {
           setUser(response.data.user);
         } else {
@@ -362,6 +370,13 @@ function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
           <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
+          <Route path="/support/faq" element={<FaqPage />} />
+          <Route path="/support/inquiry" element={<InquiryListPage user={user} />} />
+          <Route path="/support/inquiry/new" element={<InquiryNewPage user={user} />} />
+          <Route path="/admin/support/inquiries" element={<AdminInquiryPage user={user} />} />
+          <Route path="/find-id" element={<FindIdPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
         </Routes>
       </div>
     </Router>
