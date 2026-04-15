@@ -63,7 +63,8 @@ function SearchResultsPage() {
                 <div style={styles.cardBody}>
                     <div style={styles.title}>{game.title_ko || game.title}</div>
                     <div style={styles.meta}>
-                        <span>{game.price_info?.isFree ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : '정보 없음')}</span>
+                        {/* 0원 강제 무료 표기 적용 */}
+                        <span>{game.price_info?.isFree || game.price_info?.current_price === 0 ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : '정보 없음')}</span>
                         {game.metacritic_score > 0 && <span>Ⓜ️ {game.metacritic_score}</span>}
                     </div>
                 </div>
@@ -71,13 +72,11 @@ function SearchResultsPage() {
           ))}
         </div>
       ) : (
-        // 🔥 UX 개선된 부분
         <div style={styles.empty}>
           <div style={{fontSize:'22px', marginBottom:'10px'}}>😢 검색 결과가 없습니다</div>
           <div style={{fontSize:'14px', color:'#888', marginBottom:'20px'}}>
             다른 키워드로 검색하거나 인기 게임을 확인해보세요
           </div>
-
           <Link 
             to="/" 
             style={{

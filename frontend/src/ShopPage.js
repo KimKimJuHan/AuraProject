@@ -1,14 +1,11 @@
 // frontend/src/ShopPage.js
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config'; 
-// ★ 안전한 저장소 import
 import { safeLocalStorage } from './utils/storage';
-
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const REVIEW_KO_MAP = {
@@ -42,10 +39,8 @@ const styles = {
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
-  
   chartsGrid: { display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '40px', justifyContent: 'center' },
   chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  
   reqTabButton: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #333', color: '#888', fontWeight: 'bold', fontSize: '16px' },
   reqTabButtonActive: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #E50914', color: '#fff', fontWeight: 'bold', fontSize: '16px' }
 };
@@ -80,48 +75,23 @@ function useCountdown(expiryTimestamp) {
   return timeLeft;
 }
 
-function getReviewColor(summary) {
-    if (!summary) return '#ccc';
-    const koSummary = REVIEW_KO_MAP[summary] || summary;
-    if (koSummary.includes('긍정적')) return '#66c0f4';
-    if (koSummary.includes('부정적')) return '#a34c25';
-    return '#b9a074';
-}
-
-// ★ 추가: 최근 본 게임 컴포넌트
 function RecentGames({ currentSlug }) {
   const [games, setGames] = useState([]);
-
   useEffect(() => {
     try {
       const data = JSON.parse(localStorage.getItem('recentGames') || '[]');
-      const filtered = Array.isArray(data)
-        ? data.filter(game => game && game.slug && game.slug !== currentSlug)
-        : [];
+      const filtered = Array.isArray(data) ? data.filter(game => game && game.slug && game.slug !== currentSlug) : [];
       setGames(filtered.slice(0, 5));
-    } catch (e) {
-      setGames([]);
-    }
+    } catch (e) { setGames([]); }
   }, [currentSlug]);
 
-  if (games.length === 0) {
-    return <div style={{ color: '#666' }}>최근 본 게임 없음</div>;
-  }
+  if (games.length === 0) return <div style={{ color: '#666' }}>최근 본 게임 없음</div>;
 
   return (
     <div style={{ display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'10px' }}>
       {games.map(game => (
-        <a
-          key={game.slug}
-          href={`/game/${game.slug}`}
-          style={{ minWidth:'150px', textDecoration:'none', color:'#fff', flexShrink:0 }}
-        >
-          <img
-            src={game.main_image}
-            alt={game.title}
-            style={{ width:'150px', height:'84px', borderRadius:'4px', objectFit:'cover', display:'block', marginBottom:'6px' }}
-            onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"}
-          />
+        <a key={game.slug} href={`/game/${game.slug}`} style={{ minWidth:'150px', textDecoration:'none', color:'#fff', flexShrink:0 }}>
+          <img src={game.main_image} alt={game.title} style={{ width:'150px', height:'84px', borderRadius:'4px', objectFit:'cover', display:'block', marginBottom:'6px' }} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
           <div style={{ fontSize:'12px', color:'#ddd', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {game.title_ko || game.title}
           </div>
@@ -168,17 +138,19 @@ function ShopPage({ region }) {
                     };
                 });
                 setHistoryData(Object.values(dailyMap));
-            } catch (e) { console.log("히스토리 없음"); }
+            } catch (e) {}
 
-            const videos = (data.trailers || []).map(url => ({ type: 'video', url: url, thumb: data.main_image }));
+            // ★ 팩트: Mixed Content 에러 방지를 위해 트레일러 URL을 강제로 https로 변환
+            const videos = (data.trailers || []).map(url => ({ 
+                type: 'video', 
+                url: url.replace('http://', 'https://'), 
+                thumb: data.main_image 
+            }));
+            
             const images = (data.screenshots || []).map(url => ({ type: 'image', url: url, thumb: url }));
             if(images.length === 0 && data.main_image) images.push({ type: 'image', url: data.main_image, thumb: data.main_image });
 
-            const combinedList = [
-                ...videos.slice(0, 2), 
-                ...images, 
-                ...videos.slice(2)
-            ];
+            const combinedList = [...videos.slice(0, 2), ...images, ...videos.slice(2)];
             
             setMediaList(combinedList);
             if (combinedList.length > 0) {
@@ -186,7 +158,6 @@ function ShopPage({ region }) {
                 setIsPlaying(false);
             }
 
-            // ★ safeLocalStorage 사용
             const wishlistStr = safeLocalStorage.getItem('gameWishlist');
             const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
             setIsWishlisted(wishlist.includes(data.slug));
@@ -199,32 +170,18 @@ function ShopPage({ region }) {
                 const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
                 if(myVoteData) setMyVote(myVoteData.type);
             } catch(e) {}
-
         } catch (err) { setLoading(false); }
     };
     fetchDetails();
   }, [id]); 
 
-  // ★ 추가: 최근 본 게임 저장
   useEffect(() => {
     if (!gameData) return;
-
     try {
       const recent = JSON.parse(localStorage.getItem('recentGames') || '[]');
       const safeRecent = Array.isArray(recent) ? recent : [];
-
-      const recentGame = {
-        slug: gameData.slug,
-        title: gameData.title,
-        title_ko: gameData.title_ko,
-        main_image: gameData.main_image
-      };
-
-      const updated = [
-        recentGame,
-        ...safeRecent.filter(g => g && g.slug !== gameData.slug)
-      ].slice(0, 6);
-
+      const recentGame = { slug: gameData.slug, title: gameData.title, title_ko: gameData.title_ko, main_image: gameData.main_image };
+      const updated = [recentGame, ...safeRecent.filter(g => g && g.slug !== gameData.slug)].slice(0, 6);
       localStorage.setItem('recentGames', JSON.stringify(updated));
     } catch (e) {}
   }, [gameData]);
@@ -232,22 +189,19 @@ function ShopPage({ region }) {
   const handleMediaSelect = (media) => { setSelectedMedia(media); setIsPlaying(false); };
   const handlePlayVideo = () => { setIsPlaying(true); if (videoRef.current) videoRef.current.play(); };
 
+  // ★ 팩트: 가격이 0일 경우 무조건 "무료"를 반환하도록 방어벽 추가
   const getPriceDisplay = (price, isFree) => {
-    if (isFree) return "무료";
+    if (isFree || price === 0) return "무료";
     if (price === null || price === undefined) return "가격 정보 없음";
-    if (price === 0) return "가격 정보 확인 필요";
     return `₩${(Math.round(price / 10) * 10).toLocaleString()}`; 
   };
 
   const toggleWishlist = () => {
-    // ★ safeLocalStorage 사용
     const wishlistStr = safeLocalStorage.getItem('gameWishlist');
     const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
-    
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
     else newWishlist = [...wishlist, gameData.slug];
-    
     safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
   };
@@ -262,7 +216,6 @@ function ShopPage({ region }) {
   };
 
   const cleanHTML = (html) => DOMPurify.sanitize(html);
-  
   const formatDate = (dateString) => {
       if (!dateString) return "정보 없음";
       const d = new Date(dateString);
@@ -270,10 +223,8 @@ function ShopPage({ region }) {
   };
 
   const countdown = useCountdown(gameData?.price_info?.expiry);
-
   const formatRequirements = (html) => {
       if (!html || html === "정보 없음") return "정보 없음";
-      
       let safeHtml = cleanHTML(html);
       safeHtml = safeHtml.replace(/<strong>\s*(최소|권장|Minimum|Recommended):?\s*<\/strong><br>/gi, '');
       return safeHtml;
@@ -315,38 +266,17 @@ function ShopPage({ region }) {
 
   return (
     <div>
-      <div style={{
-          position:'relative', height:'40vh', width:'100%', 
-          backgroundImage:`url(${gameData.main_image})`, 
-          backgroundSize:'cover', backgroundPosition:'center',
-          filter: 'blur(20px) brightness(0.4)', 
-          zIndex: 0
-      }}></div>
+      <div style={{ position:'relative', height:'40vh', width:'100%', backgroundImage:`url(${gameData.main_image})`, backgroundSize:'cover', backgroundPosition:'center', filter: 'blur(20px) brightness(0.4)', zIndex: 0 }}></div>
       
-      <div style={{
-          position:'absolute', top: '100px', left:0, right:0, zIndex: 1,
-          display:'flex', flexDirection:'column', alignItems:'center', padding:'0 4%'
-      }}>
-         <h1 style={{fontSize:'48px', marginBottom:'20px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)', textAlign:'center'}}>
-            {gameData.title_ko || gameData.title}
-         </h1>
-
+      <div style={{ position:'absolute', top: '100px', left:0, right:0, zIndex: 1, display:'flex', flexDirection:'column', alignItems:'center', padding:'0 4%' }}>
+         <h1 style={{fontSize:'48px', marginBottom:'20px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)', textAlign:'center'}}>{gameData.title_ko || gameData.title}</h1>
          <div style={{display:'flex', gap:'10px', marginBottom:'30px'}}>
-            {gameData.steam_ccu > 0 && (
-                <span style={{...styles.trendBadge, backgroundColor:'#2a475e', border:'1px solid #66c0f4'}}>
-                    👥 Steam {gameData.steam_ccu.toLocaleString()}명
-                </span>
-            )}
-            {(gameData.twitch_viewers + gameData.chzzk_viewers) > 0 && (
-                <span style={{...styles.trendBadge, backgroundColor:'#9146FF'}}>
-                    📺 Live {(gameData.twitch_viewers + gameData.chzzk_viewers).toLocaleString()}명
-                </span>
-            )}
+            {gameData.steam_ccu > 0 && <span style={{...styles.trendBadge, backgroundColor:'#2a475e', border:'1px solid #66c0f4'}}>👥 Steam {gameData.steam_ccu.toLocaleString()}명</span>}
+            {(gameData.twitch_viewers + gameData.chzzk_viewers) > 0 && <span style={{...styles.trendBadge, backgroundColor:'#9146FF'}}>📺 Live {(gameData.twitch_viewers + gameData.chzzk_viewers).toLocaleString()}명</span>}
          </div>
       </div>
 
       <div className="net-panel" style={{position:'relative', marginTop:'-10vh', zIndex: 2}}>
-        
         <div style={styles.galleryContainer}>
             <div style={styles.mainMediaDisplay}>
                 {selectedMedia?.type === 'video' ? (
@@ -381,20 +311,14 @@ function ShopPage({ region }) {
             <div style={{display:'flex', flexDirection:'column', gap:'5px', minWidth:'250px', marginLeft:'10px', paddingLeft:'10px', borderLeft:'1px solid #444'}}>
                 <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}>
                     <span>모든 평가 ({overall.total.toLocaleString()})</span>
-                    <span style={{color: getReviewColor(overall.summary), fontWeight:'bold'}}>
-                        {REVIEW_KO_MAP[overall.summary] || overall.summary}
-                    </span>
+                    <span style={{color: getReviewColor(overall.summary), fontWeight:'bold'}}>{REVIEW_KO_MAP[overall.summary] || overall.summary}</span>
                 </div>
                 {recent.total > 0 ? (
                     <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}>
                         <span>최근 평가 ({recent.total.toLocaleString()})</span>
-                        <span style={{color: getReviewColor(recent.summary), fontWeight:'bold'}}>
-                            {REVIEW_KO_MAP[recent.summary] || recent.summary}
-                        </span>
+                        <span style={{color: getReviewColor(recent.summary), fontWeight:'bold'}}>{REVIEW_KO_MAP[recent.summary] || recent.summary}</span>
                     </div>
-                ) : (
-                    <div style={{fontSize:'12px', color:'#555', marginTop:'2px'}}>최근 평가 데이터 없음</div>
-                )}
+                ) : <div style={{fontSize:'12px', color:'#555', marginTop:'2px'}}>최근 평가 데이터 없음</div>}
             </div>
         </div>
 
@@ -406,9 +330,7 @@ function ShopPage({ region }) {
         </div>
 
         {pi?.discount_percent > 0 && countdown && (
-            <div style={{color:'#E50914', fontWeight:'bold', fontSize:'16px', marginBottom:'40px'}}>
-                🔥 특가 할인 중! (남은 시간: {countdown})
-            </div>
+            <div style={{color:'#E50914', fontWeight:'bold', fontSize:'16px', marginBottom:'40px'}}>🔥 특가 할인 중! (남은 시간: {countdown})</div>
         )}
 
         {historyData.length > 0 && (
@@ -457,11 +379,7 @@ function ShopPage({ region }) {
                 </div>
                 
                 <style>{`
-                    .req-content {
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #acb2b8;
-                    }
+                    .req-content { font-size: 14px; line-height: 1.6; color: #acb2b8; }
                     .req-content ul { padding-left: 0; margin: 0; list-style: none; }
                     .req-content li { margin-bottom: 8px; }
                     .req-content strong { color: #66c0f4; font-weight: bold; margin-right: 6px; }
@@ -478,7 +396,6 @@ function ShopPage({ region }) {
             </div>
         </div>
 
-        {/* ★ 추가: 최근 본 게임 */}
         <div style={{ marginTop:'60px' }}>
           <h3 className="net-section-title">👀 최근 본 게임</h3>
           <RecentGames currentSlug={gameData.slug} />
