@@ -12,6 +12,9 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage'; 
 import PersonalRecoPage from './pages/PersonalRecoPage';
 import MyPage from './pages/MyPage';
+import FindIdPage from './pages/FindIdPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import InquiryNewPage from './pages/Support/InquiryNewPage';
 import InquiryListPage from './pages/Support/InquiryListPage';
 import FaqPage from './pages/Support/FaqPage';
@@ -365,6 +368,9 @@ function App() {
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/find-id" element={<FindIdPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
           <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
           <Route path="/support/faq" element={<FaqPage />} />

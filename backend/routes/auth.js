@@ -2,14 +2,46 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const authController = require('../controllers/authController');
+const { authenticateToken } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 
-router.post('/signup', authController.signup);
-router.post('/login', authController.login);
+// Rate limiter for auth endpoints that touch the DB (login/signup/OTP)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }
+});
+
+// Stricter limiter for OTP / recovery endpoints
+const recoveryLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }
+});
+
+router.post('/signup', authLimiter, authController.signup);
+router.post('/login', authLimiter, authController.login);
 router.get('/status', authController.checkStatus);
 router.post('/logout', authController.logout);
-router.post('/send-otp', authController.sendOtp);
-router.post('/verify-otp', authController.verifyOtp);
+router.post('/send-otp', recoveryLimiter, authController.sendOtp);
+router.post('/verify-otp', recoveryLimiter, authController.verifyOtp);
+
+// 아이디 찾기
+router.post('/request-find-id', recoveryLimiter, authController.requestFindId);
+router.post('/find-id', recoveryLimiter, authController.findId);
+
+// 비밀번호 재설정 (비로그인)
+router.post('/request-password-reset', recoveryLimiter, authController.requestPasswordReset);
+router.post('/verify-reset-otp', recoveryLimiter, authController.verifyResetOtp);
+router.post('/reset-password', recoveryLimiter, authController.resetPassword);
+
+// 비밀번호 변경 (로그인 필요)
+router.post('/change-password', authenticateToken, authController.changePassword);
 
 // 구글
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
