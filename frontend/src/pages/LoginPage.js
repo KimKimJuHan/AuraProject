@@ -63,6 +63,11 @@ function LoginPage({ user, setUser }) {
               <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} style={{ marginRight: '5px' }} />
               로그인 유지
             </label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Link to="/find-id" style={{ color: '#b3b3b3', textDecoration: 'none' }}>아이디 찾기</Link>
+              <span>|</span>
+              <Link to="/reset-password" style={{ color: '#b3b3b3', textDecoration: 'none' }}>비밀번호 찾기</Link>
+            </div>
           </div>
         </form>
 

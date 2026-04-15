@@ -169,7 +169,7 @@ function MyPage({ user, setUser }) {
   )}
 </div>
                     <p><b>이메일:</b> {user?.email || "정보 없음"}</p>
-                    <button className="search-btn" style={{marginTop:'10px'}} onClick={() => alert("비밀번호 변경 화면은 현재 구현 중입니다.")}>
+                    <button className="search-btn" style={{marginTop:'10px'}} onClick={() => navigate('/change-password')}>
                         비밀번호 변경
                     </button>
                 </div>
