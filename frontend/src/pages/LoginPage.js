@@ -72,6 +72,16 @@ function LoginPage({ user, setUser }) {
           <button onClick={() => handleSocialLogin('naver')} style={{ ...socialBtnStyle, backgroundColor: '#03C75A', color: '#fff' }}>네이버로 로그인</button>
         </div>
 
+{/* 아이디/비밀번호 찾기 링크 */}
+<div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+  <Link to="/find-id" style={{ color: '#b3b3b3', textDecoration: 'none' }}>
+    아이디 찾기
+  </Link>
+  <Link to="/forgot-password" style={{ color: '#b3b3b3', textDecoration: 'none' }}>
+    비밀번호 찾기
+  </Link>
+</div>
+
         <div style={{ marginTop: '30px', color: '#737373', fontSize: '16px' }}>
           AuraProject 회원이 아닌가요? <Link to="/signup" style={{ color: '#fff', textDecoration: 'none', marginLeft: '5px' }}>지금 가입하세요.</Link>
         </div>
