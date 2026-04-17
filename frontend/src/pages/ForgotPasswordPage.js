@@ -45,12 +45,12 @@ const btnStyle = {
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState(''); // 선택
+  const [username, setUsername] = useState(''); 
   const [code, setCode] = useState('');
   const [resetToken, setResetToken] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [newPassword2, setNewPassword2] = useState('');
-  const [step, setStep] = useState('request'); // request | verify | reset
+  const [step, setStep] = useState('request'); 
   const [message, setMessage] = useState('');
 
   const sendOtp = async () => {
@@ -75,7 +75,7 @@ export default function ForgotPasswordPage() {
       });
 
       if (res.data?.success) {
-        setResetToken(res.data.resetToken); // 존재하지 않는 계정이면 null일 수 있음
+        setResetToken(res.data.resetToken); 
         setStep('reset');
         setMessage('인증이 완료되었습니다. 새 비밀번호를 설정해 주세요.');
       } else {
@@ -95,7 +95,6 @@ export default function ForgotPasswordPage() {
     setMessage('');
 
     try {
-      // resetToken이 null이면(존재 안하는 계정), 보안상 성공처럼 처리하는 게 안전함
       if (!resetToken) {
         setMessage('비밀번호 재설정이 완료되었습니다. 로그인해 주세요.');
         return;
