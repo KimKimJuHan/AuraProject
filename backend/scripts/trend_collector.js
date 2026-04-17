@@ -57,7 +57,17 @@ async function collectTrends() {
         if (categoryData?.chzzk?.categoryValue) {
             try {
                 const keyword = encodeURIComponent(categoryData.chzzk.categoryValue);
-                const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${keyword}&offset=0&size=50&sortType=POPULAR`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                // [수정] 치지직 데이터 차단 우회 강력 헤더 및 발급받은 공식 키 연동
+                const headers = { 
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Accept': 'application/json'
+                };
+                if (CHZZK_CLIENT_ID && CHZZK_CLIENT_SECRET) {
+                    headers['Client-Id'] = CHZZK_CLIENT_ID;
+                    headers['Client-Secret'] = CHZZK_CLIENT_SECRET;
+                }
+
+                const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${keyword}&offset=0&size=50&sortType=POPULAR`, { headers });
                 const lives = res.data?.content?.data || [];
                 const target = categoryData.chzzk.categoryValue.replace(/\s/g, '');
                 lives.forEach((item) => {

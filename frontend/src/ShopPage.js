@@ -170,7 +170,12 @@ function ShopPage({ region }) {
                 setHistoryData(Object.values(dailyMap));
             } catch (e) { console.log("히스토리 없음"); }
 
-            const videos = (data.trailers || []).map(url => ({ type: 'video', url: url, thumb: data.main_image }));
+            // [수정] http를 https로 강제 변환하여 영상 혼합 콘텐츠 차단 해결
+            const videos = (data.trailers || []).map(url => ({ 
+                type: 'video', 
+                url: url.replace(/^http:\/\//i, 'https://'), 
+                thumb: data.main_image 
+            }));
             const images = (data.screenshots || []).map(url => ({ type: 'image', url: url, thumb: url }));
             if(images.length === 0 && data.main_image) images.push({ type: 'image', url: data.main_image, thumb: data.main_image });
 
@@ -232,10 +237,10 @@ function ShopPage({ region }) {
   const handleMediaSelect = (media) => { setSelectedMedia(media); setIsPlaying(false); };
   const handlePlayVideo = () => { setIsPlaying(true); if (videoRef.current) videoRef.current.play(); };
 
+  // [수정] 0원일 경우 무료로 판별하는 로직 추가
   const getPriceDisplay = (price, isFree) => {
-    if (isFree) return "무료";
+    if (isFree || price === 0) return "무료";
     if (price === null || price === undefined) return "가격 정보 없음";
-    if (price === 0) return "가격 정보 확인 필요";
     return `₩${(Math.round(price / 10) * 10).toLocaleString()}`; 
   };
 
