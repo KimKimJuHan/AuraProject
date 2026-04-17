@@ -1,11 +1,10 @@
-// frontend/src/MainPage.js
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
 
 const TAG_CATEGORIES = {
+  '난이도': ['초심자', '심화'],
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
   '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
@@ -26,15 +25,12 @@ const styles = {
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
-  // 비활성화 스타일
   tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 }
 };
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
     const [isOpen, setIsOpen] = useState(false); 
-    
-    // 태그 선택 여부 확인 (하나라도 선택되었는지)
     const hasSelection = selectedTags.length > 0;
 
     return (
@@ -47,8 +43,6 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                 <div style={styles.filterContent}>
                     {tags.map(tag => {
                         const isSelected = selectedTags.includes(tag);
-                        // ★ 유효하지 않은 태그 비활성화 로직
-                        // 선택된 게 있고 + 현재 태그가 선택 안 됐고 + 유효 목록에도 없으면 -> 비활성화
                         const isDisabled = hasSelection && !isSelected && !validTags.includes(tag);
 
                         return (
@@ -71,7 +65,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
     );
 };
 
-function GameListItem({ game }) {
+function GameListItem({ game, currency }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   useEffect(() => {
@@ -89,10 +83,18 @@ function GameListItem({ game }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  // [수정] 0원 무료 표기 적용
   const price = game.price_info || {};
-  const isFree = price.isFree || price.current_price === 0;
-  const currentPrice = isFree ? "무료" : (price.current_price != null ? `₩${price.current_price.toLocaleString()}` : "정보 없음");
+  
+  const isKRW = currency === 'KRW';
+  const displayPrice = isKRW 
+      ? (price.current_price_krw !== undefined ? price.current_price_krw : price.current_price * 1350) 
+      : price.current_price;
+  
+  const isFree = price.isFree || displayPrice === 0;
+  
+  const currencySymbol = isKRW ? '₩' : '$';
+  const currentPriceText = isFree ? "무료" : (displayPrice !== undefined && displayPrice !== null ? `${currencySymbol}${displayPrice.toLocaleString()}` : "정보 없음");
+  
   const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
 
   return (
@@ -108,7 +110,7 @@ function GameListItem({ game }) {
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
                     <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
-                        {currentPrice}
+                        {currentPriceText}
                     </span>
                 </div>
             </div>
@@ -122,10 +124,12 @@ function MainPage({ user }) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [validTags, setValidTags] = useState([]); // ★ 유효 태그 목록 상태
+  const [validTags, setValidTags] = useState([]); 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
   const [error, setError] = useState(null);
+  
+  const [currency, setCurrency] = useState('KRW');
 
   useEffect(() => {
     setGames([]); 
@@ -134,8 +138,6 @@ function MainPage({ user }) {
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
-    // hasMore 체크를 처음에 안 하고 일단 요청을 보냄 (필터 변경 시 갱신 위해)
-    // 단, page > 1 일 때는 hasMore가 false면 중단
     if (page > 1 && !hasMore) return;
     
     const fetchGames = async () => {
@@ -150,7 +152,6 @@ function MainPage({ user }) {
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
             
-            // ★ 유효 태그 목록 업데이트
             if (data.validTags) {
                 setValidTags(data.validTags);
             }
@@ -170,7 +171,7 @@ function MainPage({ user }) {
     };
     
     fetchGames();
-  }, [page, selectedTags, activeTab]); // hasMore 제거 (무한루프 방지 및 즉시 갱신)
+  }, [page, selectedTags, activeTab]); 
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -178,6 +179,20 @@ function MainPage({ user }) {
 
   return (
     <div className="net-panel">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+        <select 
+            value={currency} 
+            onChange={(e) => setCurrency(e.target.value)}
+            style={{ 
+                backgroundColor: '#181818', color: '#fff', border: '1px solid #333', 
+                padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', outline: 'none' 
+            }}
+        >
+            <option value="KRW">🇰🇷 KRW (₩)</option>
+            <option value="USD">🇺🇸 USD ($)</option>
+        </select>
+      </div>
+
       <div style={styles.tabContainer}>
         {[{ k:'popular', n:'🔥 인기' }, { k:'new', n:'✨ 신규' }, { k:'discount', n:'💸 할인' }, { k:'price', n:'💰 낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
@@ -192,7 +207,7 @@ function MainPage({ user }) {
                 tags={tags} 
                 selectedTags={selectedTags} 
                 onToggleTag={toggleTag} 
-                validTags={validTags} // ★ 유효 태그 전달
+                validTags={validTags} 
               />
           ))}
       </div>
@@ -208,7 +223,7 @@ function MainPage({ user }) {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => <GameListItem key={game.slug} game={game} />)}
+          {games.map(game => <GameListItem key={game.slug} game={game} currency={currency} />)}
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}
