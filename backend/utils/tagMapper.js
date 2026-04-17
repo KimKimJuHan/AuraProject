@@ -1,6 +1,10 @@
 // backend/utils/tagMapper.js
 
 const TAG_MAPPING = {
+  // ★ [과제 3] 난이도 매핑 추가
+  "Casual": "초심자", "Relaxing": "초심자", "Family Friendly": "초심자", "Cozy": "초심자",
+  "Difficult": "심화", "Hardcore": "심화", "Perma Death": "심화", "Permadeath": "심화", "Unforgiving": "심화",
+
   "RPG": "RPG", "Role-Playing": "RPG", "Role Playing": "RPG", "JRPG": "RPG", "Action RPG": "RPG", "ARPG": "RPG",
   "FPS": "FPS", "First-Person Shooter": "FPS", "First Person Shooter": "FPS", "Shooter": "FPS",
   "Simulation": "시뮬레이션", "Sim": "시뮬레이션",
@@ -51,7 +55,6 @@ function mapSteamTags(steamTags) {
 }
 
 function getQueryTags(koreanTag) {
-    // 1. 공백을 모두 지운 상태로 역매핑 타겟 찾기
     const normalizedInput = koreanTag.replace(/\s+/g, '');
     let targetKorTag = koreanTag;
     
@@ -68,7 +71,6 @@ function getQueryTags(koreanTag) {
     
     const finalRegexes = [];
     
-    // 2. ★ 팩트: 한글 태그의 경우 글자 사이사이에 \s* 를 삽입하여 DB의 띄어쓰기 오차를 100% 무시함
     for (const tag of searchPool) {
         if (/[가-힣]/.test(tag)) {
             const chars = tag.replace(/\s+/g, '').split('');

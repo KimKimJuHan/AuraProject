@@ -12,6 +12,9 @@ const gameSchema = new mongoose.Schema({
   
   isAdult: { type: Boolean, default: false },
   smart_tags: { type: [String], index: true },
+  
+  // ★ [과제 3] 난이도 필드 추가
+  difficulty: { type: String, enum: ['초심자', '보통', '심화', '정보 없음'], default: '정보 없음', index: true },
 
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
@@ -40,6 +43,9 @@ const gameSchema = new mongoose.Schema({
   price_info: {
     regular_price: Number,
     current_price: Number,
+    // ★ [과제 2] 원화 가격 필드 명시
+    initial_price_krw: Number,
+    current_price_krw: Number,
     discount_percent: Number,
     store_url: String,
     store_name: String,
@@ -60,12 +66,11 @@ const gameSchema = new mongoose.Schema({
   screenshots: [String],
   trailers: [String],
   
-  // ★ [핵심 수정] 플레이타임 구조화 (숫자 기반)
   play_time: { 
-    main: Number,          // 메인 스토리
-    extra: Number,         // 메인 + 서브
-    completionist: Number, // 완전 정복
-    raw: String            // 원본 문자열 (백업용)
+    main: Number,          
+    extra: Number,         
+    completionist: Number, 
+    raw: String            
   },
   
   metacritic_score: { type: Number, default: 0 },
