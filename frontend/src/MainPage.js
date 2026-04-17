@@ -89,9 +89,10 @@ function GameListItem({ game }) {
     setIsWishlisted(!isWishlisted);
   };
 
+  // [수정] 0원 무료 표기 적용
   const price = game.price_info || {};
-  const isFree = price.isFree;
-  const currentPrice = price.current_price ? `₩${price.current_price.toLocaleString()}` : "정보 없음";
+  const isFree = price.isFree || price.current_price === 0;
+  const currentPrice = isFree ? "무료" : (price.current_price != null ? `₩${price.current_price.toLocaleString()}` : "정보 없음");
   const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
 
   return (
@@ -107,7 +108,7 @@ function GameListItem({ game }) {
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
                     <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
-                        {isFree ? "무료" : currentPrice}
+                        {currentPrice}
                     </span>
                 </div>
             </div>
