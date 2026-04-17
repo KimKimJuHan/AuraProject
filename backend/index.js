@@ -1,5 +1,6 @@
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// 기존 구글 DNS 강제 설정은 주석 처리 또는 삭제됨 (로컬 충돌 방지)
+// const dns = require('dns');
+// dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 require('dotenv').config();
 const express = require('express');
@@ -23,7 +24,7 @@ const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
 
-// ★ 추가: 스케줄러 및 환율 업데이트 로직 임포트
+// 환율 업데이트 및 스케줄러 임포트
 const cron = require('node-cron');
 const updateExchangeRates = require('./scripts/exchange_updater');
 
@@ -59,118 +60,129 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// 1. Steam Strategy
-try {
-    passport.use(new SteamStrategy({
-        returnURL: `${BACKEND_URL}/api/auth/steam/return`,
-        realm: `${BACKEND_URL}/`,
-        apiKey: process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY,
-        passReqToCallback: true
-    }, async (req, identifier, profile, done) => {
-        try {
-            const linkingUserId = req.session?.steamLinkingUserId;
+// 1. Steam Strategy (조건부 실행)
+if (process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY) {
+    try {
+        passport.use(new SteamStrategy({
+            returnURL: `${BACKEND_URL}/api/auth/steam/return`,
+            realm: `${BACKEND_URL}/`,
+            apiKey: process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY,
+            passReqToCallback: true
+        }, async (req, identifier, profile, done) => {
+            try {
+                const linkingUserId = req.session?.steamLinkingUserId;
 
-            if (linkingUserId) {
-                const user = await User.findById(linkingUserId);
-                if (user) {
-                    user.steamId = profile.id;
-                    await user.save();
-                    delete req.session.steamLinkingUserId;
-                    return done(null, user);
+                if (linkingUserId) {
+                    const user = await User.findById(linkingUserId);
+                    if (user) {
+                        user.steamId = profile.id;
+                        await user.save();
+                        delete req.session.steamLinkingUserId;
+                        return done(null, user);
+                    }
                 }
-            }
 
-            let user = await User.findOne({ steamId: profile.id });
-            if (!user) {
-                user = await User.create({
-                    steamId: profile.id,
-                    username: `steam_${profile.id}`,
-                    displayName: profile.displayName || `스팀유저_${profile.id.substring(0,4)}`,
-                    email: `no-email-${profile.id}@steam.com`,
-                    avatar: profile.photos && profile.photos.length > 0 ? (profile.photos[2]?.value || profile.photos[0]?.value) : ''
-                });
+                let user = await User.findOne({ steamId: profile.id });
+                if (!user) {
+                    user = await User.create({
+                        steamId: profile.id,
+                        username: `steam_${profile.id}`,
+                        displayName: profile.displayName || `스팀유저_${profile.id.substring(0,4)}`,
+                        email: `no-email-${profile.id}@steam.com`,
+                        avatar: profile.photos && profile.photos.length > 0 ? (profile.photos[2]?.value || profile.photos[0]?.value) : ''
+                    });
+                }
+                return done(null, user);
+            } catch (err) {
+                return done(err);
             }
-            return done(null, user);
-        } catch (err) {
-            return done(err);
-        }
-    }));
-} catch (e) {
-    console.error("Steam Strategy Setup Failed:", e);
+        }));
+    } catch (e) {
+        console.error("Steam Strategy Setup Failed:", e);
+    }
+} else {
+    console.warn("⚠️ STEAM_API_KEY가 누락되어 스팀 연동을 비활성화합니다.");
 }
 
-// 2. Google Strategy
-passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${BACKEND_URL}/api/auth/google/callback`
-}, async (accessToken, refreshToken, profile, done) => {
-    try {
-        let user = await User.findOne({ googleId: profile.id });
-        const googleName = profile.displayName || `구글유저_${profile.id.substring(0, 4)}`;
-        const googleEmail = (profile.emails && profile.emails.length > 0) ? profile.emails[0].value : 'no-email@google.com';
-        const googleAvatar = (profile.photos && profile.photos.length > 0) ? profile.photos[0].value : '';
+// 2. Google Strategy (조건부 실행)
+if (process.env.GOOGLE_CLIENT_ID) {
+    passport.use(new GoogleStrategy({
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: `${BACKEND_URL}/api/auth/google/callback`
+    }, async (accessToken, refreshToken, profile, done) => {
+        try {
+            let user = await User.findOne({ googleId: profile.id });
+            const googleName = profile.displayName || `구글유저_${profile.id.substring(0, 4)}`;
+            const googleEmail = (profile.emails && profile.emails.length > 0) ? profile.emails[0].value : 'no-email@google.com';
+            const googleAvatar = (profile.photos && profile.photos.length > 0) ? profile.photos[0].value : '';
 
-        if (!user) {
-            let existingUserByEmail = await User.findOne({ email: googleEmail });
-            
-            if (existingUserByEmail && googleEmail !== 'no-email@google.com') {
-                existingUserByEmail.googleId = profile.id; 
-                if (!existingUserByEmail.avatar && googleAvatar) existingUserByEmail.avatar = googleAvatar;
-                await existingUserByEmail.save();
-                return done(null, existingUserByEmail);
+            if (!user) {
+                let existingUserByEmail = await User.findOne({ email: googleEmail });
+                
+                if (existingUserByEmail && googleEmail !== 'no-email@google.com') {
+                    existingUserByEmail.googleId = profile.id; 
+                    if (!existingUserByEmail.avatar && googleAvatar) existingUserByEmail.avatar = googleAvatar;
+                    await existingUserByEmail.save();
+                    return done(null, existingUserByEmail);
+                }
+
+                user = await User.create({
+                    googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar
+                });
+            } else {
+                let isUpdated = false;
+                if (!user.displayName || user.displayName === user.username) { user.displayName = googleName; isUpdated = true; }
+                if (!user.avatar && googleAvatar) { user.avatar = googleAvatar; isUpdated = true; }
+                if (isUpdated) await user.save();
             }
+            return done(null, user);
+        } catch (err) { return done(err); }
+    }));
+} else {
+    console.warn("⚠️ GOOGLE_CLIENT_ID가 누락되어 구글 로그인을 비활성화합니다.");
+}
 
-            user = await User.create({
-                googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar
-            });
-        } else {
-            let isUpdated = false;
-            if (!user.displayName || user.displayName === user.username) { user.displayName = googleName; isUpdated = true; }
-            if (!user.avatar && googleAvatar) { user.avatar = googleAvatar; isUpdated = true; }
-            if (isUpdated) await user.save();
-        }
-        return done(null, user);
-    } catch (err) { return done(err); }
-}));
-
-// 3. Naver Strategy
-passport.use(new NaverStrategy({
-    clientID: process.env.NAVER_CLIENT_ID,
-    clientSecret: process.env.NAVER_CLIENT_SECRET,
-    callbackURL: `${BACKEND_URL}/api/auth/naver/callback`
-}, async (accessToken, refreshToken, profile, done) => {
-    try {
-        let user = await User.findOne({ naverId: profile.id });
-        
-        // ★ 팩트: 네이버 API 이중 JSON 구조 정밀 파싱 적용 (이름 누락 방어)
-        const responseData = (profile._json && profile._json.response) ? profile._json.response : (profile._json || {});
-        const naverName = profile.displayName || profile.name || responseData.nickname || responseData.name || `네이버유저_${profile.id.substring(0, 4)}`;
-        const naverEmail = (profile.emails && profile.emails.length > 0 && profile.emails[0].value) || profile.email || responseData.email || `naver_${profile.id}@no-email.com`;
-        const naverAvatar = profile.profileImage || responseData.profile_image || '';
-
-        if (!user) {
-            let existingUserByEmail = await User.findOne({ email: naverEmail });
+// 3. Naver Strategy (조건부 실행)
+if (process.env.NAVER_CLIENT_ID) {
+    passport.use(new NaverStrategy({
+        clientID: process.env.NAVER_CLIENT_ID,
+        clientSecret: process.env.NAVER_CLIENT_SECRET,
+        callbackURL: `${BACKEND_URL}/api/auth/naver/callback`
+    }, async (accessToken, refreshToken, profile, done) => {
+        try {
+            let user = await User.findOne({ naverId: profile.id });
             
-            if (existingUserByEmail && !naverEmail.includes('@no-email.com')) {
-                existingUserByEmail.naverId = profile.id; 
-                if (!existingUserByEmail.avatar && naverAvatar) existingUserByEmail.avatar = naverAvatar;
-                await existingUserByEmail.save();
-                return done(null, existingUserByEmail);
-            }
+            const responseData = (profile._json && profile._json.response) ? profile._json.response : (profile._json || {});
+            const naverName = profile.displayName || profile.name || responseData.nickname || responseData.name || `네이버유저_${profile.id.substring(0, 4)}`;
+            const naverEmail = (profile.emails && profile.emails.length > 0 && profile.emails[0].value) || profile.email || responseData.email || `naver_${profile.id}@no-email.com`;
+            const naverAvatar = profile.profileImage || responseData.profile_image || '';
 
-            user = await User.create({
-                naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar
-            });
-        } else {
-            let isUpdated = false;
-            if (!user.displayName || user.displayName === user.username) { user.displayName = naverName; isUpdated = true; }
-            if (!user.avatar && naverAvatar) { user.avatar = naverAvatar; isUpdated = true; }
-            if (isUpdated) await user.save();
-        }
-        return done(null, user);
-    } catch (err) { return done(err); }
-}));
+            if (!user) {
+                let existingUserByEmail = await User.findOne({ email: naverEmail });
+                
+                if (existingUserByEmail && !naverEmail.includes('@no-email.com')) {
+                    existingUserByEmail.naverId = profile.id; 
+                    if (!existingUserByEmail.avatar && naverAvatar) existingUserByEmail.avatar = naverAvatar;
+                    await existingUserByEmail.save();
+                    return done(null, existingUserByEmail);
+                }
+
+                user = await User.create({
+                    naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar
+                });
+            } else {
+                let isUpdated = false;
+                if (!user.displayName || user.displayName === user.username) { user.displayName = naverName; isUpdated = true; }
+                if (!user.avatar && naverAvatar) { user.avatar = naverAvatar; isUpdated = true; }
+                if (isUpdated) await user.save();
+            }
+            return done(null, user);
+        } catch (err) { return done(err); }
+    }));
+} else {
+    console.warn("⚠️ NAVER_CLIENT_ID가 누락되어 네이버 로그인을 비활성화합니다.");
+}
 
 passport.serializeUser((user, done) => {
     const sessionUser = user._id ? user._id : user;
@@ -192,13 +204,6 @@ if (process.env.MONGODB_URI) {
         .then(() => console.log('✅ MongoDB Connected'))
         .catch(err => console.error('❌ DB Error:', err));
 }
-console.log('typeof authRoutes:', typeof authRoutes);
-console.log('typeof userRoutes:', typeof userRoutes);
-console.log('typeof recoRoutes:', typeof recoRoutes);
-console.log('typeof advancedRecoRoutes:', typeof advancedRecoRoutes);
-console.log('typeof supportRoutes:', typeof supportRoutes);
-
-console.log('advancedRecoRoutes keys:', advancedRecoRoutes && Object.keys(advancedRecoRoutes));
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
@@ -211,7 +216,7 @@ app.use('/api/support', supportRoutes);
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
-// ★ 매일 자정(00:00)에 환율 업데이트 크론 작업 실행
+// 매일 자정(00:00)에 환율 업데이트 크론 작업 실행
 cron.schedule('0 0 * * *', () => {
     console.log('[Cron] 자정 환율 업데이트 스케줄러 작동');
     updateExchangeRates();
