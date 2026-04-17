@@ -11,19 +11,15 @@ router.post('/logout', authController.logout);
 router.post('/send-otp', authController.sendOtp);
 router.post('/verify-otp', authController.verifyOtp);
 
-// 아이디 찾기
 router.post('/find-username/send-otp', authController.sendFindUsernameOtp);
 router.post('/find-username/verify-otp', authController.verifyFindUsernameOtp);
 
-// 비밀번호 재설정
 router.post('/reset-password/send-otp', authController.sendResetPasswordOtp);
-router.post('/reset-password/verify-otp', authController.verifyResetPasswordOtp); // resetToken 발급
-router.post('/reset-password/confirm', authController.confirmResetPassword);     // 새 비번 설정
+router.post('/reset-password/verify-otp', authController.verifyResetPasswordOtp);
+router.post('/reset-password/confirm', authController.confirmResetPassword);     
 
-// 로그인 후 비밀번호 변경
 router.post('/change-password', authController.changePassword);
 
-// 구글
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
   '/google/callback',
@@ -35,14 +31,13 @@ router.get(
       displayName: req.user.displayName,
       email: req.user.email,
       avatar: req.user.avatar,
-      role: req.user.role, // ✅ 추가
+      role: req.user.role,
     };
     const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
     res.redirect(redirectUrl);
   }
 );
 
-// 네이버
 router.get('/naver', passport.authenticate('naver'));
 router.get(
   '/naver/callback',
@@ -54,18 +49,16 @@ router.get(
       displayName: req.user.displayName,
       email: req.user.email,
       avatar: req.user.avatar,
-      role: req.user.role, // ✅ 추가
+      role: req.user.role, 
     };
     const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
     res.redirect(redirectUrl);
   }
 );
 
-// ★ 스팀 연동 (수정됨: 로그인 유저 식별 작업 포함)
 router.get(
   '/steam',
   (req, res, next) => {
-    // 세션 또는 JWT 쿠키를 확인하여 '현재 누구의 계정에 스팀을 연동하려는지'를 session에 임시 기록합니다.
     const token = req.cookies?.token;
     if (req.session && req.session.user) {
       req.session.steamLinkingUserId = req.session.user.id;
@@ -84,14 +77,13 @@ router.get(
   '/steam/return',
   passport.authenticate('steam', { failureRedirect: '/login' }),
   (req, res) => {
-    // 스팀 연동이 끝난 후, 덮어씌워지지 않게 유저 세션을 정상 객체로 복원합니다.
     req.session.user = {
       id: req.user._id,
       username: req.user.username,
       displayName: req.user.displayName,
       email: req.user.email,
       avatar: req.user.avatar,
-      role: req.user.role, // ✅ 추가
+      role: req.user.role, 
     };
     const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
     res.redirect(redirectUrl);
