@@ -11,14 +11,14 @@ on:
   workflow_dispatch:
     inputs:
       job_type:
-        description: '강제 실행할 작업을 선택하세요'
+        description: '강제 실행 (trend, game, all 중 택1)'
         required: true
         default: 'all'
         type: choice
         options:
-          - trend (시청자 수만 갱신)
-          - game (신작/메타데이터만 수집)
-          - all (전체 실행)
+          - trend
+          - game
+          - all
 
 jobs:
   collect:
@@ -47,7 +47,7 @@ jobs:
         npm install
 
     # ==========================================
-    # Task A: 시청자 전수조사 (UTC 10:00 또는 수동 실행 시)
+    # Task A: 시청자 전수조사
     # ==========================================
     - name: Run Trend Collector
       if: github.event.schedule == '0 10 * * *' || github.event.inputs.job_type == 'trend' || github.event.inputs.job_type == 'all'
@@ -57,7 +57,7 @@ jobs:
         node scripts/trend_collector.js
 
     # ==========================================
-    # Task B: 신작 및 메타데이터 수집 (UTC 18:00 또는 수동 실행 시)
+    # Task B: 신작 및 메타데이터 수집
     # ==========================================
     - name: Run Game Metadata Collector
       if: github.event.schedule == '0 18 * * *' || github.event.inputs.job_type == 'game' || github.event.inputs.job_type == 'all'
