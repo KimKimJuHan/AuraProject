@@ -111,10 +111,15 @@ router.get('/games/:id/history', async (req, res) => {
 
         if (!appId) return res.json([]);
 
-        // ★ 치명적 결함 복구: 12월 더미 버그 방지를 위해 최신순(-1)으로 가져와서 뒤집기 적용
-        const history = await TrendHistory.find({ steam_appid: appId })
+        // [수정] 최근 7일 치 데이터만 필터링 (기존 30개 제한 폐기)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const history = await TrendHistory.find({ 
+            steam_appid: appId,
+            recordedAt: { $gte: sevenDaysAgo }
+        })
             .sort({ recordedAt: -1 })
-            .limit(30)
             .lean();
 
         res.json(history.reverse());
