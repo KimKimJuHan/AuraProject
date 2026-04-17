@@ -23,6 +23,10 @@ const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
 
+// ★ 추가: 스케줄러 및 환율 업데이트 로직 임포트
+const cron = require('node-cron');
+const updateExchangeRates = require('./scripts/exchange_updater');
+
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -206,6 +210,12 @@ app.use('/api/support', supportRoutes);
 
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
+
+// ★ 매일 자정(00:00)에 환율 업데이트 크론 작업 실행
+cron.schedule('0 0 * * *', () => {
+    console.log('[Cron] 자정 환율 업데이트 스케줄러 작동');
+    updateExchangeRates();
+});
 
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
