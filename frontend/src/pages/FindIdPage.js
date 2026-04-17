@@ -46,7 +46,7 @@ const btnStyle = {
 export default function FindIdPage() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [step, setStep] = useState('request'); // request | verify
+  const [step, setStep] = useState('request');
   const [maskedUsernames, setMaskedUsernames] = useState([]);
   const [message, setMessage] = useState('');
 
