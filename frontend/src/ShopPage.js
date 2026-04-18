@@ -1,17 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config'; 
 import { safeLocalStorage } from './utils/storage';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
-
-const REVIEW_KO_MAP = {
-    "Overwhelmingly Positive": "압도적으로 긍정적", "Very Positive": "매우 긍정적", "Positive": "긍정적",
-    "Mostly Positive": "대체로 긍정적", "Mixed": "복합적", "Mostly Negative": "대체로 부정적",
-    "Negative": "부정적", "Very Negative": "매우 부정적", "Overwhelmingly Negative": "압도적으로 부정적"
-};
 
 const styles = {
   buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold' },
@@ -28,6 +22,7 @@ const styles = {
   storeRowLink: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #333', backgroundColor: '#181818', textDecoration: 'none', color: '#fff' },
   storeName: { fontWeight: 'bold', color: '#FFFFFF' },
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
+  tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
   chartsGrid: { display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '40px', justifyContent: 'center' },
   chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', alignItems: 'center' },
@@ -35,12 +30,34 @@ const styles = {
   reqTabButtonActive: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #E50914', color: '#fff', fontWeight: 'bold', fontSize: '16px' }
 };
 
+// ★ 누락되었던 마우스 오버 툴팁 UI 복구
+const InfoWithTooltip = ({ text, icon, tooltipText }) => {
+    const [hover, setHover] = useState(false);
+    return (
+        <div style={{position:'relative', display:'inline-block'}} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+            <span style={styles.infoBadge}>{icon} {text}</span>
+            <span style={{...styles.tooltip, visibility: hover ? 'visible' : 'hidden', opacity: hover ? 1 : 0}}>{tooltipText}</span>
+        </div>
+    );
+};
+
+// ★ 플레이타임 버그 완벽 수정 (DB값이 문자열이든 객체든 모두 커버)
 const formatPlayTime = (timeData) => {
     if (!timeData || timeData === "정보 없음") return "정보 없음";
-    const num = parseFloat(String(timeData).replace(/[^0-9.]/g, ''));
+    
+    let val = timeData;
+    if (typeof timeData === 'object') {
+        val = timeData.main || timeData.raw || timeData.extra || "정보 없음";
+    }
+    
+    if (val === "정보 없음") return "정보 없음";
+
+    const num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
     if (isNaN(num) || num === 0) return "정보 없음";
+    
     const hours = Math.floor(num);
     const minutes = Math.round((num - hours) * 60);
+    if (hours === 0 && minutes === 0) return "정보 없음";
     if (hours === 0) return `${minutes}분`;
     if (minutes === 0) return `${hours}시간`;
     return `${hours}시간 ${minutes}분`;
@@ -90,6 +107,7 @@ function RecentGames({ currentSlug }) {
 
 export default function ShopPage({ region }) { 
   const { id } = useParams(); 
+  const navigate = useNavigate();
   const [gameData, setGameData] = useState(null);
   const [historyData, setHistoryData] = useState([]); 
   const [loading, setLoading] = useState(true);
@@ -101,8 +119,25 @@ export default function ShopPage({ region }) {
   const [myVote, setMyVote] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [reqTab, setReqTab] = useState('minimum'); 
-  const [userIp, setUserIp] = useState('');
   const videoRef = useRef(null);
+
+  const handlePlayVideo = () => {
+    setIsPlaying(true);
+    requestAnimationFrame(() => {
+      const v = videoRef.current;
+      if (!v) return;
+      const p = v.play?.();
+      if (p?.catch) p.catch(() => {});
+    });
+  };
+
+  const getReviewColor = (summary) => {
+    if (!summary || summary === "정보 없음") return "#aaa";
+    if (summary.includes("Positive")) return "#66c0f4";
+    if (summary.includes("Mixed")) return "#d29922";
+    if (summary.includes("Negative")) return "#ff7b72";
+    return "#aaa";
+  };
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -135,11 +170,12 @@ export default function ShopPage({ region }) {
             setLikes(data.likes_count || 0); setDislikes(data.dislikes_count || 0);
             
             try {
-                const ipRes = await axios.get(`${API_BASE_URL}/api/user/ip`);
-                setUserIp(ipRes.data.ip);
-                const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
-                if(myVoteData) setMyVote(myVoteData.type);
+                const voteRes = await axios.get(`${API_BASE_URL}/api/games/${id}/myvote`, { withCredentials: true });
+                if(voteRes.data && voteRes.data.userVote) {
+                    setMyVote(voteRes.data.userVote);
+                }
             } catch(e) {}
+
         } catch (err) { setLoading(false); }
     };
     fetchDetails();
@@ -156,7 +192,6 @@ export default function ShopPage({ region }) {
     } catch (e) {}
   }, [gameData]);
 
-  // ★ 환율 계산 버그 수정: DB값이 500 이상이면 무조건 원화(KRW)로 간주
   const getPriceDisplay = (priceVal, isFree) => {
     if (isFree || priceVal === 0) return "무료";
     if (!priceVal) return "가격 정보 없음";
@@ -164,17 +199,54 @@ export default function ShopPage({ region }) {
     const isBaseKRW = priceVal > 500;
     const krwPrice = isBaseKRW ? priceVal : priceVal * 1350;
     const usdPrice = isBaseKRW ? priceVal / 1350 : priceVal;
+    const jpyPrice = isBaseKRW ? priceVal / 9 : priceVal * 150;
 
     if (region === 'US') return `$${usdPrice.toFixed(2)}`;
-    if (region === 'JP') return `¥${Math.round(krwPrice / 9).toLocaleString()}`;
+    if (region === 'JP') return `¥${Math.round(jpyPrice).toLocaleString()}`;
     return `₩${Math.round(krwPrice).toLocaleString()}`;
   };
 
   const handleVote = async (type) => {
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { type, identifier: userIp || 'unknown' });
-        setLikes(response.data.likes); setDislikes(response.data.dislikes); setMyVote(response.data.userVote); 
-      } catch (error) { alert("투표 실패"); }
+        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { type }, { withCredentials: true });
+        setLikes(response.data.likes); 
+        setDislikes(response.data.dislikes); 
+        setMyVote(response.data.userVote); 
+      } catch (error) { 
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+              if (window.confirm("로그인 후 이용해 주세요. 로그인 페이지로 이동하시겠습니까?")) {
+                  navigate('/login');
+              }
+          } else {
+              alert("서버 오류로 인해 투표에 실패했습니다.");
+          }
+      }
+  };
+
+  const toggleWishlist = () => {
+    const wishlistStr = safeLocalStorage.getItem('gameWishlist');
+    const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
+    
+    let newWishlist;
+    if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
+    else newWishlist = [...wishlist, gameData.slug];
+    
+    safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
+    setIsWishlisted(!isWishlisted);
+  };
+
+  const cleanHTML = (html) => DOMPurify.sanitize(html);
+  const formatDate = (dateString) => {
+      if (!dateString) return "정보 없음";
+      const d = new Date(dateString);
+      return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+  };
+  const countdown = useCountdown(gameData?.price_info?.expiry);
+  const formatRequirements = (html) => {
+      if (!html || html === "정보 없음") return "정보 없음";
+      let safeHtml = cleanHTML(html);
+      safeHtml = safeHtml.replace(/<strong>\s*(최소|권장|Minimum|Recommended):?\s*<\/strong><br>/gi, '');
+      return safeHtml;
   };
 
   if (loading) return <div className="net-panel"><Skeleton height="500px" /></div>;
@@ -182,7 +254,7 @@ export default function ShopPage({ region }) {
 
   const pi = gameData.price_info;
   const overall = gameData.steam_reviews?.overall || { summary: "정보 없음", total: 0 };
-  const recent = gameData.steam_reviews?.recent || { summary: "정보 없음", total: 0 };
+  const reviewSummaryText = overall.summary; 
 
   return (
     <div>
@@ -215,16 +287,27 @@ export default function ShopPage({ region }) {
         </div>
 
         <div style={{display:'flex', gap:'10px', marginBottom:'40px', flexWrap:'wrap', alignItems:'center'}}>
-            <span style={styles.infoBadge}>📅 {gameData.releaseDate ? new Date(gameData.releaseDate).toLocaleDateString() : '정보 없음'}</span>
-            {gameData.metacritic_score > 0 && <span style={styles.infoBadge}>Ⓜ️ Metacritic {gameData.metacritic_score}</span>}
-            <span style={styles.infoBadge}>⏳ 메인: {formatPlayTime(gameData.play_time?.main || gameData.play_time?.raw)}</span>
+            <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
+            {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점 (메타크리틱)" icon="Ⓜ️" />}
+            
+            {/* ★ 툴팁 적용 및 DB 문자열/객체 완벽 대응 */}
+            <InfoWithTooltip 
+                text={`⏳ ${formatPlayTime(gameData.play_time || gameData.playtime)}`} 
+                tooltipText={typeof gameData.play_time === 'object' && gameData.play_time.extra ? `메인+서브: ${formatPlayTime(gameData.play_time.extra)} | 완전 정복: ${formatPlayTime(gameData.play_time.completionist)}` : "평균 플레이 타임"} 
+                icon="" 
+            />
+            
             <div style={{display:'flex', flexDirection:'column', gap:'5px', marginLeft:'10px', paddingLeft:'10px', borderLeft:'1px solid #444'}}>
-                <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}><span>모든 평가 ({overall.total.toLocaleString()})</span><span style={{color: getReviewColor(overall.summary), fontWeight:'bold'}}>{REVIEW_KO_MAP[overall.summary] || overall.summary}</span></div>
+                <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}>
+                    <span>모든 평가 ({overall.total.toLocaleString()})</span>
+                    <span style={{color: getReviewColor(reviewSummaryText), fontWeight:'bold'}}>{reviewSummaryText}</span>
+                </div>
             </div>
         </div>
 
         <div style={{display:'flex', gap:'15px', alignItems:'center', marginBottom:'40px'}}>
              {pi && <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>{getPriceDisplay(pi.current_price, pi.isFree)} 구매하기</a>}
+             <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
              <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('like')}>👍 {likes}</button>
              <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
         </div>
