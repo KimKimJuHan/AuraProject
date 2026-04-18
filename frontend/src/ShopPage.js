@@ -1,14 +1,10 @@
-// frontend/src/ShopPage.js
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config'; 
-// ★ 안전한 저장소 import
 import { safeLocalStorage } from './utils/storage';
-
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const REVIEW_KO_MAP = {
@@ -42,10 +38,8 @@ const styles = {
   infoBadge: { display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontWeight: 'bold', backgroundColor: '#333', color: '#fff', fontSize: '14px', cursor: 'help' },
   tooltip: { visibility: 'hidden', width: 'max-content', backgroundColor: 'rgba(0,0,0,0.9)', color: '#fff', textAlign: 'center', borderRadius: '4px', padding: '5px 10px', position: 'absolute', zIndex: '100', bottom: '125%', left: '50%', transform: 'translateX(-50%)', opacity: '0', transition: 'opacity 0.2s', fontSize: '12px', fontWeight: 'normal', border:'1px solid #555' },
   trendBadge: { display: 'inline-flex', alignItems: 'center', gap:'5px', padding: '6px 12px', borderRadius: '4px', marginRight: '10px', fontSize: '14px', fontWeight: 'bold', color:'#fff' },
-  
   chartsGrid: { display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '40px', justifyContent: 'center' },
   chartBox: { backgroundColor: '#181818', padding: '20px', borderRadius: '8px', border: '1px solid #333', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  
   reqTabButton: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #333', color: '#888', fontWeight: 'bold', fontSize: '16px' },
   reqTabButtonActive: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #E50914', color: '#fff', fontWeight: 'bold', fontSize: '16px' }
 };
@@ -58,6 +52,22 @@ const InfoWithTooltip = ({ text, icon, tooltipText }) => {
             <span style={{...styles.tooltip, visibility: hover ? 'visible' : 'hidden', opacity: hover ? 1 : 0}}>{tooltipText}</span>
         </div>
     );
+};
+
+// ★ 과제 2: 플레이타임 영어/소수점을 한국어(O시간 O분)로 완벽하게 변환하는 유틸리티
+const formatPlayTime = (timeData) => {
+    if (!timeData || timeData === "정보 없음") return "정보 없음";
+    
+    // API에서 넘어온 문자열에서 숫자와 소수점만 추출 ("47 Hours" -> 47.0)
+    const num = parseFloat(String(timeData).replace(/[^0-9.]/g, ''));
+    if (isNaN(num) || num === 0) return "정보 없음";
+
+    const hours = Math.floor(num);
+    const minutes = Math.round((num - hours) * 60);
+
+    if (hours === 0) return `${minutes}분`;
+    if (minutes === 0) return `${hours}시간`;
+    return `${hours}시간 ${minutes}분`;
 };
 
 function useCountdown(expiryTimestamp) {
@@ -88,43 +98,24 @@ function getReviewColor(summary) {
     return '#b9a074';
 }
 
-// ★ 추가: 최근 본 게임 컴포넌트
 function RecentGames({ currentSlug }) {
   const [games, setGames] = useState([]);
-
   useEffect(() => {
     try {
       const data = JSON.parse(localStorage.getItem('recentGames') || '[]');
-      const filtered = Array.isArray(data)
-        ? data.filter(game => game && game.slug && game.slug !== currentSlug)
-        : [];
+      const filtered = Array.isArray(data) ? data.filter(game => game && game.slug && game.slug !== currentSlug) : [];
       setGames(filtered.slice(0, 5));
-    } catch (e) {
-      setGames([]);
-    }
+    } catch (e) { setGames([]); }
   }, [currentSlug]);
 
-  if (games.length === 0) {
-    return <div style={{ color: '#666' }}>최근 본 게임 없음</div>;
-  }
+  if (games.length === 0) return <div style={{ color: '#666' }}>최근 본 게임 없음</div>;
 
   return (
     <div style={{ display:'flex', gap:'10px', overflowX:'auto', paddingBottom:'10px' }}>
       {games.map(game => (
-        <a
-          key={game.slug}
-          href={`/game/${game.slug}`}
-          style={{ minWidth:'150px', textDecoration:'none', color:'#fff', flexShrink:0 }}
-        >
-          <img
-            src={game.main_image}
-            alt={game.title}
-            style={{ width:'150px', height:'84px', borderRadius:'4px', objectFit:'cover', display:'block', marginBottom:'6px' }}
-            onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"}
-          />
-          <div style={{ fontSize:'12px', color:'#ddd', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {game.title_ko || game.title}
-          </div>
+        <a key={game.slug} href={`/game/${game.slug}`} style={{ minWidth:'150px', textDecoration:'none', color:'#fff', flexShrink:0 }}>
+          <img src={game.main_image} alt={game.title} style={{ width:'150px', height:'84px', borderRadius:'4px', objectFit:'cover', display:'block', marginBottom:'6px' }} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
+          <div style={{ fontSize:'12px', color:'#ddd', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{game.title_ko || game.title}</div>
         </a>
       ))}
     </div>
@@ -144,6 +135,10 @@ function ShopPage({ region }) {
   const [myVote, setMyVote] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [reqTab, setReqTab] = useState('minimum'); 
+  
+  // ★ 투표 버그 해결: 접속자의 IP를 상태로 저장하여 백엔드로 확실하게 전송
+  const [userIp, setUserIp] = useState('');
+  
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -170,7 +165,6 @@ function ShopPage({ region }) {
                 setHistoryData(Object.values(dailyMap));
             } catch (e) { console.log("히스토리 없음"); }
 
-            // [수정] http를 https로 강제 변환하여 영상 혼합 콘텐츠 차단 해결
             const videos = (data.trailers || []).map(url => ({ 
                 type: 'video', 
                 url: url.replace(/^http:\/\//i, 'https://'), 
@@ -179,19 +173,13 @@ function ShopPage({ region }) {
             const images = (data.screenshots || []).map(url => ({ type: 'image', url: url, thumb: url }));
             if(images.length === 0 && data.main_image) images.push({ type: 'image', url: data.main_image, thumb: data.main_image });
 
-            const combinedList = [
-                ...videos.slice(0, 2), 
-                ...images, 
-                ...videos.slice(2)
-            ];
-            
+            const combinedList = [...videos.slice(0, 2), ...images, ...videos.slice(2)];
             setMediaList(combinedList);
             if (combinedList.length > 0) {
                 setSelectedMedia(combinedList[0]);
                 setIsPlaying(false);
             }
 
-            // ★ safeLocalStorage 사용
             const wishlistStr = safeLocalStorage.getItem('gameWishlist');
             const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
             setIsWishlisted(wishlist.includes(data.slug));
@@ -201,6 +189,7 @@ function ShopPage({ region }) {
             
             try {
                 const ipRes = await axios.get(`${API_BASE_URL}/api/user/ip`);
+                setUserIp(ipRes.data.ip); // IP 저장
                 const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
                 if(myVoteData) setMyVote(myVoteData.type);
             } catch(e) {}
@@ -210,26 +199,13 @@ function ShopPage({ region }) {
     fetchDetails();
   }, [id]); 
 
-  // ★ 추가: 최근 본 게임 저장
   useEffect(() => {
     if (!gameData) return;
-
     try {
       const recent = JSON.parse(localStorage.getItem('recentGames') || '[]');
       const safeRecent = Array.isArray(recent) ? recent : [];
-
-      const recentGame = {
-        slug: gameData.slug,
-        title: gameData.title,
-        title_ko: gameData.title_ko,
-        main_image: gameData.main_image
-      };
-
-      const updated = [
-        recentGame,
-        ...safeRecent.filter(g => g && g.slug !== gameData.slug)
-      ].slice(0, 6);
-
+      const recentGame = { slug: gameData.slug, title: gameData.title, title_ko: gameData.title_ko, main_image: gameData.main_image };
+      const updated = [recentGame, ...safeRecent.filter(g => g && g.slug !== gameData.slug)].slice(0, 6);
       localStorage.setItem('recentGames', JSON.stringify(updated));
     } catch (e) {}
   }, [gameData]);
@@ -237,7 +213,6 @@ function ShopPage({ region }) {
   const handleMediaSelect = (media) => { setSelectedMedia(media); setIsPlaying(false); };
   const handlePlayVideo = () => { setIsPlaying(true); if (videoRef.current) videoRef.current.play(); };
 
-  // [수정] 0원일 경우 무료로 판별하는 로직 추가
   const getPriceDisplay = (price, isFree) => {
     if (isFree || price === 0) return "무료";
     if (price === null || price === undefined) return "가격 정보 없음";
@@ -245,25 +220,29 @@ function ShopPage({ region }) {
   };
 
   const toggleWishlist = () => {
-    // ★ safeLocalStorage 사용
     const wishlistStr = safeLocalStorage.getItem('gameWishlist');
     const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
-    
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
     else newWishlist = [...wishlist, gameData.slug];
-    
     safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
   };
 
+  // ★ 투표 버그 해결: axios에 identifier(IP)를 같이 포장해서 전송
   const handleVote = async (type) => {
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { type });
+        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { 
+            type: type,
+            identifier: userIp || 'unknown' 
+        });
         setLikes(response.data.likes);
         setDislikes(response.data.dislikes);
         setMyVote(response.data.userVote); 
-      } catch (error) { alert("투표 실패"); }
+      } catch (error) { 
+        console.error("투표 오류:", error);
+        alert("투표 실패: 서버와 통신할 수 없습니다."); 
+      }
   };
 
   const cleanHTML = (html) => DOMPurify.sanitize(html);
@@ -278,7 +257,6 @@ function ShopPage({ region }) {
 
   const formatRequirements = (html) => {
       if (!html || html === "정보 없음") return "정보 없음";
-      
       let safeHtml = cleanHTML(html);
       safeHtml = safeHtml.replace(/<strong>\s*(최소|권장|Minimum|Recommended):?\s*<\/strong><br>/gi, '');
       return safeHtml;
@@ -381,7 +359,13 @@ function ShopPage({ region }) {
         <div style={{display:'flex', gap:'10px', marginBottom:'40px', flexWrap:'wrap', alignItems:'center'}}>
             <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
             {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점 (메타크리틱)" icon="Ⓜ️" />}
-            <InfoWithTooltip text={gameData.play_time !== "정보 없음" ? `⏳ ${gameData.play_time}` : "⏳ 시간 정보 없음"} tooltipText="플레이 타임" icon="" />
+            
+            {/* ★ 플레이타임 한글 변환 로직 UI 적용 */}
+            <InfoWithTooltip 
+                text={`⏳ 메인: ${formatPlayTime(gameData.play_time?.main || gameData.play_time?.raw || gameData.play_time)}`} 
+                tooltipText={`메인+서브: ${formatPlayTime(gameData.play_time?.extra)} | 완전 정복: ${formatPlayTime(gameData.play_time?.completionist)}`} 
+                icon="" 
+            />
             
             <div style={{display:'flex', flexDirection:'column', gap:'5px', minWidth:'250px', marginLeft:'10px', paddingLeft:'10px', borderLeft:'1px solid #444'}}>
                 <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#aaa'}}>
@@ -462,11 +446,7 @@ function ShopPage({ region }) {
                 </div>
                 
                 <style>{`
-                    .req-content {
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #acb2b8;
-                    }
+                    .req-content { font-size: 14px; line-height: 1.6; color: #acb2b8; }
                     .req-content ul { padding-left: 0; margin: 0; list-style: none; }
                     .req-content li { margin-bottom: 8px; }
                     .req-content strong { color: #66c0f4; font-weight: bold; margin-right: 6px; }
@@ -483,7 +463,6 @@ function ShopPage({ region }) {
             </div>
         </div>
 
-        {/* ★ 추가: 최근 본 게임 */}
         <div style={{ marginTop:'60px' }}>
           <h3 className="net-section-title">👀 최근 본 게임</h3>
           <RecentGames currentSlug={gameData.slug} />
