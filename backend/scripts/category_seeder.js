@@ -26,13 +26,7 @@ const MANUAL_CHZZK_MAPPING = {
 
 const MANUAL_TWITCH_MAPPING = {
     "Wallpaper Engine": { id: "491578", name: "Wallpaper Engine" },
-    "Street Fighter 30th Anniversary Collection": { id: "504461", name: "Street Fighter 30th Anniversary Collection" },
-    "The Henry Stickmin Collection": { id: "512820", name: "The Henry Stickmin Collection" },
-    "Castlevania Advance Collection": { id: "1547006883", name: "Castlevania Advance Collection" },
-    "Command & Conquer™ Remastered Collection": { id: "516629", name: "Command & Conquer Remastered Collection" },
-    "WRC 10 FIA World Rally Championship": { id: "1230656096", name: "WRC 10" },
-    "WRC 9 FIA World Rally Championship": { id: "518753", name: "WRC 9" },
-    "WRC Generations – The FIA WRC Official Game": { id: "1093566164", name: "WRC Generations" }
+    "Street Fighter 30th Anniversary Collection": { id: "504461", name: "Street Fighter 30th Anniversary Collection" }
 };
 
 if (!MONGODB_URI) { 
@@ -51,34 +45,13 @@ async function getTwitchToken() {
             params: { client_id: TWITCH_CLIENT_ID, client_secret: TWITCH_CLIENT_SECRET, grant_type: 'client_credentials' }
         });
         twitchToken = res.data.access_token;
-    } catch (e) { 
-        console.error("❌ Twitch Token 발급 실패:", e.message); 
-    }
+    } catch (e) {}
 }
 
 function buildTwitchBaseTitle(name) {
     if (!name) return "";
     let base = name.replace(/^\[.*?\]\s*/, "").replace(/[®™©]/g, "").replace(/\(.*?\)/g, "").trim();
     if (base.includes('+')) base = base.split('+')[0].trim();
-  
-    const editionWords = [
-      "complete edition", "game of the year edition", "game of the year", "goty edition", "goty",
-      "definitive edition", "remastered", "remaster", "hd remaster", "hd collection", "hd",
-      "legendary edition", "ultimate edition", "director's cut", "intergrade", "reload",
-      "reloaded edition", "anniversary edition", "special edition", "enhanced edition", "enhanced",
-      "steam edition", "windows edition", "collection", "trilogy"
-    ];
-  
-    const lower = base.toLowerCase();
-    for (const word of editionWords) {
-      const idx = lower.lastIndexOf(word);
-      if (idx !== -1) {
-        if (idx + word.length === lower.length || base[idx - 1] === ' ') {
-            base = base.slice(0, idx).trim();
-            break;
-        }
-      }
-    }
     return base.replace(/\s+/g, ' ').trim();
 }
 
@@ -90,16 +63,7 @@ async function searchTwitch(gameName, korTitleOptional) {
 
     const baseTitle = buildTwitchBaseTitle(gameName);
     const cleanName = gameName.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim(); 
-
-    const searchQueries = [
-        baseTitle,
-        gameName,
-        cleanName,
-        gameName.split(':')[0].trim(),
-        gameName.split('-')[0].trim(),
-        korTitleOptional 
-    ].filter(q => q && q.length >= 2); 
-
+    const searchQueries = [baseTitle, gameName, cleanName, gameName.split(':')[0].trim(), korTitleOptional].filter(q => q && q.length >= 2); 
     const uniqueQueries = [...new Set(searchQueries)]; 
 
     for (const query of uniqueQueries) {
@@ -111,18 +75,14 @@ async function searchTwitch(gameName, korTitleOptional) {
             const data = res.data?.data?.[0];
             if (data) return { id: data.id, name: data.name, boxArt: data.box_art_url };
         } catch (e) {
-            if (e.response && e.response.status === 401) {
-                await getTwitchToken(); 
-            } else if (e.response && e.response.status === 429) {
-                await sleep(2000); 
-            }
+            if (e.response && e.response.status === 401) await getTwitchToken(); 
+            else if (e.response && e.response.status === 429) await sleep(2000); 
         }
         await sleep(100); 
     }
     return null;
 }
 
-// ★ 테스트로 완벽히 검증된 정식 Open API 및 지능형 매칭 로직 탑재
 async function searchChzzk(gameName, korName) { 
     const manualSlug = MANUAL_CHZZK_MAPPING[gameName] || (korName && MANUAL_CHZZK_MAPPING[korName]);
     if (manualSlug) return { categoryValue: manualSlug, posterImageUrl: "" };
@@ -132,7 +92,6 @@ async function searchChzzk(gameName, korName) {
     if (CHZZK_CLIENT_ID && CHZZK_CLIENT_SECRET) {
         const cleanName = gameName.replace(/[-:™®©]/g, ' ').trim();
         const noSpecial = gameName.replace(/[^\w\s가-힣]/g, ' ').trim(); 
-        
         const searchTerms = [korName, gameName, cleanName, noSpecial].filter(n => n && n.length > 1);
         const uniqueTerms = [...new Set(searchTerms)];
 
@@ -146,30 +105,19 @@ async function searchChzzk(gameName, korName) {
                 const results = res.data?.content?.data || res.data?.data || [];
                 
                 if (results.length > 0) {
-                    // ★ 특수문자, 띄어쓰기 모두 무시하고 글자만 추출하여 완벽 비교
                     const normalize = (str) => str.replace(/[^\w가-힣0-9]/g, '').toLowerCase();
-                    
                     const exactMatch = results.find(r => 
                         normalize(r.categoryValue) === normalize(korName || "") || 
                         normalize(r.categoryValue) === normalize(gameName) ||
                         normalize(r.categoryValue) === normalize(cleanName)
                     );
-
-                    if (exactMatch) {
-                        return { categoryValue: exactMatch.categoryValue, posterImageUrl: exactMatch.imageUrl || "" };
-                    } else {
-                        // 일치 항목이 없으면 배열의 첫 번째 결과(가장 관련도 높은 값)로 보류 채택
-                        return { categoryValue: results[0].categoryValue, posterImageUrl: results[0].imageUrl || "" };
-                    }
+                    if (exactMatch) return { categoryValue: exactMatch.categoryValue, posterImageUrl: exactMatch.imageUrl || "" };
+                    else return { categoryValue: results[0].categoryValue, posterImageUrl: results[0].imageUrl || "" };
                 }
-            } catch (error) { 
-                // 에러 발생 시 조용히 넘어감
-            }
+            } catch (error) {}
             await sleep(100);
         }
     }
-    
-    // 검색 실패 시 최후의 보루 슬러그 반환
     if (inferredSlug.length > 0) return { categoryValue: inferredSlug, posterImageUrl: "" };
     return null;
 }
@@ -181,9 +129,7 @@ async function seedCategories() {
     const gamesToMap = await GameMetadata.find().select('steamAppId title').lean();
     console.log(`🎯 전체 대상 게임 수: ${gamesToMap.length}개`);
     
-    let processed = 0;
-    let skipped = 0;
-    let updated = 0;
+    let processed = 0, skipped = 0, updated = 0;
 
     for (const game of gamesToMap) {
         const steamId = game.steamAppId;
@@ -196,17 +142,14 @@ async function seedCategories() {
             const isFresh = exists.lastUpdated && (Date.now() - new Date(exists.lastUpdated).getTime() < 7 * 24 * 60 * 60 * 1000);
             const hasTwitch = exists.twitch && exists.twitch.id;
             
-            // 기존의 쓰레기 더미 슬러그 식별
             let isDummyChzzk = false;
             if (exists.chzzk && exists.chzzk.categoryValue) {
-                const val = exists.chzzk.categoryValue;
-                // 영문 대문자와 언더바로만 이루어졌는지 확인
-                isDummyChzzk = /^[A-Z_0-9]+$/.test(val);
+                isDummyChzzk = /^[A-Z_0-9]+$/.test(exists.chzzk.categoryValue);
             }
-            
             const hasValidChzzk = exists.chzzk && exists.chzzk.categoryValue && !isDummyChzzk;
 
-            if (isFresh && (hasTwitch || hasValidChzzk)) {
+            // ★ 버그 완벽 해결: ||(OR)를 &&(AND)로 변경. 치지직이 더미면 무조건 다시 수집함.
+            if (isFresh && hasTwitch && hasValidChzzk) {
                 skipped++;
                 continue;
             }
