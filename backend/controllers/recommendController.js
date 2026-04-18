@@ -1,7 +1,6 @@
 const Game = require('../models/Game');
 const User = require('../models/User');
 
-// 유틸리티 함수 임포트
 const { getQueryTags } = require('../utils/tagMapper');
 const { calculateSimilarity, gameToVector, userToVector } = require('../utils/vector');
 
@@ -28,7 +27,6 @@ class RecommendController {
       const userVec = userToVector(userLikedTags, userSteamGames);
       const hasUserContext = Object.keys(userVec).length > 0;
 
-      // 1-A. 유저 컨텍스트 존재 시 맞춤 추천 로직
       if (hasUserContext) {
         const candidateGames = await Game.find({
           "steam_reviews.overall.total": { $gte: 1000 },
@@ -45,8 +43,7 @@ class RecommendController {
         personalizedComprehensive = scoredGames.slice(0, 10);
       }
 
-      // 2. 데이터베이스 파이프라인 병렬 조회 (기존 5분류 로직 보존)
-      let [
+      const [
         defaultComprehensive,
         costEffective,
         trend,
@@ -57,7 +54,7 @@ class RecommendController {
           Game.find({ 
             "steam_reviews.overall.percent": { $gte: 90 }, 
             "steam_reviews.overall.total": { $gte: 5000 } 
-          }).sort({ "steam_reviews.overall.total": -1 }).limit(10).lean() 
+          }).sort({ "steam_reviews.overall.total": -1 }).limit(10).lean()
           : Promise.resolve([]),
 
         Game.find({ 
@@ -83,30 +80,29 @@ class RecommendController {
 
       const comprehensive = personalizedComprehensive.length > 0 ? personalizedComprehensive : defaultComprehensive;
 
-      // ★ 추가: 각 분류별로 추천 이유(reason)를 생성하여 맵핑
+      // ★ 추가: 유저의 스팀 기록과 태그를 기반으로 "추천 이유(Reason)"를 생성하여 주입
       const topPlayed = [...userSteamGames].sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
 
       const addReason = (game, defaultReason) => {
         let reason = defaultReason;
         if (topPlayed.length > 0 && game.smart_tags) {
            const match = topPlayed.find(tp => tp.smart_tags?.some(tag => game.smart_tags.includes(tag)));
-           if (match) reason = `스팀에서 즐기셨던 '${match.name}'와(과) 비슷한 장르입니다.`;
+           if (match) reason = `🎮 스팀에서 즐기신 '${match.name}'와(과) 비슷한 장르입니다.`;
         } else if (userLikedTags.length > 0 && game.smart_tags) {
            const commonTag = userLikedTags.find(t => game.smart_tags.includes(t));
-           if (commonTag) reason = `회원님의 관심 태그 #${commonTag} 분야의 게임입니다.`;
+           if (commonTag) reason = `🏷️ 관심 태그 #${commonTag} 분야의 게임입니다.`;
         }
         return { ...game, reason };
       };
 
-      // 3. 최종 데이터 조립
       return res.status(200).json({
         success: true,
         data: {
-          comprehensive: comprehensive.map(g => addReason(g, "회원님의 게임 취향과 높은 유사도를 보이는 추천작입니다.")),
-          costEffective: costEffective.map(g => addReason(g, "현재 높은 할인율 또는 압도적인 가성비를 자랑하는 명작입니다.")),
-          trend: trend.map(g => addReason(g, "현재 전 세계 게이머들이 가장 많이 플레이하고 있는 대세 게임입니다.")),
-          hiddenGem: hiddenGem.map(g => addReason(g, "아는 사람만 아는, 평가가 극도로 좋은 숨겨진 명작입니다.")),
-          multiplayer: multiplayer.map(g => addReason(g, "친구들이나 다른 게이머들과 함께 즐기기 좋은 게임입니다."))
+          comprehensive: comprehensive.map(g => addReason(g, "회원님의 게임 취향과 일치하는 맞춤형 추천작입니다.")),
+          costEffective: costEffective.map(g => addReason(g, "현재 높은 할인율을 자랑하는 가성비 훌륭한 게임입니다.")),
+          trend: trend.map(g => addReason(g, "현재 전 세계 게이머들이 가장 많이 즐기고 있는 대세 게임입니다.")),
+          hiddenGem: hiddenGem.map(g => addReason(g, "압도적인 긍정 평가를 받은 숨겨진 명작입니다.")),
+          multiplayer: multiplayer.map(g => addReason(g, "지인들과 멀티플레이로 즐기기 좋은 게임입니다."))
         }
       });
 
