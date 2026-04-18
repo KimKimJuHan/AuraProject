@@ -34,7 +34,9 @@ class RecommendController {
         }).limit(100).lean();
 
         const scoredGames = candidateGames.map(game => {
-          const gameVec = gameToVector(game.smart_tags || []);
+          // ★ 누락 복구 1: smart_tags가 비어있으면 원본 tags를 가져와서 억울하게 누락되는 게임 방지
+          const gameTags = (game.smart_tags && game.smart_tags.length > 0) ? game.smart_tags : (game.tags || []);
+          const gameVec = gameToVector(gameTags);
           const score = calculateSimilarity(userVec, gameVec);
           return { ...game, similarityScore: score };
         });
@@ -73,23 +75,32 @@ class RecommendController {
           "steam_reviews.overall.percent": { $gte: 90 } 
         }).sort({ "steam_reviews.overall.percent": -1 }).limit(10).lean(),
 
+        // ★ 누락 복구 2: 멀티플레이 검색 시 smart_tags뿐만 아니라 영문 tags도 찾아보도록 OR 조건 적용
         Game.find({ 
-          smart_tags: { $in: getQueryTags('멀티플레이').concat(getQueryTags('협동 캠페인')) } 
+          $or: [
+            { smart_tags: { $in: getQueryTags('멀티플레이').concat(getQueryTags('협동 캠페인')) } },
+            { tags: { $in: ['Multiplayer', 'Co-op', '멀티플레이', '협동'] } }
+          ]
         }).sort({ steam_ccu: -1 }).limit(10).lean()
       ]);
 
       const comprehensive = personalizedComprehensive.length > 0 ? personalizedComprehensive : defaultComprehensive;
 
-      // ★ 추가: 유저의 스팀 기록과 태그를 기반으로 "추천 이유(Reason)"를 생성하여 주입
+      // ★ 누락 복구 3: 추천 이유 생성 시에도 태그 증발 방어 로직 적용
       const topPlayed = [...userSteamGames].sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
 
       const addReason = (game, defaultReason) => {
         let reason = defaultReason;
-        if (topPlayed.length > 0 && game.smart_tags) {
-           const match = topPlayed.find(tp => tp.smart_tags?.some(tag => game.smart_tags.includes(tag)));
+        const gameTags = (game.smart_tags && game.smart_tags.length > 0) ? game.smart_tags : (game.tags || []);
+
+        if (topPlayed.length > 0 && gameTags.length > 0) {
+           const match = topPlayed.find(tp => {
+               const tpTags = (tp.smart_tags && tp.smart_tags.length > 0) ? tp.smart_tags : (tp.tags || []);
+               return tpTags.some(tag => gameTags.includes(tag));
+           });
            if (match) reason = `🎮 스팀에서 즐기신 '${match.name}'와(과) 비슷한 장르입니다.`;
-        } else if (userLikedTags.length > 0 && game.smart_tags) {
-           const commonTag = userLikedTags.find(t => game.smart_tags.includes(t));
+        } else if (userLikedTags.length > 0 && gameTags.length > 0) {
+           const commonTag = userLikedTags.find(t => gameTags.includes(t));
            if (commonTag) reason = `🏷️ 관심 태그 #${commonTag} 분야의 게임입니다.`;
         }
         return { ...game, reason };
