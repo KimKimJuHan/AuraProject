@@ -104,6 +104,30 @@ export default function ShopPage({ region }) {
   const [userIp, setUserIp] = useState('');
   const videoRef = useRef(null);
 
+    // 비디오 재생 버튼 클릭 시 동작
+  const handlePlayVideo = () => {
+    setIsPlaying(true);
+
+    requestAnimationFrame(() => {
+      const v = videoRef.current;
+      if (!v) return;
+
+      const p = v.play?.();
+      if (p?.catch) p.catch(() => {});
+    });
+  };
+
+  // Steam 리뷰 summary에 따른 글자색
+  const getReviewColor = (summary) => {
+    if (!summary || summary === "정보 없음") return "#aaa";
+
+    if (summary.includes("Positive")) return "#66c0f4";
+    if (summary.includes("Mixed")) return "#d29922";
+    if (summary.includes("Negative")) return "#ff7b72";
+
+    return "#aaa";
+  };
+
   useEffect(() => {
     const fetchDetails = async () => {
         try {
@@ -172,7 +196,7 @@ export default function ShopPage({ region }) {
 
   const handleVote = async (type) => {
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { type, identifier: userIp || 'unknown' });
+        const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`,{ type },{ withCredentials: true });
         setLikes(response.data.likes); setDislikes(response.data.dislikes); setMyVote(response.data.userVote); 
       } catch (error) { alert("투표 실패"); }
   };
