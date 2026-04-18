@@ -44,17 +44,9 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                     {tags.map(tag => {
                         const isSelected = selectedTags.includes(tag);
                         const isDisabled = hasSelection && !isSelected && !validTags.includes(tag);
-
                         return (
-                            <button 
-                                key={tag} 
-                                style={
-                                    isSelected ? styles.tagBtnActive : 
-                                    isDisabled ? styles.tagBtnDisabled : styles.tagBtn
-                                } 
-                                onClick={() => !isDisabled && onToggleTag(tag)}
-                                disabled={isDisabled}
-                            >
+                            <button key={tag} style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn} 
+                                onClick={() => !isDisabled && onToggleTag(tag)} disabled={isDisabled}>
                                 {tag}
                             </button>
                         );
@@ -65,7 +57,8 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
     );
 };
 
-function GameListItem({ game, currency }) {
+// ★ region 프롭스를 받아 정확한 환율 계산 수행
+function GameListItem({ game, region }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
   useEffect(() => {
@@ -84,17 +77,23 @@ function GameListItem({ game, currency }) {
   };
 
   const price = game.price_info || {};
+  const basePrice = price.current_price || 0;
   
-  const isKRW = currency === 'KRW';
-  const displayPrice = isKRW 
-      ? (price.current_price_krw !== undefined ? price.current_price_krw : price.current_price * 1350) 
-      : price.current_price;
-  
-  const isFree = price.isFree || displayPrice === 0;
-  
-  const currencySymbol = isKRW ? '₩' : '$';
-  const currentPriceText = isFree ? "무료" : (displayPrice !== undefined && displayPrice !== null ? `${currencySymbol}${displayPrice.toLocaleString()}` : "정보 없음");
-  
+  // 환율 계산 로직: 500 이상이면 원화(KRW)로 간주
+  const getPriceText = () => {
+      if (price.isFree || basePrice === 0) return "무료";
+      if (!basePrice) return "가격 정보 없음";
+      
+      const isBaseKRW = basePrice > 500;
+      const krwPrice = isBaseKRW ? basePrice : basePrice * 1350;
+      const usdPrice = isBaseKRW ? basePrice / 1350 : basePrice;
+
+      if (region === 'US') return `$${usdPrice.toFixed(2)}`;
+      if (region === 'JP') return `¥${Math.round(krwPrice / 9).toLocaleString()}`;
+      return `₩${Math.round(krwPrice).toLocaleString()}`;
+  };
+
+  const currentPriceText = getPriceText();
   const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
 
   return (
@@ -109,7 +108,7 @@ function GameListItem({ game, currency }) {
             <div className="net-card-title">{game.title_ko || game.title}</div>
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
-                    <span style={{color: isFree ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
+                    <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
                         {currentPriceText}
                     </span>
                 </div>
@@ -119,7 +118,7 @@ function GameListItem({ game, currency }) {
   );
 }
 
-function MainPage({ user }) {
+export default function MainPage({ user, region }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
@@ -128,21 +127,16 @@ function MainPage({ user }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true); 
   const [error, setError] = useState(null);
-  
-  const [currency, setCurrency] = useState('KRW');
 
   useEffect(() => {
-    setGames([]); 
-    setPage(1); 
-    setHasMore(true); 
+    setGames([]); setPage(1); setHasMore(true); 
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
     if (page > 1 && !hasMore) return;
     
     const fetchGames = async () => {
-        setLoading(true);
-        setError(null);
+        setLoading(true); setError(null);
         try {
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
@@ -152,9 +146,7 @@ function MainPage({ user }) {
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
             
-            if (data.validTags) {
-                setValidTags(data.validTags);
-            }
+            if (data.validTags) setValidTags(data.validTags);
 
             setGames(prev => {
                 if (page === 1) return data.games;
@@ -163,13 +155,11 @@ function MainPage({ user }) {
             });
             setHasMore(page < data.totalPages); 
         } catch (err) {
-            console.error(err);
             setError("서버와 연결할 수 없습니다.");
         } finally {
             setLoading(false);
         }
     };
-    
     fetchGames();
   }, [page, selectedTags, activeTab]); 
 
@@ -179,20 +169,6 @@ function MainPage({ user }) {
 
   return (
     <div className="net-panel">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
-        <select 
-            value={currency} 
-            onChange={(e) => setCurrency(e.target.value)}
-            style={{ 
-                backgroundColor: '#181818', color: '#fff', border: '1px solid #333', 
-                padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', outline: 'none' 
-            }}
-        >
-            <option value="KRW">🇰🇷 KRW (₩)</option>
-            <option value="USD">🇺🇸 USD ($)</option>
-        </select>
-      </div>
-
       <div style={styles.tabContainer}>
         {[{ k:'popular', n:'🔥 인기' }, { k:'new', n:'✨ 신규' }, { k:'discount', n:'💸 할인' }, { k:'price', n:'💰 낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
@@ -201,14 +177,7 @@ function MainPage({ user }) {
 
       <div style={styles.filterContainer}>
           {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-              <FilterCategoryBox 
-                key={category} 
-                title={category} 
-                tags={tags} 
-                selectedTags={selectedTags} 
-                onToggleTag={toggleTag} 
-                validTags={validTags} 
-              />
+              <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
           ))}
       </div>
       
@@ -223,7 +192,7 @@ function MainPage({ user }) {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => <GameListItem key={game.slug} game={game} currency={currency} />)}
+          {games.map(game => <GameListItem key={game.slug} game={game} region={region} />)}
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}
@@ -233,4 +202,3 @@ function MainPage({ user }) {
     </div>
   );
 }
-export default MainPage;
