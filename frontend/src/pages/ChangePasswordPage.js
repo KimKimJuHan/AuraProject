@@ -15,7 +15,6 @@ export default function ChangePasswordPage({ user }) {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  // 소셜 로그인 유저 판별 (naver_, google_, steam_ 접두사 기준)
   const isSocialUser = user.username.startsWith('naver_') || user.username.startsWith('google_') || user.username.startsWith('steam_');
 
   if (isSocialUser) {
