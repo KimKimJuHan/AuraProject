@@ -54,17 +54,12 @@ const InfoWithTooltip = ({ text, icon, tooltipText }) => {
     );
 };
 
-// ★ 과제 2: 플레이타임 영어/소수점을 한국어(O시간 O분)로 완벽하게 변환하는 유틸리티
 const formatPlayTime = (timeData) => {
     if (!timeData || timeData === "정보 없음") return "정보 없음";
-    
-    // API에서 넘어온 문자열에서 숫자와 소수점만 추출 ("47 Hours" -> 47.0)
     const num = parseFloat(String(timeData).replace(/[^0-9.]/g, ''));
     if (isNaN(num) || num === 0) return "정보 없음";
-
     const hours = Math.floor(num);
     const minutes = Math.round((num - hours) * 60);
-
     if (hours === 0) return `${minutes}분`;
     if (minutes === 0) return `${hours}시간`;
     return `${hours}시간 ${minutes}분`;
@@ -100,12 +95,15 @@ function getReviewColor(summary) {
 
 function RecentGames({ currentSlug }) {
   const [games, setGames] = useState([]);
+
   useEffect(() => {
     try {
       const data = JSON.parse(localStorage.getItem('recentGames') || '[]');
       const filtered = Array.isArray(data) ? data.filter(game => game && game.slug && game.slug !== currentSlug) : [];
       setGames(filtered.slice(0, 5));
-    } catch (e) { setGames([]); }
+    } catch (e) {
+      setGames([]);
+    }
   }, [currentSlug]);
 
   if (games.length === 0) return <div style={{ color: '#666' }}>최근 본 게임 없음</div>;
@@ -115,7 +113,9 @@ function RecentGames({ currentSlug }) {
       {games.map(game => (
         <a key={game.slug} href={`/game/${game.slug}`} style={{ minWidth:'150px', textDecoration:'none', color:'#fff', flexShrink:0 }}>
           <img src={game.main_image} alt={game.title} style={{ width:'150px', height:'84px', borderRadius:'4px', objectFit:'cover', display:'block', marginBottom:'6px' }} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
-          <div style={{ fontSize:'12px', color:'#ddd', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{game.title_ko || game.title}</div>
+          <div style={{ fontSize:'12px', color:'#ddd', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {game.title_ko || game.title}
+          </div>
         </a>
       ))}
     </div>
@@ -135,10 +135,7 @@ function ShopPage({ region }) {
   const [myVote, setMyVote] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [reqTab, setReqTab] = useState('minimum'); 
-  
-  // ★ 투표 버그 해결: 접속자의 IP를 상태로 저장하여 백엔드로 확실하게 전송
   const [userIp, setUserIp] = useState('');
-  
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -189,7 +186,7 @@ function ShopPage({ region }) {
             
             try {
                 const ipRes = await axios.get(`${API_BASE_URL}/api/user/ip`);
-                setUserIp(ipRes.data.ip); // IP 저장
+                setUserIp(ipRes.data.ip);
                 const myVoteData = data.votes?.find(v => v.identifier === ipRes.data.ip);
                 if(myVoteData) setMyVote(myVoteData.type);
             } catch(e) {}
@@ -204,7 +201,12 @@ function ShopPage({ region }) {
     try {
       const recent = JSON.parse(localStorage.getItem('recentGames') || '[]');
       const safeRecent = Array.isArray(recent) ? recent : [];
-      const recentGame = { slug: gameData.slug, title: gameData.title, title_ko: gameData.title_ko, main_image: gameData.main_image };
+      const recentGame = {
+        slug: gameData.slug,
+        title: gameData.title,
+        title_ko: gameData.title_ko,
+        main_image: gameData.main_image
+      };
       const updated = [recentGame, ...safeRecent.filter(g => g && g.slug !== gameData.slug)].slice(0, 6);
       localStorage.setItem('recentGames', JSON.stringify(updated));
     } catch (e) {}
@@ -222,27 +224,25 @@ function ShopPage({ region }) {
   const toggleWishlist = () => {
     const wishlistStr = safeLocalStorage.getItem('gameWishlist');
     const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
+    
     let newWishlist;
     if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
     else newWishlist = [...wishlist, gameData.slug];
+    
     safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
     setIsWishlisted(!isWishlisted);
   };
 
-  // ★ 투표 버그 해결: axios에 identifier(IP)를 같이 포장해서 전송
   const handleVote = async (type) => {
       try {
         const response = await axios.post(`${API_BASE_URL}/api/games/${id}/vote`, { 
-            type: type,
-            identifier: userIp || 'unknown' 
+            type,
+            identifier: userIp || 'unknown'
         });
         setLikes(response.data.likes);
         setDislikes(response.data.dislikes);
         setMyVote(response.data.userVote); 
-      } catch (error) { 
-        console.error("투표 오류:", error);
-        alert("투표 실패: 서버와 통신할 수 없습니다."); 
-      }
+      } catch (error) { alert("투표 실패"); }
   };
 
   const cleanHTML = (html) => DOMPurify.sanitize(html);
@@ -359,8 +359,6 @@ function ShopPage({ region }) {
         <div style={{display:'flex', gap:'10px', marginBottom:'40px', flexWrap:'wrap', alignItems:'center'}}>
             <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
             {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점 (메타크리틱)" icon="Ⓜ️" />}
-            
-            {/* ★ 플레이타임 한글 변환 로직 UI 적용 */}
             <InfoWithTooltip 
                 text={`⏳ 메인: ${formatPlayTime(gameData.play_time?.main || gameData.play_time?.raw || gameData.play_time)}`} 
                 tooltipText={`메인+서브: ${formatPlayTime(gameData.play_time?.extra)} | 완전 정복: ${formatPlayTime(gameData.play_time?.completionist)}`} 
@@ -446,7 +444,11 @@ function ShopPage({ region }) {
                 </div>
                 
                 <style>{`
-                    .req-content { font-size: 14px; line-height: 1.6; color: #acb2b8; }
+                    .req-content {
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #acb2b8;
+                    }
                     .req-content ul { padding-left: 0; margin: 0; list-style: none; }
                     .req-content li { margin-bottom: 8px; }
                     .req-content strong { color: #66c0f4; font-weight: bold; margin-right: 6px; }

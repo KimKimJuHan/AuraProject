@@ -18,7 +18,6 @@ import InquiryNewPage from './pages/Support/InquiryNewPage';
 import InquiryListPage from './pages/Support/InquiryListPage';
 import FaqPage from './pages/Support/FaqPage';
 
-
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
@@ -33,7 +32,6 @@ const styles = {
   authBtn: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '7px 15px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'none', fontSize: '14px' },
   userText: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
   recoBtn: { color: '#E50914', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', border: '1px solid #E50914', padding: '6px 12px', borderRadius: '4px' },
-
   suggestionGameRow: { display:'flex', alignItems:'center', gap:'10px', width:'100%' },
   suggestionThumb: { width:'56px', height:'32px', objectFit:'cover', borderRadius:'4px', flexShrink:0, backgroundColor:'#222', border:'1px solid #333' },
   suggestionTextWrap: { display:'flex', flexDirection:'column', minWidth:0, flex:1 },
@@ -44,7 +42,7 @@ const styles = {
   highlightText: { fontWeight: '800', color: '#fff' }
 };
 
-function NavigationBar({ user, setUser, region, setRegion }) {
+function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]); 
   const [history, setHistory] = useState([]); 
@@ -58,9 +56,7 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   useEffect(() => {
     const storedHistory = safeLocalStorage.getItem('gameSearchHistory');
     if (storedHistory) {
-      try { 
-        setHistory(JSON.parse(storedHistory)); 
-      } catch(e) {}
+      try { setHistory(JSON.parse(storedHistory)); } catch(e) {}
     }
   }, []);
 
@@ -75,18 +71,12 @@ function NavigationBar({ user, setUser, region, setRegion }) {
   }, []);
 
   const fetchSuggestions = async (query) => {
-    if (query.length < 1) { 
-      setSuggestions([]); 
-      return; 
-    }
+    if (query.length < 1) { setSuggestions([]); return; }
     try {
       const response = await apiClient.get(`/search/autocomplete?q=${query}`);
       setSuggestions(response.data || []);
       setSelectedIndex(-1); 
-    } catch (err) { 
-      console.error(err); 
-      setSuggestions([]);
-    }
+    } catch (err) { setSuggestions([]); }
   };
 
   const handleInputChange = (e) => {
@@ -140,99 +130,55 @@ function NavigationBar({ user, setUser, region, setRegion }) {
       e.preventDefault();
       if (selectedIndex >= 0) {
         const item = list[selectedIndex];
-        if (item.slug) {
-          handleSuggestionClick(item);
-        } else { 
-          setSearchTerm(item); 
-          navigate(`/search?q=${item}`);
-          setIsFocused(false);
-        }
-      } else { 
-        handleSubmit(e); 
-      }
+        if (item.slug) handleSuggestionClick(item);
+        else { setSearchTerm(item); navigate(`/search?q=${item}`); setIsFocused(false); }
+      } else { handleSubmit(e); }
     } else if (e.key === 'Escape') {
-      setIsFocused(false);
-      setSelectedIndex(-1);
+      setIsFocused(false); setSelectedIndex(-1);
     }
   };
   
   const handleClearHistory = () => {
-    setHistory([]);
-    safeLocalStorage.removeItem('gameSearchHistory');
-    setIsFocused(false);
-    navigate('/search');
+    setHistory([]); safeLocalStorage.removeItem('gameSearchHistory'); setIsFocused(false); navigate('/search');
   };
 
   const handleClear = () => {
-    setSearchTerm("");
-    setSuggestions([]);
-    setSelectedIndex(-1);
-    setIsFocused(true); 
+    setSearchTerm(""); setSuggestions([]); setSelectedIndex(-1); setIsFocused(true); 
   };
 
   const handleDeleteHistoryItem = (itemToDelete, e) => {
     e.stopPropagation();
     const newHistory = history.filter(h => h !== itemToDelete);
-    setHistory(newHistory);
-    safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
+    setHistory(newHistory); safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
   };
 
   const handleLogout = async () => {
     try {
       await apiClient.post('/auth/logout');
-      setUser(null);
-      alert("성공적으로 로그아웃 되었습니다.");
-      navigate('/');
-    } catch (error) {
-      console.error("로그아웃 실패", error);
-    }
+      setUser(null); alert("성공적으로 로그아웃 되었습니다."); navigate('/');
+    } catch (error) { console.error("로그아웃 실패", error); }
   };
 
   const highlightMatch = (text, keyword) => {
     if (!text) return null;
     if (!keyword || !keyword.trim()) return text;
-
-    const normalizedText = String(text);
-    const normalizedKeyword = String(keyword).trim();
-
-    const lowerText = normalizedText.toLowerCase();
-    const lowerKeyword = normalizedKeyword.toLowerCase();
+    const normalizedText = String(text); const normalizedKeyword = String(keyword).trim();
+    const lowerText = normalizedText.toLowerCase(); const lowerKeyword = normalizedKeyword.toLowerCase();
     const matchIndex = lowerText.indexOf(lowerKeyword);
-
     if (matchIndex === -1) return normalizedText;
-
     const before = normalizedText.slice(0, matchIndex);
     const match = normalizedText.slice(matchIndex, matchIndex + normalizedKeyword.length);
     const after = normalizedText.slice(matchIndex + normalizedKeyword.length);
-
-    return (
-      <>
-        {before}
-        <span style={styles.highlightText}>{match}</span>
-        {after}
-      </>
-    );
+    return <>{before}<span style={styles.highlightText}>{match}</span>{after}</>;
   };
 
   const renderSuggestionItem = (item, idx) => {
     const itemStyle = idx === selectedIndex ? styles.suggestionItemSelected : styles.suggestionItem;
-
     if (item.slug) {
       return (
-        <li
-          key={item.slug || idx}
-          style={itemStyle}
-          onMouseDown={() => handleSuggestionClick(item)}
-        >
+        <li key={item.slug || idx} style={itemStyle} onMouseDown={() => handleSuggestionClick(item)}>
           <div style={styles.suggestionGameRow}>
-            <img
-              src={item.main_image || "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"}
-              alt={item.title}
-              style={styles.suggestionThumb}
-              onError={(e) => {
-                e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image";
-              }}
-            />
+            <img src={item.main_image || "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} alt={item.title} style={styles.suggestionThumb} onError={(e) => { e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"; }} />
             <div style={styles.suggestionTextWrap}>
               <span style={styles.suggestionTitle}>{highlightMatch(item.title, searchTerm)}</span>
               {item.title_ko && <span style={styles.suggestionSubtitle}>{highlightMatch(item.title_ko, searchTerm)}</span>}
@@ -241,25 +187,11 @@ function NavigationBar({ user, setUser, region, setRegion }) {
         </li>
       );
     }
-
     return (
-      <li
-        key={`${item}-${idx}`}
-        style={itemStyle}
-        onMouseDown={() => { 
-          setSearchTerm(item); 
-          navigate(`/search?q=${item}`);
-          setIsFocused(false);
-        }}
-      >
+      <li key={`${item}-${idx}`} style={itemStyle} onMouseDown={() => { setSearchTerm(item); navigate(`/search?q=${item}`); setIsFocused(false); }}>
         <div style={styles.historyRow}>
           <span>{item}</span>
-          <span
-            onMouseDown={(e) => handleDeleteHistoryItem(item, e)}
-            style={styles.historyDelete}
-          >
-            ✕
-          </span>
+          <span onMouseDown={(e) => handleDeleteHistoryItem(item, e)} style={styles.historyDelete}>✕</span>
         </div>
       </li>
     );
@@ -267,33 +199,29 @@ function NavigationBar({ user, setUser, region, setRegion }) {
 
   const currentList = searchTerm.length > 0 ? suggestions : history;
 
+  // ★ 환율 연동의 핵심: Select 변경 시 onCurrencyChange 호출
+  const handleRegionChange = (e) => {
+    const selected = e.target.value;
+    setRegion(selected);
+    if (onCurrencyChange) {
+      const newCurrency = selected === 'KR' ? 'KRW' : 'USD';
+      onCurrencyChange(newCurrency);
+    }
+  };
+
   return (
     <header className="net-header">
       <Link to="/" className="net-logo">PLAY FOR YOU</Link>
 
       <div style={styles.searchContainer} ref={searchContainerRef}>
         <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            className="net-search-input"
-            placeholder="게임 검색..."
-            value={searchTerm}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
-          />
+          <input type="text" className="net-search-input" placeholder="게임 검색..." value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsFocused(true)} />
         </form>
-
         {searchTerm.length > 0 && <button onClick={handleClear} style={styles.clearButton}>✕</button>}
-        
         {isFocused && (
           <ul style={styles.suggestionsList}>
             {currentList.map((item, idx) => renderSuggestionItem(item, idx))}
-            {searchTerm.length === 0 && history.length > 0 && (
-              <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>
-                기록 삭제
-              </li>
-            )}
+            {searchTerm.length === 0 && history.length > 0 && <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>기록 삭제</li>}
           </ul>
         )}
       </div>
@@ -301,7 +229,8 @@ function NavigationBar({ user, setUser, region, setRegion }) {
       <div style={styles.rightGroup}>
         <Link to="/recommend/personal" style={styles.recoBtn}>🤖 게임 추천</Link>
         
-        <select style={styles.regionSelect} value={region} onChange={(e) => setRegion(e.target.value)}>
+        {/* ★ 환율 토글 */}
+        <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
           <option value="KR">🇰🇷 KRW</option>
           <option value="US">🇺🇸 USD</option>
           <option value="JP">🇯🇵 JPY</option>
@@ -328,12 +257,13 @@ function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
   const [loading, setLoading] = useState(true);
+  // ★ 초기 통화값 설정 및 전역 상태 관리
+  const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'KRW');
 
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
         const response = await apiClient.get('/auth/status');
-        console.log('AUTH_STATUS_RESPONSE', response.data);
         if (response.data.isAuthenticated) {
           setUser(response.data.user);
         } else {
@@ -349,6 +279,13 @@ function App() {
     checkAuthStatus();
   }, []);
 
+  // ★ 하위 컴포넌트(NavigationBar)에서 호출되어 MainPage에 이벤트를 쏴주는 함수
+  const handleCurrencyChange = (newCurrency) => {
+    localStorage.setItem('currency', newCurrency);
+    setCurrency(newCurrency);
+    window.dispatchEvent(new Event('currencyChanged')); 
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', backgroundColor: '#121212' }}>
@@ -360,9 +297,10 @@ function App() {
   return (
     <Router>
       <div className="net-app">
-        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} />
+        {/* NavigationBar에 onCurrencyChange 함수 전달 */}
+        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} onCurrencyChange={handleCurrencyChange} />
         <Routes>
-          <Route path="/" element={<MainPage region={region} user={user} />} />
+          <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
           <Route path="/game/:id" element={<ShopPage region={region} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
