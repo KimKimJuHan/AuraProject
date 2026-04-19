@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import axios from 'axios'; 
-import "../styles/Recommend.css"; 
-import { API_BASE_URL } from '../config'; 
-import { safeLocalStorage } from '../utils/storage'; 
+import axios from 'axios';
+import "../styles/Recommend.css";
+import { API_BASE_URL } from '../config';
+import { safeLocalStorage } from '../utils/storage';
 
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
@@ -23,18 +23,18 @@ function GameCard({ game }) {
         const wishlistStr = safeLocalStorage.getItem('gameWishlist');
         const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
         setIsWishlisted(wishlist.includes(game.slug));
-        setImgSrc(game.thumb || game.main_image || FALLBACK_IMAGE); 
+        setImgSrc(game.thumb || game.main_image || FALLBACK_IMAGE);
     }, [game.slug, game.thumb, game.main_image]);
 
     const toggleWishlist = (e) => {
         e.preventDefault();
         const wishlistStr = safeLocalStorage.getItem('gameWishlist');
         const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
-        
+
         let newWishlist;
         if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
         else newWishlist = [...wishlist, game.slug];
-        
+
         safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
         setIsWishlisted(!isWishlisted);
     };
@@ -42,7 +42,7 @@ function GameCard({ game }) {
     const isFree = game.price === "무료" || game.price_info?.isFree;
     const isUnknown = !game.price && !game.price_info;
     const rawPlaytime = game.playtime || "";
-    const showPlaytime = rawPlaytime !== "정보 없음" && !rawPlaytime.includes("Hours") && !rawPlaytime.includes("Story") && rawPlaytime.length < 10; 
+    const showPlaytime = rawPlaytime !== "정보 없음" && !rawPlaytime.includes("Hours") && !rawPlaytime.includes("Story") && rawPlaytime.length < 10;
 
     return (
         <Link to={`/game/${game.slug || `steam-${game.appid}`}`} className="game-card">
@@ -53,7 +53,7 @@ function GameCard({ game }) {
             </div>
             <div className="card-info">
                 <div className="game-title">{game.title_ko || game.title || game.name}</div>
-                
+
                 <div className="game-meta-row">
                     <span className="game-price" style={{
                         color: isFree ? '#46d369' : (isUnknown ? '#777' : '#fff'),
@@ -66,11 +66,20 @@ function GameCard({ game }) {
                     {showPlaytime && <span className="game-playtime">⏳ {game.playtime}</span>}
                 </div>
 
-                {/* ★ 핵심 추가: 백엔드에서 생성해준 추천 이유를 카드에 표시 */}
                 {game.reason && (
-                    <div style={{ fontSize: '11px', color: '#E50914', marginTop: '6px', marginBottom: '4px', fontWeight: 'bold', lineHeight: '1.3', wordBreak: 'keep-all' }}>
-                        💡 {game.reason}
-                    </div>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      color: '#da1721',
+                      marginTop: '6px',
+                      marginBottom: '6px',
+                      fontWeight: '500',
+                      lineHeight: '1.45',
+                      wordBreak: 'keep-all'
+                    }}
+                  >
+                    {game.reason}
+                  </div>
                 )}
             </div>
         </Link>
@@ -102,23 +111,24 @@ function RecoSection({ title, games }) {
 function PersonalRecoPage({ user }) {
   const [term, setTerm] = useState("");
   const [picked, setPicked] = useState(new Set());
-  const [validTags, setValidTags] = useState([]); 
-  
-  // ★ 백엔드 컨트롤러가 반환하는 5분류 데이터 구조와 일치시킴
+  const [validTags, setValidTags] = useState([]);
+
   const [data, setData] = useState({ comprehensive: [], costEffective: [], trend: [], hiddenGem: [], multiplayer: [] });
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  const [topGames, setTopGames] = useState([]);     
-  const [steamStatus, setSteamStatus] = useState('LOADING'); 
+  const [topGames, setTopGames] = useState([]);
+  const [steamStatus, setSteamStatus] = useState('LOADING');
   const [searchParams] = useSearchParams();
   const urlSteamId = searchParams.get('steamId');
+
+  const hasTagFilter = picked.size > 0;
 
   const checkSteamConnection = async () => {
     setSteamStatus('LOADING');
     try {
         const res = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
         if (res.data.linked === false) {
-            setSteamStatus('NOT_LINKED'); 
+            setSteamStatus('NOT_LINKED');
         } else if (res.data.error === "PRIVATE") {
             setSteamStatus('PRIVATE');
         } else {
@@ -134,7 +144,6 @@ function PersonalRecoPage({ user }) {
   useEffect(() => {
     if (user) checkSteamConnection();
     else setSteamStatus('GUEST');
-    // eslint-disable-next-line
   }, [user, urlSteamId]);
 
   useEffect(() => {
@@ -147,28 +156,47 @@ function PersonalRecoPage({ user }) {
               tags: Array.from(picked),
               term: term
           };
-          
-          // ★ 백엔드의 recommendController.js 라우터 주소에 맞게 수정
-          const res = await axios.post(`${API_BASE_URL}/api/recommend/reco`, payload, { withCredentials: true });
-          
-          if (res.data.success && res.data.data) {
-              setData(res.data.data);
-              if (res.data.validTags) setValidTags(res.data.validTags);
-              
-              if (!res.data.data.comprehensive?.length && !res.data.data.trend?.length && !res.data.data.costEffective?.length) {
-                  setErr("조건에 맞는 게임이 없습니다.");
-              }
+
+          const res = await axios.post(`${API_BASE_URL}/api/steam/reco`, payload, { withCredentials: true });
+
+          const responseData = res.data?.data || {
+            comprehensive: [],
+            costEffective: [],
+            trend: [],
+            hiddenGem: [],
+            multiplayer: []
+          };
+
+          setData(responseData);
+          if (Array.isArray(res.data?.validTags)) {
+            setValidTags(res.data.validTags);
           }
-        } catch (e) { setErr("데이터 로딩 실패"); } 
-        finally { setLoading(false); }
+
+          if (
+            !responseData.comprehensive?.length &&
+            !responseData.trend?.length &&
+            !responseData.costEffective?.length &&
+            !responseData.hiddenGem?.length &&
+            !responseData.multiplayer?.length
+          ) {
+              setErr("조건에 맞는 게임이 없습니다.");
+          }
+        } catch (e) {
+          setErr("데이터 로딩 실패");
+        } finally {
+          setLoading(false);
+        }
     };
+
     const timer = setTimeout(() => { fetchReco(); }, 500);
     return () => clearTimeout(timer);
-  }, [picked, term, user]); 
+  }, [picked, term, user]);
 
   const toggle = (t) => {
     const isSelected = picked.has(t);
-    if (picked.size > 0 && validTags.length > 0 && !validTags.includes(t) && !isSelected) return;
+    const shouldUseRestriction = picked.size >= 2 && validTags.length > 0;
+    if (shouldUseRestriction && !validTags.includes(t) && !isSelected) return;
+
     setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(t)) next.delete(t);
@@ -178,7 +206,7 @@ function PersonalRecoPage({ user }) {
   };
 
   const handleLinkSteam = () => { window.location.href = `${API_BASE_URL}/api/auth/steam?link=true`; };
-  
+
   const handleUnlinkSteam = async () => {
       if (!window.confirm("정말 연동을 해제하시겠습니까?")) return;
       try {
@@ -248,7 +276,7 @@ function PersonalRecoPage({ user }) {
         <div className="search-row">
           <input className="search-input" value={term} onChange={(e)=>setTerm(e.target.value)} placeholder="게임 제목 검색..." />
         </div>
-        
+
         <div className="tags-panel">
             {Object.entries(TAG_CATEGORIES).map(([group, list]) => (
                 <div className="tag-group" key={group}>
@@ -256,9 +284,15 @@ function PersonalRecoPage({ user }) {
                     <div className="tag-list">
                         {list.map(t => {
                             const isSelected = picked.has(t);
-                            const isDisabled = picked.size > 0 && validTags.length > 0 && !validTags.includes(t) && !isSelected;
+                            const shouldUseRestriction = picked.size >= 2 && validTags.length > 0;
+                            const isDisabled = shouldUseRestriction && !validTags.includes(t) && !isSelected;
                             return (
-                                <div key={t} className={`tag-chip ${isSelected ? 'on' : ''}`} onClick={() => toggle(t)} style={isDisabled ? { opacity: 0.3, cursor: 'not-allowed', backgroundColor: '#222', color: '#555', border: '1px solid #333' } : {}}>
+                                <div
+                                  key={t}
+                                  className={`tag-chip ${isSelected ? 'on' : ''}`}
+                                  onClick={() => !isDisabled && toggle(t)}
+                                  style={isDisabled ? { opacity: 0.3, cursor: 'not-allowed', backgroundColor: '#222', color: '#555', border: '1px solid #333' } : {}}
+                                >
                                     {t}
                                 </div>
                             );
@@ -274,12 +308,17 @@ function PersonalRecoPage({ user }) {
       ) : (
         <div className="result-panel">
             <h2>✨ 추천 결과</h2>
-            {/* ★ 변경점: 백엔드에서 받아온 5분류 데이터 맵핑 및 제목 변경 */}
+
             <RecoSection title="🌟 종합 추천 (맞춤형)" games={data.comprehensive} />
-            <RecoSection title="💰 가격 합리성 (가성비)" games={data.costEffective} />
             <RecoSection title="🔥 지금 뜨는 트렌드" games={data.trend} />
-            <RecoSection title="💎 숨겨진 명작" games={data.hiddenGem} />
             <RecoSection title="🤝 친구와 함께 (멀티플레이)" games={data.multiplayer} />
+
+            {!hasTagFilter && (
+              <>
+                <RecoSection title="💰 가격 합리성 (가성비)" games={data.costEffective} />
+                <RecoSection title="💎 숨겨진 명작" games={data.hiddenGem} />
+              </>
+            )}
         </div>
       )}
       {!loading && err && <div className="error-box">{err}</div>}
