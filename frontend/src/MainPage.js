@@ -30,8 +30,11 @@ const styles = {
 };
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
-    const [isOpen, setIsOpen] = useState(false); 
+    const [isOpen, setIsOpen] = useState(false);
     const hasSelection = selectedTags.length > 0;
+
+    // ★ 완화: 2개 이상 선택됐을 때만 제한
+    const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
 
     return (
         <div style={styles.filterBox}>
@@ -43,10 +46,14 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                 <div style={styles.filterContent}>
                     {tags.map(tag => {
                         const isSelected = selectedTags.includes(tag);
-                        const isDisabled = hasSelection && !isSelected && !validTags.includes(tag);
+                        const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
                         return (
-                            <button key={tag} style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn} 
-                                onClick={() => !isDisabled && onToggleTag(tag)} disabled={isDisabled}>
+                            <button
+                                key={tag}
+                                style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn}
+                                onClick={() => !isDisabled && onToggleTag(tag)}
+                                disabled={isDisabled}
+                            >
                                 {tag}
                             </button>
                         );
@@ -57,7 +64,6 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
     );
 };
 
-// ★ region 프롭스를 받아 정확한 환율 계산 수행
 function GameListItem({ game, region }) {
   const [isWishlisted, setIsWishlisted] = useState(false);
 
@@ -78,12 +84,11 @@ function GameListItem({ game, region }) {
 
   const price = game.price_info || {};
   const basePrice = price.current_price || 0;
-  
-  // 환율 계산 로직: 500 이상이면 원화(KRW)로 간주
+
   const getPriceText = () => {
       if (price.isFree || basePrice === 0) return "무료";
       if (!basePrice) return "가격 정보 없음";
-      
+
       const isBaseKRW = basePrice > 500;
       const krwPrice = isBaseKRW ? basePrice : basePrice * 1350;
       const usdPrice = isBaseKRW ? basePrice / 1350 : basePrice;
@@ -106,6 +111,20 @@ function GameListItem({ game, region }) {
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
+
+            <div
+              style={{
+                color:'#38bdf8',
+                fontSize:'12px',
+                marginTop:'6px',
+                marginBottom:'8px',
+                lineHeight:'1.4',
+                minHeight:'34px'
+              }}
+            >
+              {game.reason || '이 조건에 잘 맞아 추천'}
+            </div>
+
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
                     <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
@@ -123,20 +142,23 @@ export default function MainPage({ user, region }) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
   const [selectedTags, setSelectedTags] = useState([]);
-  const [validTags, setValidTags] = useState([]); 
+  const [validTags, setValidTags] = useState([]);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true); 
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setGames([]); setPage(1); setHasMore(true); 
+    setGames([]);
+    setPage(1);
+    setHasMore(true);
   }, [selectedTags, activeTab]);
 
   useEffect(() => {
     if (page > 1 && !hasMore) return;
-    
+
     const fetchGames = async () => {
-        setLoading(true); setError(null);
+        setLoading(true);
+        setError(null);
         try {
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
@@ -145,7 +167,7 @@ export default function MainPage({ user, region }) {
             });
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
-            
+
             if (data.validTags) setValidTags(data.validTags);
 
             setGames(prev => {
@@ -153,15 +175,16 @@ export default function MainPage({ user, region }) {
                 const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
                 return [...prev, ...newGames];
             });
-            setHasMore(page < data.totalPages); 
+            setHasMore(page < data.totalPages);
         } catch (err) {
             setError("서버와 연결할 수 없습니다.");
         } finally {
             setLoading(false);
         }
     };
+
     fetchGames();
-  }, [page, selectedTags, activeTab]); 
+  }, [page, selectedTags, activeTab]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -177,10 +200,17 @@ export default function MainPage({ user, region }) {
 
       <div style={styles.filterContainer}>
           {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-              <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
+              <FilterCategoryBox
+                key={category}
+                title={category}
+                tags={tags}
+                selectedTags={selectedTags}
+                onToggleTag={toggleTag}
+                validTags={validTags}
+              />
           ))}
       </div>
-      
+
       {selectedTags.length > 0 && (
         <div style={{marginBottom:'20px', color:'#b3b3b3', fontSize:'14px', textAlign:'right'}}>
             선택된 태그: <span style={{color:'white'}}>{selectedTags.join(', ')}</span>
@@ -196,7 +226,7 @@ export default function MainPage({ user, region }) {
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}
-      
+
       {!loading && !error && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
       {!loading && !error && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
     </div>
