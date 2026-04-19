@@ -46,6 +46,7 @@ services:
   certbot:
     image: certbot/certbot
     container_name: certbot
+    entrypoint: ""  # ★ 추가: certbot 내장 기본 명령어 무효화
     volumes:
       - ./nginx/certbot/conf:/etc/letsencrypt
       - ./nginx/certbot/www:/var/www/certbot
