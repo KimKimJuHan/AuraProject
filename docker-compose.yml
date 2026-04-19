@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  backend:
+  my-backend:
     build: 
       context: ./backend
       dockerfile: Dockerfile
@@ -14,7 +14,7 @@ services:
       - NODE_ENV=production
     restart: always
 
-  frontend:
+  my-frontend:
     build: 
       context: ./frontend
       dockerfile: Dockerfile
@@ -24,5 +24,29 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
     depends_on:
-      - backend
+      - my-backend
+    restart: always
+
+  my-nginx:
+    image: nginx:latest
+    container_name: my-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    depends_on:
+      - my-frontend
+      - my-backend
+    restart: always
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    command: "/bin/sh -c 'trap exit TERM; while :; do sleep 12h & wait $${!}; certbot renew; done;'"
     restart: always
