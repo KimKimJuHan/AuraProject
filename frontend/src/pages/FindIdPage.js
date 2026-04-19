@@ -47,7 +47,7 @@ export default function FindIdPage() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState('request');
-  const [maskedUsernames, setMaskedUsernames] = useState([]);
+  const [usernames, setUsernames] = useState([]);
   const [message, setMessage] = useState('');
 
   const sendOtp = async () => {
@@ -66,8 +66,9 @@ export default function FindIdPage() {
     setMessage('');
     try {
       const res = await apiClient.post('/auth/find-username/verify-otp', { email, code });
+      console.log(res.data);
       if (res.data?.success) {
-        setMaskedUsernames(res.data.maskedUsernames || []);
+        setUsernames(res.data.usernames || []);
         setMessage('인증이 완료되었습니다.');
       } else {
         setMessage(res.data?.message || '인증에 실패했습니다.');
@@ -116,11 +117,11 @@ export default function FindIdPage() {
 
         {message && <p style={{ marginTop: 12, color: '#bbb' }}>{message}</p>}
 
-        {maskedUsernames.length > 0 && (
+        {usernames.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <div style={{ color: '#bbb', marginBottom: 8 }}>가입된 아이디</div>
             <ul>
-              {maskedUsernames.map((u, idx) => (
+              {usernames.map((u, idx) => (
                 <li key={`${u}-${idx}`}>{u}</li>
               ))}
             </ul>
