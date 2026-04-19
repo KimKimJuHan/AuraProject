@@ -120,10 +120,9 @@ class AuthController {
 
             await Otp.deleteOne({ _id: otp._id });
 
-            const users = await User.find({ email }).select('username');
-            const maskedUsernames = users.map(u => this._maskUsername(u.username));
-
-            return res.json({ success: true, maskedUsernames });
+             const users = await User.find({ email }).select('username');
+            const usernames = users.map(u => u.username);
+            return res.json({ success: true, usernames });
         } catch (error) {
             console.error('아이디 찾기 OTP 검증 에러:', error);
             return res.status(500).json({ success: false, message: '서버 내부 에러가 발생했습니다.' });
