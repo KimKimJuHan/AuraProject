@@ -17,6 +17,7 @@ import MyPage from './pages/MyPage';
 import InquiryNewPage from './pages/Support/InquiryNewPage';
 import InquiryListPage from './pages/Support/InquiryListPage';
 import FaqPage from './pages/Support/FaqPage';
+import ProfileDropdown from './components/ProfileDropdown';
 
 const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
@@ -42,7 +43,7 @@ const styles = {
   highlightText: { fontWeight: '800', color: '#fff' }
 };
 
-function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange }) {
+function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, handleLogout }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]); 
   const [history, setHistory] = useState([]); 
@@ -152,13 +153,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange }) {
     setHistory(newHistory); safeLocalStorage.setItem('gameSearchHistory', JSON.stringify(newHistory));
   };
 
-  const handleLogout = async () => {
-    try {
-      await apiClient.post('/auth/logout');
-      setUser(null); alert("성공적으로 로그아웃 되었습니다."); navigate('/');
-    } catch (error) { console.error("로그아웃 실패", error); }
-  };
-
   const highlightMatch = (text, keyword) => {
     if (!text) return null;
     if (!keyword || !keyword.trim()) return text;
@@ -228,26 +222,14 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange }) {
 
       <div style={styles.rightGroup}>
         <Link to="/recommend/personal" style={styles.recoBtn}>🤖 게임 추천</Link>
-        
-        {/* ★ 환율 토글 */}
         <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
           <option value="KR">🇰🇷 KRW</option>
           <option value="US">🇺🇸 USD</option>
           <option value="JP">🇯🇵 JPY</option>
         </select>
-
         <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
-        <Link to="/support/faq" style={styles.compareLink}>🛎️ 고객센터</Link>
-        {user ? (
-          <>
-            <Link to="/mypage" style={styles.compareLink}>👤 마이페이지</Link>         
-            <span style={styles.userText}>{user.displayName || user.username}님</span>
-            {user.avatar && <img src={user.avatar} alt="profile" style={{width:'32px', height:'32px', borderRadius:'50%'}} />}
-            <button onClick={handleLogout} style={{...styles.authBtn, backgroundColor: '#333'}}>로그아웃</button>
-          </>
-        ) : (
-          <Link to="/login" style={styles.authBtn}>로그인</Link>
-        )}
+        {/* 여기에 드롭다운 */}
+        <ProfileDropdown user={user} onLogout={handleLogout} />
       </div>
     </header>
   );
@@ -286,6 +268,14 @@ function App() {
     window.dispatchEvent(new Event('currencyChanged')); 
   };
 
+  // 👇 로그아웃 함수 넘겨줌
+  const handleLogout = async () => {
+    try {
+      await apiClient.post('/auth/logout');
+      setUser(null); alert("성공적으로 로그아웃 되었습니다."); window.location.reload();
+    } catch (error) { console.error("로그아웃 실패", error); }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', backgroundColor: '#121212' }}>
@@ -297,8 +287,8 @@ function App() {
   return (
     <Router>
       <div className="net-app">
-        {/* NavigationBar에 onCurrencyChange 함수 전달 */}
-        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} onCurrencyChange={handleCurrencyChange} />
+        {/* NavigationBar에 onCurrencyChange 함수와 handleLogout 전달 */}
+        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} onCurrencyChange={handleCurrencyChange} handleLogout={handleLogout} />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
           <Route path="/game/:id" element={<ShopPage region={region} />} />
