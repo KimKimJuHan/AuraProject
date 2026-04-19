@@ -5,18 +5,13 @@ const mongoose = require('mongoose');
 const Game = require('../models/Game');
 const TrendHistory = require('../models/TrendHistory');
 const { authenticateToken } = require('../middleware/auth');
-<<<<<<< HEAD
 const { getQueryTags } = require('../utils/tagMapper'); 
 const recoController = require('../controllers/recoController'); // ★ 컨트롤러 연결 추가
-=======
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
 
 function escapeRegex(text = '') {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-<<<<<<< HEAD
-=======
 function normalizeTag(value = '') {
     return String(value)
         .trim()
@@ -201,7 +196,6 @@ function getWishlistReason(game) {
     return '관심 게임으로 저장해둔 추천 작품';
 }
 
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
 router.get('/search/autocomplete', async (req, res) => {
     try {
         const q = String(req.query.q || '').trim();
@@ -242,21 +236,10 @@ router.get('/games/:id', async (req, res) => {
                 game = await Game.findOne({ steam_appid: appId }).lean();
             }
         }
-<<<<<<< HEAD
         if (!game) game = await Game.findOne({ slug: id }).lean();
         
         if (!game) return res.status(404).json({ success: false, message: '게임을 찾을 수 없습니다.' });
-=======
 
-        if (!game) {
-            game = await Game.findOne({ slug: id }).lean();
-        }
-
-        if (!game) {
-            return res.status(404).json({ success: false, message: '게임을 찾을 수 없습니다.' });
-        }
-
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
         res.json(game);
     } catch (error) {
         console.error('Game Detail API Error:', error);
@@ -293,56 +276,13 @@ router.get('/games/:id/history', async (req, res) => {
     }
 });
 
-<<<<<<< HEAD
 // ★ 치명적 에러 원인 해결: 내 투표 내역 조회 API 라우터 추가
 router.get('/games/:id/myvote', recoController.getMyVote);
-=======
-router.post('/games/:id/vote', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { type } = req.body;
-        const userId = req.user._id.toString();
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
 
 // ★ 투표 처리 라우터 (컨트롤러로 위임하여 처리)
 router.post('/games/:id/vote', recoController.voteGame);
 
-<<<<<<< HEAD
 // 메인 추천 API + 검색 기능
-=======
-        if (!game) {
-            return res.status(404).json({ message: "게임을 찾을 수 없습니다." });
-        }
-
-        const existingVoteIndex = game.votes.findIndex(v => v.identifier === userId);
-
-        if (existingVoteIndex > -1) {
-            if (game.votes[existingVoteIndex].type === type) {
-                game.votes.splice(existingVoteIndex, 1);
-            } else {
-                game.votes[existingVoteIndex].type = type;
-            }
-        } else {
-            game.votes.push({ identifier: userId, type });
-        }
-
-        game.likes_count = game.votes.filter(v => v.type === 'like').length;
-        game.dislikes_count = game.votes.filter(v => v.type === 'dislike').length;
-
-        await game.save();
-
-        res.json({
-            likes: game.likes_count,
-            dislikes: game.dislikes_count,
-            userVote: game.votes.find(v => v.identifier === userId)?.type || null
-        });
-    } catch (error) {
-        console.error('Vote API Error:', error);
-        res.status(500).json({ message: '투표 처리 중 오류가 발생했습니다.' });
-    }
-});
-
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
 router.post('/recommend', async (req, res) => {
     try {
         const { tags = [], sortBy = 'popular', page = 1, searchQuery = '' } = req.body;
@@ -352,11 +292,7 @@ router.post('/recommend', async (req, res) => {
         const query = {};
 
         if (tags && tags.length > 0) {
-<<<<<<< HEAD
             query.smart_tags = { $in: tags.flatMap(t => getQueryTags(t)) }; // ★ 교집합($and) 버그를 합집합($in)으로 수정
-=======
-            query.$and = tags.map(tag => ({ smart_tags: { $in: safeGetQueryTags(tag) } }));
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
         }
 
         const trimmedQuery = String(searchQuery || '').trim();
@@ -366,7 +302,6 @@ router.post('/recommend', async (req, res) => {
             query.$or = [{ title: regex }, { title_ko: regex }, { slug: regex }];
         }
 
-<<<<<<< HEAD
         let sortOption = {};
         switch (sortBy) {
             case 'hype': sortOption = { trend_score: -1 }; break;
@@ -377,20 +312,7 @@ router.post('/recommend', async (req, res) => {
         }
 
         const games = await Game.find(query).sort(sortOption).skip(skip).limit(limit).lean();
-=======
-        const games = await Game.find(query)
-            .sort(
-                sortBy === 'hype' ? { trend_score: -1 } :
-                sortBy === 'new' ? { releaseDate: -1 } :
-                sortBy === 'discount' ? { 'price_info.discount_percent': -1 } :
-                sortBy === 'price' ? { 'price_info.current_price': 1 } :
-                { trend_score: -1 }
-            )
-            .skip(skip)
-            .limit(limit)
-            .lean();
 
->>>>>>> 22ff289cc2ae67dbf7592ccbd87e5402b9f27117
         const totalCount = await Game.countDocuments(query);
 
         const gamesWithReason = games.map(game => ({
