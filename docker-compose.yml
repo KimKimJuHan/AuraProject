@@ -6,8 +6,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: my-backend
-    ports:
-      - "8000:8000"
+    # 외부 노출 포트(8000:8000) 삭제 완료. Nginx만 내부망으로 접근 가능.
     env_file:
       - ./backend/.env
     environment:
@@ -19,8 +18,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: my-frontend
-    ports:
-      - "3000:3000"
+    # 외부 노출 포트(3000:3000) 삭제 완료. 개구멍 완전 차단.
     environment:
       - CHOKIDAR_USEPOLLING=true
       - HOST=0.0.0.0
@@ -32,8 +30,8 @@ services:
     image: nginx:latest
     container_name: my-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"   # 인터넷에 허용된 유일한 출입구
+      - "443:443" # 인터넷에 허용된 유일한 출입구 (보안 연결)
     volumes:
       - ./nginx/conf:/etc/nginx/conf.d
       - ./nginx/certbot/conf:/etc/letsencrypt
@@ -46,7 +44,7 @@ services:
   certbot:
     image: certbot/certbot
     container_name: certbot
-    entrypoint: ""  # ★ 추가: certbot 내장 기본 명령어 무효화
+    entrypoint: ""
     volumes:
       - ./nginx/certbot/conf:/etc/letsencrypt
       - ./nginx/certbot/www:/var/www/certbot
