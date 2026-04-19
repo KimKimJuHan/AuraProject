@@ -3,6 +3,7 @@ const Otp = require('../models/Otp');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto'); 
+const axios = require('axios'); // 스팀 API 통신을 위해 추가
 
 class AuthController {
     sendOtp = async (req, res) => {
@@ -48,6 +49,7 @@ class AuthController {
             if (existingUser) return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
 
             const hashedPassword = await bcrypt.hash(password, 10);
+            // 가입 시 기본 playerType은 User 모델 스키마에 정의된 '초심자'로 자동 설정됨
             const newUser = new User({ username, password: hashedPassword, email });
             await newUser.save();
             res.status(201).json({ success: true });
@@ -306,6 +308,48 @@ class AuthController {
         req.session.destroy(() => {
             res.clearCookie('connect.sid').json({ success: true });
         });
+    }
+
+    // ★ 새롭게 추가된 기능: 스팀 연동 시 게임 목록을 가져오고 유저 숙련도를 '심화' 또는 '초심자'로 업데이트합니다.
+    syncSteamGames = async (userId, steamId) => {
+        try {
+            const apiKey = process.env.STEAM_API_KEY;
+            const response = await axios.get(`http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/`, {
+                params: {
+                    key: apiKey,
+                    steamid: steamId,
+                    include_appinfo: true,
+                    format: 'json'
+                }
+            });
+
+            const games = response.data.response.games || [];
+
+            // 총 플레이타임 합산 (분 단위)
+            const totalPlaytimeMinutes = games.reduce((sum, game) => sum + (game.playtime_forever || 0), 0);
+
+            // 100시간(6000분) 이상이면 심화 유저, 아니면 초심자
+            const STANDARD_MINUTES = 6000;
+            const newPlayerType = totalPlaytimeMinutes >= STANDARD_MINUTES ? '심화' : '초심자';
+
+            const formattedGames = games.map(g => ({
+                appid: g.appid,
+                name: g.name,
+                playtime_forever: g.playtime_forever,
+                img_icon_url: g.img_icon_url
+            }));
+
+            // 유저 DB 업데이트 (스팀 게임 목록 + 새로 계산된 숙련도)
+            await User.findByIdAndUpdate(userId, {
+                steamGames: formattedGames,
+                playerType: newPlayerType
+            });
+
+            return { success: true, type: newPlayerType };
+        } catch (error) {
+            console.error("Steam Sync Error:", error);
+            throw error; // 에러는 상위 스팀 연동 라우터에서 처리하도록 던짐
+        }
     }
 }
 
