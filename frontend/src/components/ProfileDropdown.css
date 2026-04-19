@@ -1,0 +1,15 @@
+.profile-dropdown-menu {
+  font-size: 16px !important;
+  font-weight: bold;
+  color: #fff;
+  text-decoration: none;
+  display: block;
+  padding: 14px 22px;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.profile-dropdown-menu:visited { color: #fff; }
+.profile-dropdown-menu:active { color: #fff; }
