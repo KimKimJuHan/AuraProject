@@ -29,7 +29,10 @@ function MyPage({ user, setUser }) {
             if (wishlist.length > 0) {
                 const res = await axios.post(`${API_BASE_URL}/api/recommend/wishlist`, { slugs: wishlist }, { withCredentials: true });
                 setWishlistGames(res.data.games || []);
+            } else {
+                setWishlistGames([]);
             }
+
             const steamRes = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
             setSteamInfo(steamRes.data);
         } catch (e) { console.error("데이터 로드 실패:", e); }
@@ -41,8 +44,8 @@ function MyPage({ user, setUser }) {
             const response = await axios.delete(`${API_BASE_URL}/api/user/account`, { withCredentials: true });
             if (response.data.success) {
                 alert("계정이 성공적으로 삭제되었습니다.");
-                setUser(null); 
-                navigate('/'); 
+                setUser(null);
+                navigate('/');
             }
         } catch (error) { alert("계정 삭제 실패"); }
     };
@@ -51,14 +54,13 @@ function MyPage({ user, setUser }) {
         window.location.href = `${API_BASE_URL}/api/auth/steam`;
     };
 
-    // ★ 스팀 연동 해제 처리 로직
     const handleUnlinkSteam = async () => {
         if (!window.confirm("스팀 연동을 해제하시겠습니까? 보유 게임 기록이 제거됩니다.")) return;
         try {
             const response = await axios.delete(`${API_BASE_URL}/api/user/steam`, { withCredentials: true });
             if (response.data.message === "해제됨") {
                 alert("스팀 연동이 성공적으로 해제되었습니다.");
-                setSteamInfo({ linked: false, games: [] }); // UI 즉각 갱신
+                setSteamInfo({ linked: false, games: [] });
                 fetchData();
             }
         } catch (error) { alert("해제 처리에 실패했습니다."); }
@@ -72,7 +74,6 @@ function MyPage({ user, setUser }) {
             setCurrentTags([...currentTags, tag]);
         }
     };
-    
 
     const handleSaveTags = async () => {
         try {
@@ -82,31 +83,30 @@ function MyPage({ user, setUser }) {
             setIsEditingTags(false);
         } catch (error) { alert("태그 저장에 실패했습니다."); }
     };
+
     const handleSaveNickname = async () => {
-  const value = String(newDisplayName || '').trim();
-  if (!value) return alert('닉네임을 입력해주세요.');
-  if (value.length < 2 || value.length > 20) return alert('닉네임은 2~20자로 입력해주세요.');
+      const value = String(newDisplayName || '').trim();
+      if (!value) return alert('닉네임을 입력해주세요.');
+      if (value.length < 2 || value.length > 20) return alert('닉네임은 2~20자로 입력해주세요.');
 
-  try {
-    const res = await axios.patch(
-      `${API_BASE_URL}/api/user/me/displayName`,
-      { displayName: value },
-      { withCredentials: true }
-    );
+      try {
+        const res = await axios.patch(
+          `${API_BASE_URL}/api/user/me/displayName`,
+          { displayName: value },
+          { withCredentials: true }
+        );
 
-    // 서버가 업데이트된 user를 내려줌
-    const updatedUser = res.data;
+        const updatedUser = res.data;
 
-    setUser(updatedUser);
-    // 혹시 localStorage에도 user를 저장하는 구조면 같이 갱신
-    safeLocalStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        safeLocalStorage.setItem('user', JSON.stringify(updatedUser));
 
-    alert('닉네임이 변경되었습니다.');
-    setIsEditingNickname(false);
-  } catch (e) {
-    alert(e?.response?.data?.message || '닉네임 변경 실패');
-  }
-};
+        alert('닉네임이 변경되었습니다.');
+        setIsEditingNickname(false);
+      } catch (e) {
+        alert(e?.response?.data?.message || '닉네임 변경 실패');
+      }
+    };
 
     return (
         <div className="reco-container" style={{maxWidth:'1000px', margin:'40px auto', padding:'0 20px'}}>
@@ -116,67 +116,67 @@ function MyPage({ user, setUser }) {
                     계정 탈퇴
                 </button>
             </div>
-            
+
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px'}}>
                 <div className="search-panel">
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
                     <div style={{ marginBottom: '8px' }}>
-  <p style={{ margin: 0 }}>
-    <b>이름(닉네임):</b> {user?.displayName || user?.username}
-  </p>
+                      <p style={{ margin: 0 }}>
+                        <b>이름(닉네임):</b> {user?.displayName || user?.username}
+                      </p>
 
-  {isEditingNickname ? (
-    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-      <input
-        value={newDisplayName}
-        onChange={(e) => setNewDisplayName(e.target.value)}
-        placeholder="새 닉네임 (2~20자)"
-        style={{
-          flex: 1,
-          padding: '8px 10px',
-          borderRadius: '6px',
-          border: '1px solid #444',
-          background: '#111',
-          color: '#fff',
-        }}
-      />
-      <button
-        onClick={handleSaveNickname}
-        className="search-btn"
-        style={{ whiteSpace: 'nowrap' }}
-      >
-        저장
-      </button>
-      <button
-        onClick={() => {
-          setIsEditingNickname(false);
-          setNewDisplayName(user?.displayName || user?.username || '');
-        }}
-        className="search-btn"
-        style={{ backgroundColor: '#666', whiteSpace: 'nowrap' }}
-      >
-        취소
-      </button>
-    </div>
-  ) : (
-    <button
-      onClick={() => setIsEditingNickname(true)}
-      className="search-btn"
-      style={{ marginTop: '10px', backgroundColor: '#666' }}
-    >
-      닉네임 변경
-    </button>
-  )}
-</div>
+                      {isEditingNickname ? (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                          <input
+                            value={newDisplayName}
+                            onChange={(e) => setNewDisplayName(e.target.value)}
+                            placeholder="새 닉네임 (2~20자)"
+                            style={{
+                              flex: 1,
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              border: '1px solid #444',
+                              background: '#111',
+                              color: '#fff',
+                            }}
+                          />
+                          <button
+                            onClick={handleSaveNickname}
+                            className="search-btn"
+                            style={{ whiteSpace: 'nowrap' }}
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditingNickname(false);
+                              setNewDisplayName(user?.displayName || user?.username || '');
+                            }}
+                            className="search-btn"
+                            style={{ backgroundColor: '#666', whiteSpace: 'nowrap' }}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setIsEditingNickname(true)}
+                          className="search-btn"
+                          style={{ marginTop: '10px', backgroundColor: '#666' }}
+                        >
+                          닉네임 변경
+                        </button>
+                      )}
+                    </div>
                     <p><b>이메일:</b> {user?.email || "정보 없음"}</p>
                     <button
-  className="search-btn"
-  style={{ marginTop: '10px' }}
-  onClick={() => navigate('/change-password')}
->
-  비밀번호 변경
-</button>
+                      className="search-btn"
+                      style={{ marginTop: '10px' }}
+                      onClick={() => navigate('/change-password')}
+                    >
+                      비밀번호 변경
+                    </button>
                 </div>
 
                 <div className="search-panel">
@@ -185,7 +185,6 @@ function MyPage({ user, setUser }) {
                         <div>
                             <p style={{color:'#4CAF50'}}>✅ 연동 완료</p>
                             <p>보유 게임: {steamInfo.games.length}개</p>
-                            {/* ★ 맞춤 추천과 연동 해제 버튼 동시 배치 */}
                             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                                 <button onClick={() => navigate('/recommend/personal')} className="search-btn" style={{flex: 1}}>맞춤 추천 보기</button>
                                 <button onClick={handleUnlinkSteam} className="search-btn" style={{backgroundColor:'#e50914', flex: 1}}>연동 해제</button>
@@ -218,14 +217,14 @@ function MyPage({ user, setUser }) {
                         {AVAILABLE_TAGS.map(tag => {
                             const isSelected = currentTags.includes(tag);
                             return (
-                                <span 
-                                    key={tag} 
+                                <span
+                                    key={tag}
                                     onClick={() => toggleTag(tag)}
                                     style={{
                                         background: isSelected ? '#e50914' : '#333',
                                         color: isSelected ? '#fff' : '#888',
-                                        padding: '5px 12px', 
-                                        borderRadius: '15px', 
+                                        padding: '5px 12px',
+                                        borderRadius: '15px',
                                         fontSize: '13px',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s'
@@ -252,6 +251,21 @@ function MyPage({ user, setUser }) {
                             <img src={game.main_image} alt={game.title} style={{width:'100%', borderRadius:'4px'}} />
                             <div style={{padding:'10px'}}>
                                 <div style={{fontSize:'14px', fontWeight:'bold'}} className="text-truncate">{game.title_ko || game.title}</div>
+
+                                {game.reason && (
+                                  <div style={{
+                                    fontSize:'11px',
+                                    color:'#E50914',
+                                    marginTop:'6px',
+                                    marginBottom:'6px',
+                                    lineHeight:'1.3',
+                                    fontWeight:'bold',
+                                    wordBreak:'keep-all'
+                                  }}>
+                                    💡 {game.reason}
+                                  </div>
+                                )}
+
                                 <div style={{fontSize:'12px', color:'#e50914', marginTop:'5px'}}>
                                     {game.price_info?.current_price > 0 ? `${game.price_info.current_price.toLocaleString()}원` : '무료'}
                                 </div>
