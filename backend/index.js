@@ -1,30 +1,27 @@
-// 기존 구글 DNS 강제 설정은 주석 처리 또는 삭제됨 (로컬 충돌 방지)
-// const dns = require('dns');
-// dns.setServers(['8.8.8.8', '8.8.4.4']);
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
-const passport = require('passport');
+const passport = require('passport'); // ★ 정상 임포트 복구
 const SteamStrategy = require('passport-steam').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const NaverStrategy = require('passport-naver-v2').Strategy;
 const User = require('./models/User');
-const supportRoutes = require('./routes/support');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
+// 라우터 모음
 const authRoutes = require('./routes/auth');
-console.log('AUTH ROUTE LOADED FROM:', require.resolve('./routes/auth'));
 const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
+const supportRoutes = require('./routes/support');
+// ★ 새로 만든 알림 라우터 추가
+const notificationsRoutes = require('./routes/notifications');
 
-// 환율 업데이트 및 스케줄러 임포트
 const cron = require('node-cron');
 const updateExchangeRates = require('./scripts/exchange_updater');
 
@@ -37,13 +34,14 @@ const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 app.set('trust proxy', 1);
 
 app.use(cors({ 
-    origin: FRONTEND_URL, 
+    origin: [FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'], 
     credentials: true 
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use('/api/recommend', advancedRecoRoutes);
+
+// ★ 안전한 세션 설정 (충돌 방지)
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret_key_aura',
     resave: false,
@@ -57,10 +55,11 @@ app.use(session({
     }
 }));
 
+// ★ 패스포트 초기화 위치 보정
 app.use(passport.initialize());
 app.use(passport.session());
 
-// 1. Steam Strategy (조건부 실행)
+// 1. Steam Strategy 
 if (process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY) {
     try {
         passport.use(new SteamStrategy({
@@ -71,7 +70,6 @@ if (process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY) {
         }, async (req, identifier, profile, done) => {
             try {
                 const linkingUserId = req.session?.steamLinkingUserId;
-
                 if (linkingUserId) {
                     const user = await User.findById(linkingUserId);
                     if (user) {
@@ -81,7 +79,6 @@ if (process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY) {
                         return done(null, user);
                     }
                 }
-
                 let user = await User.findOne({ steamId: profile.id });
                 if (!user) {
                     user = await User.create({
@@ -104,7 +101,7 @@ if (process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY) {
     console.warn("⚠️ STEAM_API_KEY가 누락되어 스팀 연동을 비활성화합니다.");
 }
 
-// 2. Google Strategy (조건부 실행)
+// 2. Google Strategy 
 if (process.env.GOOGLE_CLIENT_ID) {
     passport.use(new GoogleStrategy({
         clientID: process.env.GOOGLE_CLIENT_ID,
@@ -119,17 +116,13 @@ if (process.env.GOOGLE_CLIENT_ID) {
 
             if (!user) {
                 let existingUserByEmail = await User.findOne({ email: googleEmail });
-                
                 if (existingUserByEmail && googleEmail !== 'no-email@google.com') {
                     existingUserByEmail.googleId = profile.id; 
                     if (!existingUserByEmail.avatar && googleAvatar) existingUserByEmail.avatar = googleAvatar;
                     await existingUserByEmail.save();
                     return done(null, existingUserByEmail);
                 }
-
-                user = await User.create({
-                    googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar
-                });
+                user = await User.create({ googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar });
             } else {
                 let isUpdated = false;
                 if (!user.displayName || user.displayName === user.username) { user.displayName = googleName; isUpdated = true; }
@@ -139,11 +132,9 @@ if (process.env.GOOGLE_CLIENT_ID) {
             return done(null, user);
         } catch (err) { return done(err); }
     }));
-} else {
-    console.warn("⚠️ GOOGLE_CLIENT_ID가 누락되어 구글 로그인을 비활성화합니다.");
 }
 
-// 3. Naver Strategy (조건부 실행)
+// 3. Naver Strategy 
 if (process.env.NAVER_CLIENT_ID) {
     passport.use(new NaverStrategy({
         clientID: process.env.NAVER_CLIENT_ID,
@@ -152,7 +143,6 @@ if (process.env.NAVER_CLIENT_ID) {
     }, async (accessToken, refreshToken, profile, done) => {
         try {
             let user = await User.findOne({ naverId: profile.id });
-            
             const responseData = (profile._json && profile._json.response) ? profile._json.response : (profile._json || {});
             const naverName = profile.displayName || profile.name || responseData.nickname || responseData.name || `네이버유저_${profile.id.substring(0, 4)}`;
             const naverEmail = (profile.emails && profile.emails.length > 0 && profile.emails[0].value) || profile.email || responseData.email || `naver_${profile.id}@no-email.com`;
@@ -160,17 +150,13 @@ if (process.env.NAVER_CLIENT_ID) {
 
             if (!user) {
                 let existingUserByEmail = await User.findOne({ email: naverEmail });
-                
                 if (existingUserByEmail && !naverEmail.includes('@no-email.com')) {
                     existingUserByEmail.naverId = profile.id; 
                     if (!existingUserByEmail.avatar && naverAvatar) existingUserByEmail.avatar = naverAvatar;
                     await existingUserByEmail.save();
                     return done(null, existingUserByEmail);
                 }
-
-                user = await User.create({
-                    naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar
-                });
+                user = await User.create({ naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar });
             } else {
                 let isUpdated = false;
                 if (!user.displayName || user.displayName === user.username) { user.displayName = naverName; isUpdated = true; }
@@ -180,8 +166,6 @@ if (process.env.NAVER_CLIENT_ID) {
             return done(null, user);
         } catch (err) { return done(err); }
     }));
-} else {
-    console.warn("⚠️ NAVER_CLIENT_ID가 누락되어 네이버 로그인을 비활성화합니다.");
 }
 
 passport.serializeUser((user, done) => {
@@ -205,18 +189,21 @@ if (process.env.MONGODB_URI) {
         .catch(err => console.error('❌ DB Error:', err));
 }
 
+// 라우터 마운트
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/recommend', advancedRecoRoutes);
 app.use('/api', recoRoutes);
 app.use('/api/steam', advancedRecoRoutes); 
 app.use('/api/advanced', advancedRecoRoutes); 
 app.use('/api/support', supportRoutes);
+// ★ 알림 라우터 마운트 (이 부분이 누락되어 프론트엔드에서 알림을 못 불러옵니다)
+app.use('/api/notifications', notificationsRoutes);
 
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
-// 매일 자정(00:00)에 환율 업데이트 크론 작업 실행
 cron.schedule('0 0 * * *', () => {
     console.log('[Cron] 자정 환율 업데이트 스케줄러 작동');
     updateExchangeRates();
