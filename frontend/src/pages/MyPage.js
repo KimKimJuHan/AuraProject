@@ -117,8 +117,8 @@ function MyPage({ user, setUser }) {
                 </button>
             </div>
 
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px'}}>
-                <div className="search-panel">
+            <div className="mypage-grid" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px'}}>
+                <div className="search-panel mypage-card">
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
                     <div style={{ marginBottom: '8px' }}>
@@ -179,7 +179,7 @@ function MyPage({ user, setUser }) {
                     </button>
                 </div>
 
-                <div className="search-panel">
+                <div className="search-panel mypage-card">
                     <h3>🎮 스팀 연동 상태</h3>
                     {steamInfo.linked ? (
                         <div>
@@ -213,7 +213,7 @@ function MyPage({ user, setUser }) {
                 </div>
 
                 {isEditingTags ? (
-                    <div style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                  <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
                         {AVAILABLE_TAGS.map(tag => {
                             const isSelected = currentTags.includes(tag);
                             return (
@@ -235,7 +235,7 @@ function MyPage({ user, setUser }) {
                         })}
                     </div>
                 ) : (
-                    <div style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                    <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
                         {currentTags.map(tag => (
                             <span key={tag} style={{background:'#333', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'#fff'}}>#{tag}</span>
                         ))}
