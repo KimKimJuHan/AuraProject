@@ -1,244 +1,155 @@
 const Game = require('../models/Game');
 const User = require('../models/User');
-
 const { calculateSimilarity, gameToVector, userToVector } = require('../utils/vector');
 
-function normalizeTag(value = '') {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[\s/_-]+/g, '');
+// [교정] 태그 검색을 가장 유연하게 만드는 정규식 생성기
+function getQueryTagsInternal(tag) {
+    const escaped = String(tag).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*');
+    // 시작(^)과 끝($)을 절대 넣지 마십시오. '2D'가 포함만 되어 있으면 다 잡아야 합니다.
+    return [new RegExp(escaped, 'i')]; 
 }
 
-const KOREAN_ALIAS_MAP = {
-  [normalizeTag('횡스크롤')]: '횡스크롤',
-  [normalizeTag('사이드뷰')]: '횡스크롤',
-  [normalizeTag('사이드스크롤')]: '횡스크롤',
-  [normalizeTag('오픈월드')]: '오픈 월드',
-  [normalizeTag('멀티')]: '멀티플레이',
-  [normalizeTag('멀티 플레이')]: '멀티플레이',
-  [normalizeTag('협동')]: '협동 캠페인',
-  [normalizeTag('협동플레이')]: '협동 캠페인',
-  [normalizeTag('탑뷰')]: '탑다운',
-  [normalizeTag('애니')]: '애니메이션',
-  [normalizeTag('경쟁pvp')]: '경쟁/PvP',
-  [normalizeTag('경쟁/pvp')]: '경쟁/PvP',
-  [normalizeTag('pvp')]: '경쟁/PvP'
-};
+const PERSONAL_TAG_POOL = [
+  'RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처',
+  '1인칭', '3인칭', '탑다운', '사이드뷰', '쿼터뷰', '픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', 
+  '애니메이션', '귀여운', '판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', 
+  '전쟁', '포스트아포칼립스', '오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', 
+  '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크'
+];
 
-const KOREAN_VARIANTS = {
-  '횡스크롤': ['횡스크롤', '사이드뷰', '사이드 스크롤'],
-  '오픈 월드': ['오픈 월드', '오픈월드'],
-  '멀티플레이': ['멀티플레이', '멀티 플레이', '멀티'],
-  '협동 캠페인': ['협동 캠페인', '협동', '협동플레이', '코옵'],
-  '탑다운': ['탑다운', '탑뷰'],
-  '애니메이션': ['애니메이션', '애니'],
-  '경쟁/PvP': ['경쟁/PvP', '경쟁PVP', 'PVP', 'PvP']
-};
-
-function createLooseRegex(tag = '') {
-  const escaped = String(tag)
-    .trim()
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\s+/g, '\\s*');
-
-  return new RegExp(`^${escaped}$`, 'i');
-}
-
-function safeGetQueryTags(inputTag) {
-  try {
-    const tagMapper = require('../utils/tagMapper');
-    if (tagMapper && typeof tagMapper.getQueryTags === 'function') {
-      return tagMapper.getQueryTags(inputTag);
-    }
-  } catch (e) {}
-
-  const normalizedInput = normalizeTag(inputTag);
-  const canonicalTag = KOREAN_ALIAS_MAP[normalizedInput] || inputTag;
-  const variants = KOREAN_VARIANTS[canonicalTag] || [];
-  const pool = new Set([inputTag, canonicalTag, ...variants]);
-
-  return Array.from(pool).map(createLooseRegex);
+function hasMatchedTag(gameTags = [], tag) {
+    const regexes = getQueryTagsInternal(tag);
+    return gameTags.some(t => regexes.some(regex => regex.test(String(t || ''))));
 }
 
 class RecommendController {
-  async getPersonalRecommendations(req, res) {
-    try {
-      const { userId, tags, term } = req.body;
-      let personalizedComprehensive = [];
-      
-      let userSelectedTags = Array.isArray(tags) ? tags : [];
-      let userLikedTagsFromDB = [];
-      let userSteamGames = [];
-      let userType = '초심자';
+    async getPersonalRecommendations(req, res) {
+        try {
+            const { userId, tags, term } = req.body;
+            const userSelectedTags = Array.isArray(tags) ? tags : [];
+            let userLikedTagsFromDB = [];
+            let userSteamGames = [];
+            let userType = 'beginner'; 
 
-      if (userId) {
-        const user = await User.findById(userId);
-        if (user) {
-          if (user.likedTags) userLikedTagsFromDB = user.likedTags;
-          if (user.steamGames) userSteamGames = user.steamGames;
-          if (user.playerType) userType = user.playerType;
+            if (userId) {
+                const user = await User.findById(userId);
+                if (user) {
+                    userLikedTagsFromDB = user.likedTags || [];
+                    userSteamGames = user.steamGames || [];
+                    userType = user.playerType || 'beginner';
+                }
+            }
+
+            const combinedTags = [...new Set([...userSelectedTags, ...userLikedTagsFromDB])];
+            const hasTags = combinedTags.length > 0;
+            const hasSteam = userSteamGames.length > 0;
+
+            let activeFactors = 2;
+            if (hasTags) activeFactors += 1;
+            if (hasSteam) activeFactors += 1;
+            const weightPerFactor = 100 / activeFactors;
+
+            // ★ 핵심 수정 1: 기본 쿼리에서 리뷰 수 제한을 대폭 완화 (500 -> 10)
+            // 태그를 선택했다는 것은 그 장르를 보고 싶다는 뜻이므로, 인디 게임도 보여줘야 합니다.
+            const candidateQuery = { 
+                "steam_reviews.overall.total": { $gte: 10 }, 
+                isAdult: { $ne: true } 
+            };
+
+            if (term && String(term).trim()) {
+                const keyword = String(term).trim();
+                candidateQuery.$or = [
+                    { title: { $regex: keyword, $options: 'i' } },
+                    { title_ko: { $regex: keyword, $options: 'i' } }
+                ];
+            }
+
+            // ★ 핵심 수정 2: 태그 필터링을 '포함' 개념으로 확장
+            if (userSelectedTags.length > 0) {
+                const tagRegexes = userSelectedTags.flatMap(t => getQueryTagsInternal(t));
+                candidateQuery.$and = candidateQuery.$and || [];
+                candidateQuery.$and.push({
+                    $or: [
+                        { smart_tags: { $in: tagRegexes } },
+                        { tags: { $in: tagRegexes } }
+                    ]
+                });
+            }
+
+            let candidateGames = await Game.find(candidateQuery).limit(400).lean();
+            
+            if (candidateGames.length === 0) {
+                return res.json({ success: true, data: { comprehensive: [], costEffective: [], trend: [], hiddenGem: [], multiplayer: [] }, validTags: [] });
+            }
+
+            const maxTrendScore = Math.max(...candidateGames.map(g => g.trend_score || g.steam_ccu || 0), 1);
+            const userTagVec = hasTags ? userToVector(combinedTags, []) : {};
+            const userSteamVec = hasSteam ? userToVector([], userSteamGames) : {};
+            const topPlayed = [...userSteamGames].sort((a, b) => b.playtime_forever - a.playtime_forever).slice(0, 5);
+
+            let personalizedComprehensive = candidateGames.map(game => {
+                const gTags = (game.smart_tags && game.smart_tags.length > 0) ? game.smart_tags : (game.tags || []);
+                const gameVec = gameToVector(gTags);
+
+                const reviewScore = game.steam_reviews?.overall?.percent || 0;
+                const trendScore = ((game.trend_score || game.steam_ccu || 0) / maxTrendScore) * 100;
+                const tagScore = hasTags ? calculateSimilarity(userTagVec, gameVec) * 100 : 0;
+                const steamScore = hasSteam ? calculateSimilarity(userSteamVec, gameVec) * 100 : 0;
+
+                let finalScore = (reviewScore * (weightPerFactor / 100)) + 
+                                 (trendScore * (weightPerFactor / 100)) + 
+                                 (hasTags ? (tagScore * (weightPerFactor / 100)) : 0) + 
+                                 (hasSteam ? (steamScore * (weightPerFactor / 100)) : 0);
+
+                if (userType === 'beginner') {
+                    if (gTags.some(t => ['소울라이크', '하드코어'].includes(t))) finalScore *= 0.7;
+                } else if (userType === 'streamer') {
+                    if (gTags.some(t => ['멀티', '트렌드'].includes(t))) finalScore *= 1.3;
+                }
+
+                const matchedTag = combinedTags.find(t => hasMatchedTag(gTags, t));
+                let reason = matchedTag ? `${matchedTag} 취향 저격 추천` : "유저 평가가 좋아 추천";
+                
+                return { ...game, finalScore, reason };
+            });
+
+            personalizedComprehensive.sort((a, b) => b.finalScore - a.finalScore);
+            personalizedComprehensive = personalizedComprehensive.slice(0, 10);
+
+            // 섹션별 쿼리에서도 candidateQuery(태그 필터 포함)를 재사용하여 일관성 유지
+            const [costEffective, trend, hiddenGem, multiplayer] = await Promise.all([
+                Game.find({ ...candidateQuery, $or: [{ "price_info.discount_percent": { $gte: 50 } }, { "price_info.current_price": { $lte: 10000, $gt: 0 } }], "steam_reviews.overall.percent": { $gte: 80 } }).sort({ "price_info.discount_percent": -1 }).limit(10).lean(),
+                Game.find({ ...candidateQuery, steam_ccu: { $gt: 0 } }).sort({ steam_ccu: -1 }).limit(10).lean(),
+                Game.find({ ...candidateQuery, "steam_reviews.overall.total": { $lt: 2000, $gt: 10 }, "steam_reviews.overall.percent": { $gte: 90 } }).sort({ "steam_reviews.overall.percent": -1 }).limit(10).lean(),
+                Game.find({ ...candidateQuery, $or: [{ smart_tags: { $in: [/멀티/, /협동/, /Multiplayer/, /Co-op/i] } }, { tags: { $in: [/멀티/, /협동/, /Multiplayer/, /Co-op/i] } }] }).sort({ steam_ccu: -1 }).limit(10).lean()
+            ]);
+
+            const allFetchedGames = [...personalizedComprehensive, ...costEffective, ...trend, ...hiddenGem, ...multiplayer];
+            const validSet = new Set();
+            allFetchedGames.forEach(game => {
+                const gTags = (game.smart_tags && game.smart_tags.length > 0) ? game.smart_tags : (game.tags || []);
+                PERSONAL_TAG_POOL.forEach(tag => {
+                    if (hasMatchedTag(gTags, tag)) validSet.add(tag);
+                });
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    comprehensive: personalizedComprehensive,
+                    costEffective: costEffective.map(g => ({ ...g, reason: "높은 할인율의 가성비 추천작" })),
+                    trend: trend.map(g => ({ ...g, reason: "현재 많은 게이머들이 플레이 중인 핫한 게임" })),
+                    hiddenGem: hiddenGem.map(g => ({ ...g, reason: "숨겨진 압도적 긍정 평가 명작" })),
+                    multiplayer: multiplayer.map(g => ({ ...g, reason: "친구들과 함께 즐기기 좋은 게임" }))
+                },
+                validTags: Array.from(validSet)
+            });
+
+        } catch (error) {
+            console.error("❌ 추천 엔진 에러:", error);
+            return res.status(500).json({ success: false, message: "서버 에러" });
         }
-      }
-
-      const combinedTags = [...new Set([...userSelectedTags, ...userLikedTagsFromDB])];
-
-      const hasTags = combinedTags.length > 0;
-      const hasSteam = userSteamGames.length > 0;
-
-      let activeFactors = 2;
-      if (hasTags) activeFactors += 1;
-      if (hasSteam) activeFactors += 1;
-
-      const weightPerFactor = 100 / activeFactors;
-
-      const candidateQuery = {
-        "steam_reviews.overall.total": { $gte: 500 },
-        isAdult: { $ne: true }
-      };
-
-      if (term && String(term).trim()) {
-        const keyword = String(term).trim();
-        candidateQuery.$or = [
-          { title: { $regex: keyword, $options: 'i' } },
-          { title_ko: { $regex: keyword, $options: 'i' } },
-          { slug: { $regex: keyword, $options: 'i' } }
-        ];
-      }
-
-      const candidateGames = await Game.find(candidateQuery).limit(200).lean();
-
-      const maxTrendScore = Math.max(...candidateGames.map(g => g.trend_score || g.steam_ccu || 0), 1);
-
-      const userTagVec = hasTags ? userToVector(combinedTags, []) : {};
-      const userSteamVec = hasSteam ? userToVector([], userSteamGames) : {};
-
-      const topPlayed = [...userSteamGames]
-        .sort((a, b) => b.playtime_forever - a.playtime_forever)
-        .slice(0, 5);
-
-      const scoredGames = candidateGames.map(game => {
-        const gameTags = (game.smart_tags && game.smart_tags.length > 0) ? game.smart_tags : (game.tags || []);
-        const gameVec = gameToVector(gameTags);
-
-        const reviewScore = game.steam_reviews?.overall?.percent || 0;
-        const trendScore = ((game.trend_score || game.steam_ccu || 0) / maxTrendScore) * 100;
-        const tagScore = hasTags ? calculateSimilarity(userTagVec, gameVec) * 100 : 0;
-        const steamScore = hasSteam ? calculateSimilarity(userSteamVec, gameVec) * 100 : 0;
-
-        const weightedReview = reviewScore * (weightPerFactor / 100);
-        const weightedTrend = trendScore * (weightPerFactor / 100);
-        const weightedTag = hasTags ? (tagScore * (weightPerFactor / 100)) : 0;
-        const weightedSteam = hasSteam ? (steamScore * (weightPerFactor / 100)) : 0;
-
-        let finalScore = weightedReview + weightedTrend + weightedTag + weightedSteam;
-
-        if (userType === '초심자') {
-          if (gameTags.some(t => ['소울라이크', '하드코어', '어려움'].includes(t))) {
-            finalScore *= 0.7;
-          }
-        } else if (userType === '심화') {
-          if (gameTags.some(t => ['복잡한', '전략적', '심화'].includes(t))) {
-            finalScore *= 1.2;
-          }
-        }
-
-        const matchedTag = combinedTags.find(t => gameTags.includes(t));
-        const matchedSteamGame = topPlayed.find(tp => {
-          const tpTags = (tp.smart_tags && tp.smart_tags.length > 0) ? tp.smart_tags : (tp.tags || []);
-          return tpTags.some(tag => gameTags.includes(tag));
-        });
-
-        const reasonCandidates = [
-          {
-            score: weightedReview,
-            text: reviewScore >= 90 ? '유저 평가가 매우 높아 추천' : '유저 평가가 좋아 추천'
-          },
-          {
-            score: weightedTrend,
-            text: '현재 트렌드 점수가 높아 추천'
-          }
-        ];
-
-        if (hasTags) {
-          reasonCandidates.push({
-            score: weightedTag,
-            text: matchedTag ? `${matchedTag} 취향과 잘 맞아서 추천` : '선호 태그와 잘 맞아서 추천'
-          });
-        }
-
-        if (hasSteam) {
-          reasonCandidates.push({
-            score: weightedSteam,
-            text: matchedSteamGame
-              ? `스팀에서 많이 즐기신 '${matchedSteamGame.name}'와 비슷해서 추천`
-              : '플레이 성향과 비슷해서 추천'
-          });
-        }
-
-        reasonCandidates.sort((a, b) => b.score - a.score);
-        const topReason = reasonCandidates[0]?.text || '종합 점수가 높아 추천';
-
-        return { ...game, finalScore, topReason };
-      });
-
-      scoredGames.sort((a, b) => b.finalScore - a.finalScore);
-      personalizedComprehensive = scoredGames.slice(0, 10);
-
-      const [
-        costEffective,
-        trend,
-        hiddenGem,
-        multiplayer
-      ] = await Promise.all([
-        Game.find({
-          $or: [
-            { "price_info.discount_percent": { $gte: 50 } },
-            { "price_info.current_price": { $lte: 10000, $gt: 0 } }
-          ],
-          "steam_reviews.overall.percent": { $gte: 80 },
-          isAdult: { $ne: true }
-        }).sort({ "price_info.discount_percent": -1 }).limit(10).lean(),
-
-        Game.find({ steam_ccu: { $gt: 0 }, isAdult: { $ne: true } })
-          .sort({ steam_ccu: -1 }).limit(10).lean(),
-
-        Game.find({
-          "steam_reviews.overall.total": { $lt: 1000, $gt: 50 },
-          "steam_reviews.overall.percent": { $gte: 90 },
-          isAdult: { $ne: true }
-        }).sort({ "steam_reviews.overall.percent": -1 }).limit(10).lean(),
-
-        Game.find({
-          $or: [
-            { smart_tags: { $in: safeGetQueryTags('멀티플레이').concat(safeGetQueryTags('협동 캠페인')) } },
-            { tags: { $in: ['Multiplayer', 'Co-op', '멀티플레이', '협동'] } }
-          ],
-          isAdult: { $ne: true }
-        }).sort({ steam_ccu: -1 }).limit(10).lean()
-      ]);
-
-      const addReason = (game, defaultReason) => ({
-        ...game,
-        reason: game.topReason || defaultReason
-      });
-
-      return res.status(200).json({
-        success: true,
-        data: {
-          comprehensive: personalizedComprehensive.map(g => addReason(g, "회원님의 데이터를 100점 만점으로 환산한 종합 분석 1위입니다.")),
-          costEffective: costEffective.map(g => addReason(g, "현재 높은 할인율을 자랑하는 가성비 추천작입니다.")),
-          trend: trend.map(g => addReason(g, "현재 전 세계 게이머들이 가장 많이 즐기고 있는 대세 게임입니다.")),
-          hiddenGem: hiddenGem.map(g => addReason(g, "압도적인 긍정 평가를 받은 숨겨진 명작입니다.")),
-          multiplayer: multiplayer.map(g => addReason(g, "친구들이나 다른 유저와 멀티플레이로 즐기기 좋은 게임입니다."))
-        }
-      });
-
-    } catch (error) {
-      console.error("❌ [RecommendController] 데이터 파이프라인 처리 중 에러 발생:", error);
-      return res.status(500).json({ error: "Server Error", message: error.message });
     }
-  }
 }
 
 module.exports = new RecommendController();
