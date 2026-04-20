@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
+import { formatPrice } from './utils/priceFormatter'; // ★ 가격 표시 유틸리티 임포트
 
-// ★ '난이도' 카테고리(초심자, 심화) 완전 삭제
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
@@ -14,7 +14,6 @@ const TAG_CATEGORIES = {
 
 const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
-  // ★ 이모티콘을 제거하고 텍스트만 깔끔하게 유지
   tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
   tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
@@ -81,24 +80,9 @@ function GameListItem({ game, region }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  const price = game.price_info || {};
-  const basePrice = price.current_price || 0;
-
-  const getPriceText = () => {
-      if (price.isFree || basePrice === 0) return "무료";
-      if (!basePrice) return "가격 정보 없음";
-
-      const isBaseKRW = basePrice > 500;
-      const krwPrice = isBaseKRW ? basePrice : basePrice * 1350;
-      const usdPrice = isBaseKRW ? basePrice / 1350 : basePrice;
-
-      if (region === 'US') return `$${usdPrice.toFixed(2)}`;
-      if (region === 'JP') return `¥${Math.round(krwPrice / 9).toLocaleString()}`;
-      return `₩${Math.round(krwPrice).toLocaleString()}`;
-  };
-
-  const currentPriceText = getPriceText();
-  const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
+  // ★ 가격 포매터 유틸리티 호출로 코드 최적화
+  const currentPriceText = formatPrice(game.price_info, region);
+  const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
 
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
@@ -111,16 +95,7 @@ function GameListItem({ game, region }) {
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
 
-            <div
-              style={{
-                color:'#38bdf8',
-                fontSize:'12px',
-                marginTop:'6px',
-                marginBottom:'8px',
-                lineHeight:'1.4',
-                minHeight:'34px'
-              }}
-            >
+            <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
               {game.reason || '이 조건에 잘 맞아 추천'}
             </div>
 
@@ -159,7 +134,6 @@ export default function MainPage({ user, region }) {
         setLoading(true);
         setError(null);
         
-        // ★ 백엔드 API 호출 시 유저의 playerType을 함께 넘겨주어 맞춤형 알고리즘을 타게 함
         const currentPlayerType = user?.playerType || 'beginner';
         
         try {
@@ -201,7 +175,6 @@ export default function MainPage({ user, region }) {
   return (
     <div className="net-panel">
       <div style={styles.tabContainer}>
-        {/* ★ 이모티콘을 모두 삭제하여 심플한 텍스트 탭 구성 */}
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
