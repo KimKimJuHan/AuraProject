@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from './config';
+import { formatPrice } from './utils/priceFormatter'; // ★ 가격 표시 유틸리티 임포트
 
 function ComparisonPage({ region, user }) {
   const [games, setGames] = useState([]);
@@ -45,6 +46,7 @@ function ComparisonPage({ region, user }) {
     return (game.title_ko || game.title || '').toLowerCase();
   };
 
+  // 정렬을 위한 내부 가격 계산 로직 (표시용 아님)
   const getGamePrice = (game) => {
     if (game.price_info?.isFree) return 0;
     if (typeof game.price_info?.current_price === 'number') return game.price_info.current_price;
@@ -153,12 +155,13 @@ function ComparisonPage({ region, user }) {
                 </p>
               )}
               
-              {/* 수정된 부분: steamPlayerCount -> steam_ccu */}
               <p style={{ fontSize: '14px', color: '#bbb', margin: '5px 0' }}>
                 🔥 동접자: {game.steam_ccu?.toLocaleString() || 0}명
               </p>
+              
+              {/* ★ 변경된 부분: 가격 표기를 방금 만든 전역 유틸리티로 통일 */}
               <p style={{ fontSize: '14px', color: '#bbb', margin: '5px 0' }}>
-                💰 가격: {game.price_info?.isFree ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : (game.price_overview?.final_formatted || '정보 없음'))}
+                💰 가격: {formatPrice(game.price_info, region)}
               </p>
 
               <Link to={`/game/${game.slug || game._id}`} style={{ display: 'block', textAlign: 'center', backgroundColor: '#333', color: '#fff', textDecoration: 'none', padding: '10px', borderRadius: '4px', marginTop: '15px', fontWeight: 'bold' }}>

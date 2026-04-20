@@ -36,7 +36,14 @@ const styles = {
   suggestionSubtitle: { color:'#888', fontSize:'12px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:'2px' },
   historyRow: { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' },
   historyDelete: { color:'#999', cursor:'pointer', fontSize:'14px', flexShrink:0 },
-  highlightText: { fontWeight: '800', color: '#fff' }
+  highlightText: { fontWeight: '800', color: '#fff' },
+  // ★ 알림 관련 스타일 추가
+  bellIcon: { background: 'none', border: 'none', color: '#fff', fontSize: '22px', cursor: 'pointer', position: 'relative' },
+  badge: { position: 'absolute', top: '-5px', right: '-5px', backgroundColor: '#E50914', color: '#fff', fontSize: '10px', fontWeight: 'bold', borderRadius: '50%', padding: '2px 6px' },
+  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: '#202020', border: '1px solid #444', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
+  notiItem: { padding: '12px 15px', borderBottom: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
+  notiTitle: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
+  notiMessage: { color: '#aaa', fontSize: '12px', lineHeight: '1.4' }
 };
 
 function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, handleLogout }) {
@@ -45,6 +52,11 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   const [history, setHistory] = useState([]); 
   const [isFocused, setIsFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  
+  // ★ 알림 상태 관리
+  const [notifications, setNotifications] = useState([]);
+  const [showNoti, setShowNoti] = useState(false);
+  const notiRef = useRef(null);
   
   const navigate = useNavigate(); 
   const debounceTimer = useRef(null); 
@@ -57,15 +69,38 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
     }
   }, []);
 
+  // ★ 유저가 로그인 상태일 때 알림 목록 가져오기
+  useEffect(() => {
+    if (user) {
+        apiClient.get('/notifications').then(res => {
+            if (res.data.success) setNotifications(res.data.notifications);
+        }).catch(e => console.error("알림 조회 실패", e));
+    } else {
+        setNotifications([]);
+    }
+  }, [user]);
+
+  // 바깥 클릭 시 모달(검색창, 알림창) 닫기
   useEffect(() => {
     function handleClickOutside(event) {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setIsFocused(false);
-      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) setIsFocused(false);
+      if (notiRef.current && !notiRef.current.contains(event.target)) setShowNoti(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleNotiClick = async () => {
+      setShowNoti(!showNoti);
+      // 알림창을 열 때 '안 읽은 알림'이 있다면 서버에 읽음 처리 요청
+      const unread = notifications.filter(n => !n.isRead);
+      if (!showNoti && unread.length > 0) {
+          try {
+              await apiClient.post('/notifications/read');
+              setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+          } catch(e) {}
+      }
+  };
 
   const fetchSuggestions = async (query) => {
     if (query.length < 1) { setSuggestions([]); return; }
@@ -198,6 +233,8 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
     }
   };
 
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
   return (
     <header className="net-header">
       <Link to="/" className="net-logo">PLAY FOR YOU</Link>
@@ -216,12 +253,41 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
       </div>
 
       <div style={styles.rightGroup}>
-        {/* ★ 기존에 있던 찜/비교, 추천 버튼을 제거하고 심플하게 유지 */}
         <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
           <option value="KR">🇰🇷 KRW</option>
           <option value="US">🇺🇸 USD</option>
           <option value="JP">🇯🇵 JPY</option>
         </select>
+
+        {/* ★ 알림 종 모양 배지 UI */}
+        {user && (
+            <div style={{ position: 'relative' }} ref={notiRef}>
+                <button style={styles.bellIcon} onClick={handleNotiClick}>
+                    🔔
+                    {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
+                </button>
+                {showNoti && (
+                    <div style={styles.notiDropdown}>
+                        {notifications.length === 0 ? (
+                            <div style={{ padding: '15px', color: '#999', textAlign: 'center', fontSize: '14px' }}>새로운 알림이 없습니다.</div>
+                        ) : (
+                            notifications.map(n => (
+                                <Link 
+                                    to={`/game/${n.gameSlug}`} 
+                                    key={n._id} 
+                                    style={{ ...styles.notiItem, backgroundColor: n.isRead ? '#202020' : '#2a2a2a' }}
+                                    onClick={() => setShowNoti(false)}
+                                >
+                                    <div style={styles.notiTitle}>{n.title}</div>
+                                    <div style={styles.notiMessage}>{n.message}</div>
+                                </Link>
+                            ))
+                        )}
+                    </div>
+                )}
+            </div>
+        )}
+
         <ProfileDropdown user={user} onLogout={handleLogout} />
       </div>
     </header>
