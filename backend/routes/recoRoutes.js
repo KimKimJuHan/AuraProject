@@ -6,17 +6,14 @@ const Game = require('../models/Game');
 const TrendHistory = require('../models/TrendHistory');
 const { authenticateToken } = require('../middleware/auth');
 const { getQueryTags } = require('../utils/tagMapper'); 
-const recoController = require('../controllers/recoController'); // ★ 컨트롤러 연결 추가
+const recoController = require('../controllers/recoController'); 
 
 function escapeRegex(text = '') {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function normalizeTag(value = '') {
-    return String(value)
-        .trim()
-        .toLowerCase()
-        .replace(/[\s/_-]+/g, '');
+    return String(value).trim().toLowerCase().replace(/[\s/_-]+/g, '');
 }
 
 const KOREAN_ALIAS_MAP = {
@@ -46,11 +43,7 @@ const KOREAN_VARIANTS = {
 };
 
 function createLooseRegex(tag = '') {
-    const escaped = String(tag)
-        .trim()
-        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        .replace(/\s+/g, '\\s*');
-
+    const escaped = String(tag).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*');
     return new RegExp(`^${escaped}$`, 'i');
 }
 
@@ -71,7 +64,6 @@ function safeGetQueryTags(inputTag) {
 }
 
 const MAIN_TAG_POOL = [
-    '초심자', '심화',
     'RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처',
     '1인칭', '3인칭', '쿼터뷰', '횡스크롤',
     '픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운',
@@ -84,7 +76,7 @@ function matchesMappedTag(gameTags = [], tag) {
     return gameTags.some(st => mapped.some(regex => regex.test(String(st || ''))));
 }
 
-function getMainRecommendationReason(game, sortBy = 'popular', selectedTags = []) {
+function getMainRecommendationReason(game, sortBy = 'popular', selectedTags = [], playerType = 'beginner') {
     const smartTags = Array.isArray(game.smart_tags) ? game.smart_tags : [];
     const discountPercent = Number(game.price_info?.discount_percent || 0);
     const currentPrice = Number(game.price_info?.current_price || 0);
@@ -98,79 +90,50 @@ function getMainRecommendationReason(game, sortBy = 'popular', selectedTags = []
 
     const reasonCandidates = [];
 
+    // ★ 수정: 과도한 가중치(10000점) 제거. 태그가 맞으면 점수를 '적절히' 올려서 상위권에 배치되도록만 유도
+    if (matchedTags.length > 0) {
+        reasonCandidates.push({
+            score: 1000 + (matchedTags.length * 100), 
+            text: matchedTags.length >= 2 ? `선택하신 [${matchedTags.slice(0, 2).join(', ')}] 취향에 잘 맞는 게임` : `선택하신 [${matchedTags[0]}] 취향 추천`
+        });
+    }
+
+    if (playerType === 'beginner' && steamCcu > 5000 && reviewPercent >= 80) {
+        reasonCandidates.push({ score: 500, text: '입문하기 좋은 대중적인 인기 게임이라 추천' });
+    } else if (playerType === 'streamer' && game.trend_score > 1000) {
+        reasonCandidates.push({ score: 500, text: '현재 방송 트렌드에 맞는 핫한 게임이라 추천' });
+    }
+
     switch (sortBy) {
         case 'discount':
             reasonCandidates.push({
                 score: 200 + discountPercent,
-                text: discountPercent >= 50
-                    ? `할인율 ${discountPercent}%로 가성비가 좋아 추천`
-                    : discountPercent > 0
-                    ? '할인 중인 작품이라 추천'
-                    : '가격 대비 만족도가 좋아 추천'
+                text: discountPercent >= 50 ? `할인율 ${discountPercent}%로 가성비가 좋아 추천` : discountPercent > 0 ? '할인 중인 작품이라 추천' : '가격 대비 만족도가 좋아 추천'
             });
             break;
-
         case 'price':
             reasonCandidates.push({
                 score: currentPrice === 0 ? 300 : Math.max(180, 220 - Math.min(currentPrice / 100, 120)),
-                text: currentPrice === 0
-                    ? '무료로 바로 즐길 수 있어 추천'
-                    : currentPrice > 0 && currentPrice <= 10000
-                    ? '가격 부담이 적어 추천'
-                    : '비교적 저렴하게 즐길 수 있어 추천'
+                text: currentPrice === 0 ? '무료로 바로 즐길 수 있어 추천' : currentPrice > 0 && currentPrice <= 10000 ? '가격 부담이 적어 추천' : '비교적 저렴하게 즐길 수 있어 추천'
             });
             break;
-
-        case 'new': {
+        case 'new': 
             const releaseScore = game.releaseDate ? Math.floor(new Date(game.releaseDate).getTime() / 10000000000) : 150;
-            reasonCandidates.push({
-                score: releaseScore,
-                text: '최근 출시작이라 추천'
-            });
+            reasonCandidates.push({ score: releaseScore, text: '최근 출시작이라 추천' });
             break;
-        }
-
         case 'hype':
             reasonCandidates.push({
                 score: 200 + Math.min(Math.floor(steamCcu / 100), 100),
                 text: steamCcu > 0 ? '현재 많은 유저가 플레이 중이라 추천' : '지금 주목받는 게임이라 추천'
             });
             break;
-
         case 'popular':
         default:
             reasonCandidates.push({
                 score: 150 + reviewPercent + Math.min(Math.floor(reviewTotal / 1000), 20),
-                text: reviewPercent >= 90 && reviewTotal >= 5000
-                    ? '평가가 매우 좋아 추천'
-                    : steamCcu > 0
-                    ? '현재 많은 유저가 플레이 중이라 추천'
-                    : '인기와 평가가 좋아 추천'
+                text: reviewPercent >= 90 && reviewTotal >= 5000 ? '평가가 매우 좋아 추천' : steamCcu > 0 ? '현재 많은 유저가 플레이 중이라 추천' : '인기와 평가가 좋아 추천'
             });
             break;
-    }
-
-    if (reviewPercent > 0) {
-        reasonCandidates.push({
-            score: reviewPercent + Math.min(Math.floor(reviewTotal / 2000), 10),
-            text: reviewPercent >= 90 ? '유저 평가가 매우 높아 추천' : '유저 평가가 좋아 추천'
-        });
-    }
-
-    if (steamCcu > 0) {
-        reasonCandidates.push({
-            score: Math.min(Math.floor(steamCcu / 500), 100),
-            text: '현재 플레이 인원이 많아 추천'
-        });
-    }
-
-    if (matchedTags.length > 0) {
-        reasonCandidates.push({
-            score: matchedTags.length * 12,
-            text: matchedTags.length >= 2
-                ? `${matchedTags.slice(0, 2).join(', ')} 취향과 잘 맞아서 추천`
-                : `${matchedTags[0]} 취향과 잘 맞아서 추천`
-        });
     }
 
     reasonCandidates.sort((a, b) => b.score - a.score);
@@ -276,23 +239,30 @@ router.get('/games/:id/history', async (req, res) => {
     }
 });
 
-// ★ 치명적 에러 원인 해결: 내 투표 내역 조회 API 라우터 추가
-router.get('/games/:id/myvote', recoController.getMyVote);
+if (recoController && typeof recoController.getMyVote === 'function') {
+    router.get('/games/:id/myvote', recoController.getMyVote);
+}
 
-// ★ 투표 처리 라우터 (컨트롤러로 위임하여 처리)
-router.post('/games/:id/vote', recoController.voteGame);
+if (recoController && typeof recoController.voteGame === 'function') {
+    router.post('/games/:id/vote', recoController.voteGame);
+}
 
-// 메인 추천 API + 검색 기능
 router.post('/recommend', async (req, res) => {
     try {
-        const { tags = [], sortBy = 'popular', page = 1, searchQuery = '' } = req.body;
+        const { tags = [], sortBy = 'popular', page = 1, searchQuery = '', playerType = 'beginner' } = req.body;
         const limit = 20;
         const currentPage = Number(page) || 1;
         const skip = (currentPage - 1) * limit;
-        const query = {};
+        
+        let query = { isAdult: { $ne: true } };
 
+        // 태그 필터링을 $all(엄격한 검색)에서 $in(가중치 기반 추천)으로 복구
         if (tags && tags.length > 0) {
-            query.smart_tags = { $in: tags.flatMap(t => getQueryTags(t)) }; // ★ 교집합($and) 버그를 합집합($in)으로 수정
+            let mappedTags = [];
+            tags.forEach(tag => {
+                mappedTags = mappedTags.concat(getQueryTags(tag));
+            });
+            query.smart_tags = { $in: mappedTags };
         }
 
         const trimmedQuery = String(searchQuery || '').trim();
@@ -303,21 +273,59 @@ router.post('/recommend', async (req, res) => {
         }
 
         let sortOption = {};
+        
+        if (playerType === 'beginner') {
+            sortOption = { steam_ccu: -1, "steam_reviews.overall.total": -1 };
+        } else if (playerType === 'streamer') {
+            sortOption = { trend_score: -1, releaseDate: -1 };
+        } else {
+            sortOption = { steam_ccu: -1 };
+        }
+
         switch (sortBy) {
             case 'hype': sortOption = { trend_score: -1 }; break;
             case 'new': sortOption = { releaseDate: -1 }; break;
             case 'discount': sortOption = { 'price_info.discount_percent': -1 }; break;
             case 'price': sortOption = { 'price_info.current_price': 1 }; break;
-            default: sortOption = { trend_score: -1 }; break;
+            case 'popular': break; 
         }
 
-        const games = await Game.find(query).sort(sortOption).skip(skip).limit(limit).lean();
+        let games = [];
+
+        if (tags && tags.length > 0) {
+            let candidateGames = await Game.find(query).lean();
+            let mappedTags = [];
+            tags.forEach(tag => { mappedTags = mappedTags.concat(getQueryTags(tag)); });
+
+            candidateGames = candidateGames.map(game => {
+                const matchCount = (game.smart_tags || []).filter(t => mappedTags.includes(t)).length;
+                return { ...game, matchCount };
+            });
+            
+            candidateGames.sort((a, b) => {
+                if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount; 
+                
+                if (sortBy === 'popular' || !sortBy) {
+                    if (playerType === 'streamer') return (b.trend_score || 0) - (a.trend_score || 0);
+                    return (b.steam_ccu || 0) - (a.steam_ccu || 0);
+                }
+                if (sortBy === 'discount') return (b.price_info?.discount_percent || 0) - (a.price_info?.discount_percent || 0);
+                if (sortBy === 'price') return (a.price_info?.current_price || 0) - (b.price_info?.current_price || 0);
+                if (sortBy === 'new') return new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0);
+                if (sortBy === 'hype') return (b.trend_score || 0) - (a.trend_score || 0);
+                return 0;
+            });
+
+            games = candidateGames.slice(skip, skip + limit);
+        } else {
+            games = await Game.find(query).sort(sortOption).skip(skip).limit(limit).lean();
+        }
 
         const totalCount = await Game.countDocuments(query);
 
         const gamesWithReason = games.map(game => ({
             ...game,
-            reason: getMainRecommendationReason(game, sortBy, tags)
+            reason: getMainRecommendationReason(game, sortBy, tags, playerType)
         }));
 
         const validSet = new Set();
@@ -333,7 +341,7 @@ router.post('/recommend', async (req, res) => {
         res.json({
             success: true,
             games: gamesWithReason,
-            totalPages: Math.ceil(totalCount / limit),
+            totalPages: Math.ceil(totalCount / limit) || 1,
             currentPage,
             validTags: Array.from(validSet)
         });

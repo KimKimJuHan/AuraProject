@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
+import { formatPrice } from './utils/priceFormatter'; // ★ 가격 표시 유틸리티 임포트
 
 const TAG_CATEGORIES = {
-  '난이도': ['초심자', '심화'],
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
   '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
@@ -32,8 +32,6 @@ const styles = {
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
     const [isOpen, setIsOpen] = useState(false);
     const hasSelection = selectedTags.length > 0;
-
-    // ★ 완화: 2개 이상 선택됐을 때만 제한
     const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
 
     return (
@@ -82,24 +80,9 @@ function GameListItem({ game, region }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  const price = game.price_info || {};
-  const basePrice = price.current_price || 0;
-
-  const getPriceText = () => {
-      if (price.isFree || basePrice === 0) return "무료";
-      if (!basePrice) return "가격 정보 없음";
-
-      const isBaseKRW = basePrice > 500;
-      const krwPrice = isBaseKRW ? basePrice : basePrice * 1350;
-      const usdPrice = isBaseKRW ? basePrice / 1350 : basePrice;
-
-      if (region === 'US') return `$${usdPrice.toFixed(2)}`;
-      if (region === 'JP') return `¥${Math.round(krwPrice / 9).toLocaleString()}`;
-      return `₩${Math.round(krwPrice).toLocaleString()}`;
-  };
-
-  const currentPriceText = getPriceText();
-  const discount = price.discount_percent > 0 ? `-${price.discount_percent}%` : null;
+  // ★ 가격 포매터 유틸리티 호출로 코드 최적화
+  const currentPriceText = formatPrice(game.price_info, region);
+  const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
 
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
@@ -112,16 +95,7 @@ function GameListItem({ game, region }) {
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
 
-            <div
-              style={{
-                color:'#38bdf8',
-                fontSize:'12px',
-                marginTop:'6px',
-                marginBottom:'8px',
-                lineHeight:'1.4',
-                minHeight:'34px'
-              }}
-            >
+            <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
               {game.reason || '이 조건에 잘 맞아 추천'}
             </div>
 
@@ -159,11 +133,19 @@ export default function MainPage({ user, region }) {
     const fetchGames = async () => {
         setLoading(true);
         setError(null);
+        
+        const currentPlayerType = user?.playerType || 'beginner';
+        
         try {
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
+                body: JSON.stringify({ 
+                    tags: selectedTags, 
+                    sortBy: activeTab, 
+                    page,
+                    playerType: currentPlayerType
+                })
             });
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
@@ -184,7 +166,7 @@ export default function MainPage({ user, region }) {
     };
 
     fetchGames();
-  }, [page, selectedTags, activeTab]);
+  }, [page, selectedTags, activeTab, user]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -193,7 +175,7 @@ export default function MainPage({ user, region }) {
   return (
     <div className="net-panel">
       <div style={styles.tabContainer}>
-        {[{ k:'popular', n:'🔥 인기' }, { k:'new', n:'✨ 신규' }, { k:'discount', n:'💸 할인' }, { k:'price', n:'💰 낮은 가격' }].map(t => (
+        {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
       </div>

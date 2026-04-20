@@ -7,13 +7,6 @@ import { API_BASE_URL } from './config';
 import { safeLocalStorage } from './utils/storage';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
-const REVIEW_KO_MAP = {
-    "Overwhelmingly Positive": "압도적으로 긍정적", "Very Positive": "매우 긍정적", "Positive": "긍정적",
-    "Mostly Positive": "대체로 긍정적", "Mixed": "복합적", "Mostly Negative": "대체로 부정적",
-    "Negative": "부정적", "Very Negative": "매우 부정적", "Overwhelmingly Negative": "압도적으로 부정적",
-    "정보 없음": "정보 없음"
-};
-
 const styles = {
   buyButton: { display: 'inline-block', padding: '12px 30px', backgroundColor: '#E50914', color: '#FFFFFF', textDecoration: 'none', borderRadius: '4px', fontSize: '18px', border: 'none', cursor: 'pointer', fontWeight: 'bold' },
   wishlistButton: { padding: '10px 20px', fontSize: '16px', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', borderRadius: '4px', fontWeight: 'bold' },
@@ -37,7 +30,6 @@ const styles = {
   reqTabButtonActive: { flex: 1, padding: '10px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: '2px solid #E50914', color: '#fff', fontWeight: 'bold', fontSize: '16px' }
 };
 
-// 마우스 오버 툴팁 UI
 const InfoWithTooltip = ({ text, icon, tooltipText }) => {
     const [hover, setHover] = useState(false);
     return (
@@ -48,29 +40,32 @@ const InfoWithTooltip = ({ text, icon, tooltipText }) => {
     );
 };
 
-// 플레이타임 문자열/객체 완벽 변환기
+// 플레이타임 문자열 정규식 파서 고도화
 const formatPlayTime = (timeData) => {
     if (!timeData || timeData === "정보 없음") return "정보 없음";
     
     let val = timeData;
-    if (typeof timeData === 'object') {
+    if (typeof timeData === 'object' && timeData !== null) {
         val = timeData.main || timeData.raw || timeData.extra || "정보 없음";
     }
     
-    if (val === "정보 없음") return "정보 없음";
+    if (!val || val === "정보 없음") return "정보 없음";
 
-    const num = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+    const match = String(val).match(/\d+(\.\d+)?/);
+    if (!match) return "정보 없음";
+
+    const num = parseFloat(match[0]);
     if (isNaN(num) || num === 0) return "정보 없음";
     
     const hours = Math.floor(num);
     const minutes = Math.round((num - hours) * 60);
+    
     if (hours === 0 && minutes === 0) return "정보 없음";
     if (hours === 0) return `${minutes}분`;
     if (minutes === 0) return `${hours}시간`;
     return `${hours}시간 ${minutes}분`;
 };
 
-// 할인 종료 카운트다운 훅
 function useCountdown(expiryTimestamp) {
   const [timeLeft, setTimeLeft] = useState(null);
   useEffect(() => {
@@ -90,7 +85,6 @@ function useCountdown(expiryTimestamp) {
   return timeLeft;
 }
 
-// 최근 본 게임 컴포넌트
 function RecentGames({ currentSlug }) {
   const [games, setGames] = useState([]);
   useEffect(() => {
@@ -164,7 +158,7 @@ export default function ShopPage({ region }) {
                     dailyMap[dateStr] = { time: dateStr, twitch: item.twitch_viewers || 0, chzzk: item.chzzk_viewers || 0, steam: item.steam_ccu || 0 };
                 });
                 setHistoryData(Object.values(dailyMap));
-            } catch (e) { console.error("History fetch error:", e); }
+            } catch (e) {}
 
             const videos = (data.trailers || []).map(url => ({ type: 'video', url: url.replace(/^http:\/\//i, 'https://'), thumb: data.main_image }));
             const images = (data.screenshots || []).map(url => ({ type: 'image', url, thumb: url }));
@@ -185,10 +179,7 @@ export default function ShopPage({ region }) {
                 }
             } catch(e) {}
 
-        } catch (err) { 
-            console.error("Game detail fetch error:", err);
-            setLoading(false); 
-        }
+        } catch (err) { setLoading(false); }
     };
     fetchDetails();
   }, [id]); 
@@ -204,7 +195,6 @@ export default function ShopPage({ region }) {
     } catch (e) {}
   }, [gameData]);
 
-  // 환율 파서 (DB 500 초과면 무조건 원화 기준 변환)
   const getPriceDisplay = (priceVal, isFree) => {
     if (isFree || priceVal === 0) return "무료";
     if (!priceVal) return "가격 정보 없음";
@@ -248,7 +238,6 @@ export default function ShopPage({ region }) {
     setIsWishlisted(!isWishlisted);
   };
 
-  // 클린 HTML 및 요구사항 파서
   const cleanHTML = (html) => DOMPurify.sanitize(html);
   const formatDate = (dateString) => {
       if (!dateString) return "정보 없음";
@@ -270,7 +259,14 @@ export default function ShopPage({ region }) {
   const overall = gameData.steam_reviews?.overall || { summary: "정보 없음", total: 0 };
   const reviewSummaryText = overall.summary; 
 
-  // 스토어 리스트 렌더링
+  const renderPlayTimeTooltip = () => {
+      if (!gameData.play_time || typeof gameData.play_time !== 'object' || gameData.play_time === null) {
+          return "평균 플레이 타임";
+      }
+      return gameData.play_time.extra ? `메인+서브: ${formatPlayTime(gameData.play_time.extra)} | 완전 정복: ${formatPlayTime(gameData.play_time.completionist)}` : "평균 플레이 타임";
+  };
+
+  // ★ 삭제되었던 스토어 렌더링 로직 복구
   const renderStoreList = () => {
     const deals = pi?.deals || [];
     if (deals.length === 0 && pi) {
@@ -298,7 +294,6 @@ export default function ShopPage({ region }) {
 
   return (
     <div>
-      {/* 1. 배경 헤더 */}
       <div style={{ position:'relative', height:'40vh', width:'100%', backgroundImage:`url(${gameData.main_image})`, backgroundSize:'cover', filter: 'blur(20px) brightness(0.4)', zIndex: 0 }}></div>
       <div style={{ position:'absolute', top: '100px', left:0, right:0, zIndex: 1, display:'flex', flexDirection:'column', alignItems:'center', padding:'0 4%' }}>
          <h1 style={{fontSize:'48px', marginBottom:'20px', textShadow:'2px 2px 4px rgba(0,0,0,0.8)', textAlign:'center'}}>{gameData.title_ko || gameData.title}</h1>
@@ -309,7 +304,6 @@ export default function ShopPage({ region }) {
       </div>
 
       <div className="net-panel" style={{position:'relative', marginTop:'-10vh', zIndex: 2}}>
-        {/* 2. 미디어 갤러리 */}
         <div style={styles.galleryContainer}>
             <div style={styles.mainMediaDisplay}>
                 {selectedMedia?.type === 'video' ? (
@@ -328,15 +322,13 @@ export default function ShopPage({ region }) {
             </div>
         </div>
 
-        {/* 3. 게임 메타 정보 (툴팁 및 출시일, 플레이타임 복구) */}
         <div style={{display:'flex', gap:'10px', marginBottom:'40px', flexWrap:'wrap', alignItems:'center'}}>
             <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
             {gameData.metacritic_score > 0 && <InfoWithTooltip text={`Metacritic ${gameData.metacritic_score}`} tooltipText="전문가 평점 (메타크리틱)" icon="Ⓜ️" />}
             
-            {/* ★ 툴팁 적용 및 DB 문자열/객체 완벽 대응 */}
             <InfoWithTooltip 
                 text={`⏳ ${formatPlayTime(gameData.play_time || gameData.playtime)}`} 
-                tooltipText={typeof gameData.play_time === 'object' && gameData.play_time.extra ? `메인+서브: ${formatPlayTime(gameData.play_time.extra)} | 완전 정복: ${formatPlayTime(gameData.play_time.completionist)}` : "평균 플레이 타임"} 
+                tooltipText={renderPlayTimeTooltip()} 
                 icon="" 
             />
             
@@ -348,7 +340,6 @@ export default function ShopPage({ region }) {
             </div>
         </div>
 
-        {/* 4. 액션 버튼 (구매, 찜, 투표) */}
         <div style={{display:'flex', gap:'15px', alignItems:'center', marginBottom:'40px'}}>
              {pi && <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>{getPriceDisplay(pi.current_price, pi.isFree)} 구매하기</a>}
              <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>{isWishlisted ? '✔ 찜함' : '+ 찜하기'}</button>
@@ -356,14 +347,14 @@ export default function ShopPage({ region }) {
              <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton} onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
         </div>
 
-        {/* 특가 카운트다운 */}
+        {/* ★ 삭제되었던 카운트다운 UI 복구 */}
         {pi?.discount_percent > 0 && countdown && (
             <div style={{color:'#E50914', fontWeight:'bold', fontSize:'16px', marginBottom:'40px'}}>
                 🔥 특가 할인 중! (남은 시간: {countdown})
             </div>
         )}
 
-        {/* ★ 5. 누락되었던 시청자/동접자 차트 영역 완벽 복원 */}
+        {/* ★ 삭제되었던 차트(그래프) 컴포넌트 복구 */}
         {historyData.length > 0 && (
             <div style={styles.chartsGrid}>
                 <div style={styles.chartBox}>
@@ -396,7 +387,7 @@ export default function ShopPage({ region }) {
             </div>
         )}
 
-        {/* 6. 가격 비교 및 시스템 요구사항, 최근 본 게임 영역 */}
+        {/* ★ 삭제되었던 스토어 리스트 렌더링 및 PC 요구사항 탭 UI 복구 */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px', marginTop:'40px'}}>
             <div>
                 <h3 className="net-section-title">가격 비교</h3>
@@ -405,7 +396,6 @@ export default function ShopPage({ region }) {
                 </div>
             </div>
             
-            {/* ★ 누락되었던 시스템 요구 사항 영역 복원 */}
             <div>
                 <h3 className="net-section-title">시스템 요구 사항</h3>
                 <div style={{display:'flex', marginBottom:'15px', borderBottom:'1px solid #333'}}>
@@ -414,7 +404,11 @@ export default function ShopPage({ region }) {
                 </div>
                 
                 <style>{`
-                    .req-content { font-size: 14px; line-height: 1.6; color: #acb2b8; }
+                    .req-content {
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #acb2b8;
+                    }
                     .req-content ul { padding-left: 0; margin: 0; list-style: none; }
                     .req-content li { margin-bottom: 8px; }
                     .req-content strong { color: #66c0f4; font-weight: bold; margin-right: 6px; }

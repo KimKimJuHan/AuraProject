@@ -4,85 +4,115 @@ const axios = require('axios');
 
 const { CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
 
-if (!CHZZK_CLIENT_ID) {
-    console.error("❌ CHZZK_CLIENT_ID 환경변수가 없습니다.");
-    process.exit(1);
+function getSimilarity(s1, s2) {
+    let longer = s1; let shorter = s2;
+    if (s1.length < s2.length) { longer = s2; shorter = s1; }
+    const longerLength = longer.length;
+    if (longerLength === 0) return 1.0;
+    const costs = new Array();
+    for (let i = 0; i <= longer.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= shorter.length; j++) {
+            if (i == 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    let newValue = costs[j - 1];
+                    if (longer.charAt(i - 1) != shorter.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    costs[j - 1] = lastValue; lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[shorter.length] = lastValue;
+    }
+    return (longerLength - costs[shorter.length]) / parseFloat(longerLength);
 }
 
-// 스팀에서 가져오는 데이터 형태를 시뮬레이션 (영문 원본 + 한글 번역본)
+function getCoreKeyword(text) {
+    if (!text) return "";
+    let core = text.replace(/[™®©]/g, '');
+    if (core.includes(':')) core = core.split(':')[0];
+    core = core.replace(/\s+(I|II|III|IV|V|VI|VII|VIII|IX|X|\d+)$/i, '');
+    core = core.replace(/(\d+)$/, '');
+    return core.trim();
+}
+
 const TEST_GAMES = [
-    { eng: "League of Legends", kor: "리그 오브 레전드" },
-    { eng: "Stardew Valley", kor: "스타듀 밸리" },
-    { eng: "ELDEN RING", kor: "엘든 링" },
-    { eng: "Grand Theft Auto V", kor: "" }, // 한글명이 없는 경우
-    { eng: "Counter-Strike 2", kor: "카운터-스트라이크 2" }
+    { title: "DARK SOULS™ III", title_ko: "다크 소울 3" }, 
+    { title: "Factorio", title_ko: "팩토리오" },
+    { title: "Sid Meier’s Civilization® VI", title_ko: "문명 6" }
 ];
 
 async function runMatchTest() {
     console.log("==================================================");
-    console.log("🚀 치지직 Open API 정밀 매칭 알고리즘 테스트 시작");
+    console.log("🚀 DB title_ko 수정 시뮬레이션 및 적발 테스트 (타임아웃 우회)");
     console.log("==================================================\n");
 
     for (const game of TEST_GAMES) {
-        console.log(`🎯 타겟 게임: [${game.eng}] (한글: ${game.kor || '없음'})`);
+        let totalViewers = 0;
 
-        // 검색 전략: 1순위 한글명, 2순위 영문명, 3순위 특수문자 제거 영문
-        const cleanEng = game.eng.replace(/[-:™®©]/g, ' ').trim();
-        const searchQueries = [game.kor, game.eng, cleanEng].filter(q => q && q.length > 1);
-        const uniqueQueries = [...new Set(searchQueries)];
+        const koCore = getCoreKeyword(game.title_ko);
+        const enCore = getCoreKeyword(game.title);
+        const searchQuery = koCore || enCore;
 
-        let finalMatch = null;
+        try {
+            console.log(`🎯 [타겟] DB명: ${game.title} / 한글명: ${game.title_ko}`);
+            console.log(` 🔍 치지직 광역 검색어: "${searchQuery}"`);
+            
+            // ★ 타임아웃 10초(10000ms)로 연장
+            const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeURIComponent(searchQuery)}&offset=0&size=50&sortType=POPULAR`, {
+                headers: { 
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                    'Client-Id': CHZZK_CLIENT_ID, 
+                    'Client-Secret': CHZZK_CLIENT_SECRET 
+                }, 
+                timeout: 10000
+            });
 
-        for (const query of uniqueQueries) {
-            console.log(` 🔍 검색 시도: "${query}"`);
-            try {
-                const res = await axios.get(`https://openapi.chzzk.naver.com/open/v1/categories/search?query=${encodeURIComponent(query)}`, {
-                    headers: { 'Client-Id': CHZZK_CLIENT_ID, 'Client-Secret': CHZZK_CLIENT_SECRET },
-                    timeout: 3000
-                });
+            const lives = res.data?.content?.data || [];
 
-                // 치지직 반환 배열 전체 확보
-                const results = res.data?.content?.data || res.data?.data || [];
+            if (lives.length > 0) {
+                console.log(`    📥 검색 결과: ${lives.length}개 방송 발견.`);
+                
+                const normalize = (str) => str.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
+                const targetEng = normalize(game.title.replace(/[™®©]/g, '')); 
+                const targetKor = normalize((game.title_ko || "").replace(/[™®©]/g, ''));
 
-                if (results.length > 0) {
-                    console.log(`    📥 반환된 데이터 (${results.length}개):`);
-                    results.slice(0, 5).forEach((r, idx) => {
-                        console.log(`      [${idx}] ${r.categoryValue}`);
-                    });
-
-                    // ★ 알고리즘 1: 완벽 일치 (Exact Match) 탐색 - 대소문자 및 띄어쓰기 무시
-                    const normalize = (str) => str.replace(/\s+/g, '').toLowerCase();
+                lives.forEach((item, idx) => {
+                    const live = item.live;
+                    if (!live) return;
                     
-                    const exactMatch = results.find(r => 
-                        normalize(r.categoryValue) === normalize(game.kor || "") || 
-                        normalize(r.categoryValue) === normalize(game.eng) ||
-                        normalize(r.categoryValue) === normalize(cleanEng)
-                    );
+                    const categoryValue = live.liveCategoryValue || '';
+                    const normalizedCat = normalize(categoryValue);
+                    
+                    let isMatch = false;
+                    let matchReason = "";
+                    
+                    if (targetKor && targetKor.length > 1 && normalizedCat.includes(targetKor)) { isMatch = true; matchReason = "한글 완벽 포함"; }
+                    else if (targetEng && targetEng.length > 2 && normalizedCat.includes(targetEng)) { isMatch = true; matchReason = "영문 완벽 포함"; }
 
-                    if (exactMatch) {
-                        console.log(`    ✅ [지능형 매칭 성공] 무지성 data[0]이 아닌 정확한 대상을 찾았습니다 -> 💚 ${exactMatch.categoryValue}`);
-                        finalMatch = exactMatch.categoryValue;
-                        break; // 찾았으니 다음 검색어로 넘어가지 않고 종료
-                    } else {
-                        // 완벽 일치가 없으면 일단 배열의 첫 번째 값을 후보로 두고 다른 검색어 시도
-                        console.log(`    ⚠️ 완벽 일치 항목 없음. (data[0]을 후보로 보류: ${results[0].categoryValue})`);
-                        if (!finalMatch) finalMatch = results[0].categoryValue; // Fallback
+                    if (!isMatch) {
+                        const simKor = targetKor ? getSimilarity(targetKor, normalizedCat) : 0;
+                        const simEng = targetEng ? getSimilarity(targetEng, normalizedCat) : 0;
+                        if (simKor >= 0.70) { isMatch = true; matchReason = `한글 유사도 ${(simKor*100).toFixed(1)}%`; } 
+                        else if (simEng >= 0.70) { isMatch = true; matchReason = `영문 유사도 ${(simEng*100).toFixed(1)}%`; }
                     }
-                } else {
-                    console.log(`    ❌ 검색 결과 없음`);
-                }
-            } catch (e) {
-                console.log(`    ⚠️ API 에러: ${e.response?.status} ${e.message}`);
-            }
-            await new Promise(r => setTimeout(r, 500));
-        }
 
-        if (finalMatch) {
-            console.log(`\n 🏁 최종 확정 슬러그: 💚 ${finalMatch}\n`);
-        } else {
-            console.log(`\n 🏁 최종 확정 슬러그: ❌ 매핑 불가 (DB에 없음)\n`);
+                    if (isMatch) {
+                        totalViewers += live.concurrentUserCount || 0;
+                        console.log(`      ✔️ [저격 성공] 시청자: ${String(live.concurrentUserCount).padStart(4, ' ')}명 | 사유: [${matchReason}] 방송 카테고리: ${categoryValue}`);
+                    }
+                });
+                
+                console.log(`    ✅ 최종 합산: 💚 ${totalViewers.toLocaleString()}명\n`);
+            } else {
+                console.log(`    ❌ 검색 결과 0개.\n`);
+            }
+        } catch (e) {
+            console.log(`    ⚠️ 통신 에러: ${e.message}\n`);
         }
-        console.log(`--------------------------------------------------`);
+        // ★ 트래픽 제한 방어를 위해 대기 시간을 2초로 증가
+        await new Promise(r => setTimeout(r, 2000));
     }
 }
 

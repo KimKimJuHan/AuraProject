@@ -8,11 +8,12 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     
-    // ★ 추가: 유저 플레이 성향 (스팀 플레이타임 연동 시 자동 업데이트됨)
+    // ★ 수정: 유저 플레이 성향 기반 맞춤 추천을 위한 핵심 필드 확장
+    // 향후 스팀 로그인 연동 시, 플레이타임 총합과 보유 게임 개수에 따라 자동 등급이 나뉩니다.
     playerType: {
         type: String,
-        enum: ['초심자', '심화'],
-        default: '초심자'
+        enum: ['beginner', 'intermediate', 'streamer'], // 초심자, 중급자, 방송인(하드코어 유저)
+        default: 'beginner'
     },
 
     passwordResetTokenHash: { type: String },
@@ -26,7 +27,7 @@ const userSchema = new mongoose.Schema({
         name: String,
         playtime_forever: Number,
         img_icon_url: String,
-        smart_tags: [String] // ★ 추가: 추천 이유 생성 시 태그 매칭을 위해 필수
+        smart_tags: [String] 
     }],
     
     likedTags: { type: [String], default: [] },
