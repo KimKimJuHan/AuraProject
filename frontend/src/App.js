@@ -28,11 +28,7 @@ const styles = {
   suggestionItemSelected: { padding: '10px 15px', cursor: 'pointer', color: '#fff', backgroundColor: '#333', fontWeight: 'bold', borderBottom: '1px solid #222' },
   clearHistoryButton: { padding: '10px', cursor: 'pointer', color: '#E50914', textAlign: 'center', fontSize: '13px' },
   rightGroup: { display: 'flex', alignItems: 'center', gap: '15px' },
-  compareLink: { color: '#fff', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', display:'flex', alignItems:'center', gap:'5px' },
   regionSelect: { backgroundColor: '#000', color: '#fff', border: '1px solid #555', padding: '5px', borderRadius: '4px', fontSize: '13px' },
-  authBtn: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '7px 15px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'none', fontSize: '14px' },
-  userText: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
-  recoBtn: { color: '#E50914', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold', border: '1px solid #E50914', padding: '6px 12px', borderRadius: '4px' },
   suggestionGameRow: { display:'flex', alignItems:'center', gap:'10px', width:'100%' },
   suggestionThumb: { width:'56px', height:'32px', objectFit:'cover', borderRadius:'4px', flexShrink:0, backgroundColor:'#222', border:'1px solid #333' },
   suggestionTextWrap: { display:'flex', flexDirection:'column', minWidth:0, flex:1 },
@@ -193,7 +189,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
 
   const currentList = searchTerm.length > 0 ? suggestions : history;
 
-  // ★ 환율 연동의 핵심: Select 변경 시 onCurrencyChange 호출
   const handleRegionChange = (e) => {
     const selected = e.target.value;
     setRegion(selected);
@@ -221,14 +216,12 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
       </div>
 
       <div style={styles.rightGroup}>
-        <Link to="/recommend/personal" style={styles.recoBtn}>🤖 게임 추천</Link>
+        {/* ★ 기존에 있던 찜/비교, 추천 버튼을 제거하고 심플하게 유지 */}
         <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
           <option value="KR">🇰🇷 KRW</option>
           <option value="US">🇺🇸 USD</option>
           <option value="JP">🇯🇵 JPY</option>
         </select>
-        <Link to="/comparison" style={styles.compareLink}>❤️ 찜/비교</Link>
-        {/* 여기에 드롭다운 */}
         <ProfileDropdown user={user} onLogout={handleLogout} />
       </div>
     </header>
@@ -239,7 +232,6 @@ function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
   const [loading, setLoading] = useState(true);
-  // ★ 초기 통화값 설정 및 전역 상태 관리
   const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'KRW');
 
   useEffect(() => {
@@ -261,14 +253,12 @@ function App() {
     checkAuthStatus();
   }, []);
 
-  // ★ 하위 컴포넌트(NavigationBar)에서 호출되어 MainPage에 이벤트를 쏴주는 함수
   const handleCurrencyChange = (newCurrency) => {
     localStorage.setItem('currency', newCurrency);
     setCurrency(newCurrency);
     window.dispatchEvent(new Event('currencyChanged')); 
   };
 
-  // 👇 로그아웃 함수 넘겨줌
   const handleLogout = async () => {
     try {
       await apiClient.post('/auth/logout');
@@ -287,7 +277,6 @@ function App() {
   return (
     <Router>
       <div className="net-app">
-        {/* NavigationBar에 onCurrencyChange 함수와 handleLogout 전달 */}
         <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} onCurrencyChange={handleCurrencyChange} handleLogout={handleLogout} />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />

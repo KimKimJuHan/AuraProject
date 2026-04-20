@@ -76,7 +76,7 @@ router.get(
 router.get(
   '/steam/return',
   passport.authenticate('steam', { failureRedirect: '/login' }),
-  (req, res) => {
+  async (req, res) => { 
     req.session.user = {
       id: req.user._id,
       username: req.user.username,
@@ -85,6 +85,15 @@ router.get(
       avatar: req.user.avatar,
       role: req.user.role, 
     };
+
+    if (req.user._id && req.user.steamId) {
+        try {
+            await authController.syncSteamGames(req.user._id, req.user.steamId);
+        } catch (err) {
+            console.error("스팀 동기화 로직 에러:", err);
+        }
+    }
+
     const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
     res.redirect(redirectUrl);
   }

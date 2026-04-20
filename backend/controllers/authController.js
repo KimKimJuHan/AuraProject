@@ -308,7 +308,7 @@ class AuthController {
         });
     }
 
-    // ★ 신규 추가 로직: 스팀 연동 시 플레이타임을 합산하여 playerType(숙련도) 자동 업데이트
+    // ★ 3단계 분기 로직 적용: 초심자(beginner), 중급자(intermediate), 스트리머(streamer)
     syncSteamGames = async (userId, steamId) => {
         try {
             const apiKey = process.env.STEAM_API_KEY;
@@ -322,15 +322,30 @@ class AuthController {
             });
 
             const games = response.data.response.games || [];
+            
+            const totalGames = games.length;
+            let totalPlaytimeMinutes = 0;
+            let maxSinglePlaytime = 0;
 
-            // 1. 가져온 스팀 게임들의 총 플레이타임 합산 (단위: 분)
-            const totalPlaytimeMinutes = games.reduce((sum, game) => sum + (game.playtime_forever || 0), 0);
+            // 총 플레이타임 합산 및 단일 게임 최대 플레이타임 추출
+            games.forEach(game => {
+                const pt = game.playtime_forever || 0;
+                totalPlaytimeMinutes += pt;
+                if (pt > maxSinglePlaytime) maxSinglePlaytime = pt;
+            });
 
-            // 2. 기준치 설정: 총 플레이타임 100시간(6000분) 이상이면 '심화' 유저로 분류
-            const STANDARD_MINUTES = 6000;
-            const newPlayerType = totalPlaytimeMinutes >= STANDARD_MINUTES ? '심화' : '초심자';
+            let newPlayerType = 'beginner'; // 기본값
 
-            // 3. 유저 DB 업데이트 시 playerType 함께 갱신
+            // 기준 1: 스트리머 - 단일 게임 5000시간(300,000분) 이상 OR 게임 500개 이상
+            if (maxSinglePlaytime >= 300000 || totalGames >= 500) {
+                newPlayerType = 'streamer';
+            } 
+            // 기준 2: 중급자 - 총 플레이타임 300시간(18,000분) 이상 OR 게임 50개 이상
+            else if (totalPlaytimeMinutes >= 18000 || totalGames >= 50) {
+                newPlayerType = 'intermediate';
+            }
+
+            // 유저 DB 업데이트 시 playerType 함께 갱신
             await User.findByIdAndUpdate(userId, {
                 steamGames: games.map(g => ({
                     appid: g.appid,
