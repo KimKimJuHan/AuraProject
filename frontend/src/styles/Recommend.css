@@ -347,3 +347,131 @@
 .error-box {
   color: #ff4444;
 }
+@media (max-width: 480px) {
+  .reco-container {
+    padding: 16px 10px;
+  }
+
+  .search-panel {
+    padding: 16px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .search-panel h1 {
+    font-size: 18px;
+    padding-left: 10px;
+    margin-bottom: 16px;
+    word-break: keep-all;
+  }
+
+  .tag-group {
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  .tag-label {
+    width: 100%;
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  /* 맞춤 추천 태그 2열 */
+  .tag-list {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .tag-chip {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 12px;
+    text-align: center;
+    box-sizing: border-box;
+    border-radius: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 추천 결과 카드도 2열 유지 */
+  .game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+
+  .game-card {
+    min-width: 0;
+  }
+
+  .thumb-wrapper {
+    height: 95px;
+  }
+
+  .card-info {
+    padding: 10px;
+  }
+
+  .game-title {
+    font-size: 13px;
+  }
+
+  .game-meta-row {
+    font-size: 12px;
+  }
+
+  /* 마이페이지 공통 박스 */
+  .mypage-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .mypage-card {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .mypage-card h3,
+  .mypage-card h4 {
+    font-size: 15px !important;
+    line-height: 1.3;
+    word-break: keep-all;
+  }
+
+  .mypage-card p,
+  .mypage-card div,
+  .mypage-card span {
+    font-size: 13px !important;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  .mypage-card button,
+  .mypage-card a {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 12px !important;
+    padding: 10px 8px !important;
+  }
+
+  .mypage-tag-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .mypage-tag-grid > * {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    box-sizing: border-box;
+  }
+}

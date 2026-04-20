@@ -1,27 +1,35 @@
 /* /frontend/src/index.css */
 
 :root {
-  --bg-color: #141414;       /* 넷플릭스 리얼 블랙 */
-  --panel-bg: #181818;       /* 패널 배경 */
-  --text-main: #ffffff;      /* 메인 텍스트 */
-  --text-sub: #b3b3b3;       /* 서브 텍스트 */
-  --accent: #E50914;         /* 넷플릭스 레드 */
+  --bg-color: #141414;
+  --panel-bg: #181818;
+  --text-main: #ffffff;
+  --text-sub: #b3b3b3;
+  --accent: #E50914;
   --accent-hover: #f40612;
   --border-color: #404040;
   --card-bg: #2f2f2f;
 }
 
 /* 기본 초기화 및 배경색 강제 적용 */
-body, html, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100%;
   min-height: 100vh;
-  background-color: var(--bg-color) !important; 
+  background-color: var(--bg-color) !important;
   color: var(--text-main) !important;
   font-family: 'Netflix Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
 }
 
 /* 레이아웃 */
@@ -58,7 +66,6 @@ body, html, #root {
   max-width: 1600px;
   margin: 0 auto;
   width: 100%;
-  box-sizing: border-box;
   flex: 1;
 }
 
@@ -82,7 +89,9 @@ body, html, #root {
 }
 
 @media (min-width: 1200px) {
-  .net-cards { grid-template-columns: repeat(5, 1fr); }
+  .net-cards {
+    grid-template-columns: repeat(5, 1fr);
+  }
 }
 
 .net-card {
@@ -102,7 +111,7 @@ body, html, #root {
 .net-card:hover {
   transform: scale(1.03);
   z-index: 10;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.8);
   border-color: #fff;
 }
 
@@ -115,8 +124,10 @@ body, html, #root {
 
 .net-card-thumb img {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  width: 100%; height: 100%; object-fit: cover;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .net-card-body {
@@ -157,12 +168,13 @@ body, html, #root {
   outline: none;
   border-radius: 4px;
 }
+
 .net-search-input:focus {
   width: 350px;
   border-color: var(--accent);
 }
 
-/* ★ 로그인/회원가입 (중앙 정렬 카드) */
+/* 로그인/회원가입 */
 .auth-wrapper {
   display: flex;
   justify-content: center;
@@ -177,21 +189,33 @@ body, html, #root {
   padding: 60px 68px 40px;
   background-color: rgba(0, 0, 0, 0.75);
   border-radius: 4px;
-  box-sizing: border-box;
   border: 1px solid #333;
 }
 
-.auth-title {
+.auth-title,
+.auth-box h2 {
   color: #fff;
   font-size: 32px;
   font-weight: 700;
   margin-bottom: 28px;
 }
 
-.auth-form {
+.auth-form,
+.auth-box {
   display: flex;
   flex-direction: column;
+}
+
+.auth-form {
   gap: 16px;
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 450px;
+  padding: 60px 68px 40px;
+  background-color: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
 }
 
 .auth-input {
@@ -206,23 +230,30 @@ body, html, #root {
   font-size: 16px;
   outline: none;
   box-sizing: border-box;
+  margin-bottom: 16px;
 }
-.auth-input:focus { background: #454545; }
+
+.auth-input:focus {
+  background: #454545;
+}
 
 .auth-btn {
   background-color: var(--accent);
+  color: #fff;
   border-radius: 4px;
   font-size: 16px;
   font-weight: 700;
-  margin-top: 24px;
+  margin: 24px 0 12px;
   padding: 16px;
-  color: #fff;
   border: none;
   cursor: pointer;
   width: 100%;
   transition: background 0.2s;
 }
-.auth-btn:hover { background-color: var(--accent-hover); }
+
+.auth-btn:hover {
+  background-color: var(--accent-hover);
+}
 
 .auth-subtext {
   color: #737373;
@@ -230,85 +261,16 @@ body, html, #root {
   margin-top: 16px;
   font-weight: 400;
 }
-.auth-link { color: #fff; text-decoration: none; margin-left: 5px; }
-.auth-link:hover { text-decoration: underline; }
-
-/* 스켈레톤 로딩 */
-.skeleton {
-  background: #2f2f2f;
-  animation: pulse 1.5s infinite;
-  border-radius: 4px;
-}
-@keyframes pulse {
-  0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; }
-}
-/* ==== 로그인/회원가입 페이지 스타일 ==== */
-.auth-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 80vh; /* 화면 중앙 배치 */
-  background-color: #141414;
-  color: #fff;
-}
-
-.auth-box {
-  background-color: rgba(0, 0, 0, 0.75);
-  padding: 60px 68px 40px;
-  border-radius: 4px;
-  width: 100%;
-  max-width: 450px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-
-.auth-box h2 {
-  font-size: 32px;
-  font-weight: bold;
-  margin-bottom: 28px;
-}
-
-.auth-input {
-  background: #333;
-  border-radius: 4px;
-  border: 0;
-  color: #fff;
-  height: 50px;
-  line-height: 50px;
-  padding: 0 20px;
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  font-size: 16px;
-}
-
-.auth-input:focus {
-  background: #454545;
-  outline: none;
-}
-
-.auth-btn {
-  background-color: #e50914;
-  color: #fff;
-  border-radius: 4px;
-  font-size: 16px;
-  font-weight: bold;
-  margin: 24px 0 12px;
-  padding: 16px;
-  border: none;
-  cursor: pointer;
-  width: 100%;
-}
-
-.auth-btn:hover {
-  background-color: #f40612;
-}
 
 .auth-link {
   color: #737373;
   font-size: 16px;
   margin-top: 16px;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
 }
 
 .auth-link a {
@@ -321,6 +283,25 @@ body, html, #root {
   text-decoration: underline;
 }
 
+/* 스켈레톤 로딩 */
+.skeleton {
+  background: #2f2f2f;
+  animation: pulse 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
 /* 구분선 */
 .divider {
   display: flex;
@@ -329,11 +310,14 @@ body, html, #root {
   margin: 20px 0;
   color: #737373;
 }
-.divider::before, .divider::after {
+
+.divider::before,
+.divider::after {
   content: '';
   flex: 1;
   border-bottom: 1px solid #333;
 }
+
 .divider span {
   padding: 0 10px;
   font-size: 13px;
@@ -341,7 +325,7 @@ body, html, #root {
 
 /* 스팀 버튼 */
 .steam-btn {
-  background-color: #171a21; /* 스팀 고유색 */
+  background-color: #171a21;
   color: #c5c3c0;
   border: 1px solid #171a21;
   border-radius: 4px;
@@ -360,4 +344,153 @@ body, html, #root {
   background-color: #2a475e;
   border-color: #66c0f4;
   color: #fff;
+}
+
+/* game-grid를 실제로 쓰는 화면용 */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+/* 태블릿 */
+@media (max-width: 1024px) {
+  .game-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 15px;
+    padding: 15px;
+  }
+}
+
+/* 모바일 */
+@media (max-width: 480px) {
+  .net-panel {
+    padding: 16px 10px;
+  }
+
+  .net-header {
+    padding: 10px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .net-logo {
+    font-size: 16px;
+    line-height: 1.1;
+    letter-spacing: 0.5px;
+  }
+
+  .net-search-input {
+    width: 120px;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .net-search-input:focus {
+    width: 130px;
+  }
+
+  .net-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .net-card-body {
+    padding: 10px;
+  }
+
+  .net-card-title {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .net-card-footer {
+    font-size: 12px;
+  }
+
+  .game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .game-card h3 {
+    font-size: 14px;
+  }
+
+  .game-card p {
+    font-size: 12px;
+  }
+
+  /* 상점 상세 상단 버튼 영역 */
+  .shop-action-row,
+  .detail-action-row,
+  .game-action-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .shop-action-row button,
+  .shop-action-row a,
+  .detail-action-row button,
+  .detail-action-row a,
+  .game-action-row button,
+  .game-action-row a {
+    width: 100%;
+    min-width: 0;
+    font-size: 14px;
+    padding: 12px 10px;
+    box-sizing: border-box;
+  }
+
+  /* 차트/그래프 박스 */
+  .chart-container,
+  .recharts-wrapper,
+  .trend-chart,
+  .stats-chart-box {
+    width: 100% !important;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* 카드/패널 내부 여백 */
+  .shop-section,
+  .detail-section,
+  .game-detail-section,
+  .info-box {
+    padding-left: 10px;
+    padding-right: 10px;
+    box-sizing: border-box;
+  }
+
+  /* 긴 제목/텍스트 */
+  .shop-title,
+  .game-title,
+  .detail-title {
+    font-size: 22px;
+    line-height: 1.25;
+    word-break: keep-all;
+  }
+
+  .auth-container,
+  .auth-box {
+    padding: 36px 20px 28px;
+  }
+
+  .auth-title,
+  .auth-box h2 {
+    font-size: 26px;
+  }
+
+  .auth-input,
+  .auth-btn,
+  .steam-btn {
+    font-size: 14px;
+  }
 }
