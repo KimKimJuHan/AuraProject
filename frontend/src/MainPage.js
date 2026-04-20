@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
 
+// ★ '난이도' 카테고리(초심자, 심화) 완전 삭제
 const TAG_CATEGORIES = {
-  '난이도': ['초심자', '심화'],
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
   '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
   '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
@@ -14,6 +14,7 @@ const TAG_CATEGORIES = {
 
 const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
+  // ★ 이모티콘을 제거하고 텍스트만 깔끔하게 유지
   tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
   tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
@@ -32,8 +33,6 @@ const styles = {
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
     const [isOpen, setIsOpen] = useState(false);
     const hasSelection = selectedTags.length > 0;
-
-    // ★ 완화: 2개 이상 선택됐을 때만 제한
     const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
 
     return (
@@ -159,11 +158,20 @@ export default function MainPage({ user, region }) {
     const fetchGames = async () => {
         setLoading(true);
         setError(null);
+        
+        // ★ 백엔드 API 호출 시 유저의 playerType을 함께 넘겨주어 맞춤형 알고리즘을 타게 함
+        const currentPlayerType = user?.playerType || 'beginner';
+        
         try {
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tags: selectedTags, sortBy: activeTab, page })
+                body: JSON.stringify({ 
+                    tags: selectedTags, 
+                    sortBy: activeTab, 
+                    page,
+                    playerType: currentPlayerType
+                })
             });
             if (!response.ok) throw new Error("서버 연결 실패");
             const data = await response.json();
@@ -184,7 +192,7 @@ export default function MainPage({ user, region }) {
     };
 
     fetchGames();
-  }, [page, selectedTags, activeTab]);
+  }, [page, selectedTags, activeTab, user]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -193,7 +201,8 @@ export default function MainPage({ user, region }) {
   return (
     <div className="net-panel">
       <div style={styles.tabContainer}>
-        {[{ k:'popular', n:'🔥 인기' }, { k:'new', n:'✨ 신규' }, { k:'discount', n:'💸 할인' }, { k:'price', n:'💰 낮은 가격' }].map(t => (
+        {/* ★ 이모티콘을 모두 삭제하여 심플한 텍스트 탭 구성 */}
+        {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
       </div>

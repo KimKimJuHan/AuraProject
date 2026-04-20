@@ -35,20 +35,28 @@ export default function ProfileDropdown({ user, onLogout }) {
           boxShadow: "0 3px 16px rgba(0,0,0,0.28)",
           minWidth: 200, zIndex: 99, paddingBottom: 7
         }}>
-          <Link to="/mypage" className="profile-dropdown-menu">마이페이지</Link>
-          <Link to="/support/faq" className="profile-dropdown-menu">고객센터</Link>
+          {/* ★ App.js에서 넘어온 핵심 메뉴들 */}
+          <Link to="/recommend/personal" className="profile-dropdown-menu" onClick={() => setOpen(false)}>맞춤 게임 추천</Link>
+          <Link to="/comparison" className="profile-dropdown-menu" onClick={() => setOpen(false)}>찜 및 가격 비교</Link>
+          
+          <div style={{ borderTop: '1px solid #333', margin: '4px 0' }} />
+          
+          <Link to="/mypage" className="profile-dropdown-menu" onClick={() => setOpen(false)}>마이페이지</Link>
+          <Link to="/support/faq" className="profile-dropdown-menu" onClick={() => setOpen(false)}>고객센터</Link>
+          
           {user ? (
             <button
               onClick={() => { onLogout(); setOpen(false); }}
               className="profile-dropdown-menu"
+              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', color: '#E50914', cursor: 'pointer' }}
               type="button"
             >로그아웃</button>
           ) : (
-            <Link to="/login" className="profile-dropdown-menu">로그인</Link>
+            <Link to="/login" className="profile-dropdown-menu" onClick={() => setOpen(false)}>로그인</Link>
           )}
-          {/* 구분선 */}
+          
+          {/* 구분선 및 최근 본 게임 */}
           <div style={{ borderTop: '1px solid #333', margin: '8px 0 0 0' }} />
-          {/* 최근 본 게임 */}
           <RecentGames maxCount={4} />
         </div>
       )}
