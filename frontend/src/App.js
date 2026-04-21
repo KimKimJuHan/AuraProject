@@ -37,13 +37,46 @@ const styles = {
   historyRow: { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' },
   historyDelete: { color:'#999', cursor:'pointer', fontSize:'14px', flexShrink:0 },
   highlightText: { fontWeight: '800', color: '#fff' },
-  // ★ 알림 관련 스타일 추가
+
   bellIcon: { background: 'none', border: 'none', color: '#fff', fontSize: '22px', cursor: 'pointer', position: 'relative' },
   badge: { position: 'absolute', top: '-5px', right: '-5px', backgroundColor: '#E50914', color: '#fff', fontSize: '10px', fontWeight: 'bold', borderRadius: '50%', padding: '2px 6px' },
   notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: '#202020', border: '1px solid #444', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
   notiItem: { padding: '12px 15px', borderBottom: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
   notiTitle: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
-  notiMessage: { color: '#aaa', fontSize: '12px', lineHeight: '1.4' }
+  notiMessage: { color: '#aaa', fontSize: '12px', lineHeight: '1.4' },
+
+  headerNickname: {
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: '700',
+    whiteSpace: 'nowrap'
+  },
+  authButton: {
+    backgroundColor: '#E50914',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '700',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    whiteSpace: 'nowrap'
+  },
+  logoutButton: {
+    backgroundColor: '#E50914',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '700',
+    whiteSpace: 'nowrap'
+  }
 };
 
 function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, handleLogout }) {
@@ -53,7 +86,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   const [isFocused, setIsFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   
-  // ★ 알림 상태 관리
   const [notifications, setNotifications] = useState([]);
   const [showNoti, setShowNoti] = useState(false);
   const notiRef = useRef(null);
@@ -69,18 +101,16 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
     }
   }, []);
 
-  // ★ 유저가 로그인 상태일 때 알림 목록 가져오기
   useEffect(() => {
     if (user) {
-        apiClient.get('/notifications').then(res => {
-            if (res.data.success) setNotifications(res.data.notifications);
-        }).catch(e => console.error("알림 조회 실패", e));
+      apiClient.get('/notifications').then(res => {
+        if (res.data.success) setNotifications(res.data.notifications);
+      }).catch(e => console.error("알림 조회 실패", e));
     } else {
-        setNotifications([]);
+      setNotifications([]);
     }
   }, [user]);
 
-  // 바깥 클릭 시 모달(검색창, 알림창) 닫기
   useEffect(() => {
     function handleClickOutside(event) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) setIsFocused(false);
@@ -91,15 +121,14 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   }, []);
 
   const handleNotiClick = async () => {
-      setShowNoti(!showNoti);
-      // 알림창을 열 때 '안 읽은 알림'이 있다면 서버에 읽음 처리 요청
-      const unread = notifications.filter(n => !n.isRead);
-      if (!showNoti && unread.length > 0) {
-          try {
-              await apiClient.post('/notifications/read');
-              setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-          } catch(e) {}
-      }
+    setShowNoti(!showNoti);
+    const unread = notifications.filter(n => !n.isRead);
+    if (!showNoti && unread.length > 0) {
+      try {
+        await apiClient.post('/notifications/read');
+        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      } catch(e) {}
+    }
   };
 
   const fetchSuggestions = async (query) => {
@@ -187,8 +216,10 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   const highlightMatch = (text, keyword) => {
     if (!text) return null;
     if (!keyword || !keyword.trim()) return text;
-    const normalizedText = String(text); const normalizedKeyword = String(keyword).trim();
-    const lowerText = normalizedText.toLowerCase(); const lowerKeyword = normalizedKeyword.toLowerCase();
+    const normalizedText = String(text); 
+    const normalizedKeyword = String(keyword).trim();
+    const lowerText = normalizedText.toLowerCase(); 
+    const lowerKeyword = normalizedKeyword.toLowerCase();
     const matchIndex = lowerText.indexOf(lowerKeyword);
     if (matchIndex === -1) return normalizedText;
     const before = normalizedText.slice(0, matchIndex);
@@ -203,7 +234,12 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
       return (
         <li key={item.slug || idx} style={itemStyle} onMouseDown={() => handleSuggestionClick(item)}>
           <div style={styles.suggestionGameRow}>
-            <img src={item.main_image || "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} alt={item.title} style={styles.suggestionThumb} onError={(e) => { e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"; }} />
+            <img
+              src={item.main_image || "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"}
+              alt={item.title}
+              style={styles.suggestionThumb}
+              onError={(e) => { e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"; }}
+            />
             <div style={styles.suggestionTextWrap}>
               <span style={styles.suggestionTitle}>{highlightMatch(item.title, searchTerm)}</span>
               {item.title_ko && <span style={styles.suggestionSubtitle}>{highlightMatch(item.title_ko, searchTerm)}</span>}
@@ -241,13 +277,23 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
 
       <div style={styles.searchContainer} ref={searchContainerRef}>
         <form onSubmit={handleSubmit}>
-          <input type="text" className="net-search-input" placeholder="게임 검색..." value={searchTerm} onChange={handleInputChange} onKeyDown={handleKeyDown} onFocus={() => setIsFocused(true)} />
+          <input
+            type="text"
+            className="net-search-input"
+            placeholder="게임 검색..."
+            value={searchTerm}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+          />
         </form>
         {searchTerm.length > 0 && <button onClick={handleClear} style={styles.clearButton}>✕</button>}
         {isFocused && (
           <ul style={styles.suggestionsList}>
             {currentList.map((item, idx) => renderSuggestionItem(item, idx))}
-            {searchTerm.length === 0 && history.length > 0 && <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>기록 삭제</li>}
+            {searchTerm.length === 0 && history.length > 0 && (
+              <li style={styles.clearHistoryButton} onMouseDown={handleClearHistory}>기록 삭제</li>
+            )}
           </ul>
         )}
       </div>
@@ -259,36 +305,53 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
           <option value="JP">🇯🇵 JPY</option>
         </select>
 
-        {/* ★ 알림 종 모양 배지 UI */}
         {user && (
-            <div style={{ position: 'relative' }} ref={notiRef}>
-                <button style={styles.bellIcon} onClick={handleNotiClick}>
-                    🔔
-                    {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
-                </button>
-                {showNoti && (
-                    <div style={styles.notiDropdown}>
-                        {notifications.length === 0 ? (
-                            <div style={{ padding: '15px', color: '#999', textAlign: 'center', fontSize: '14px' }}>새로운 알림이 없습니다.</div>
-                        ) : (
-                            notifications.map(n => (
-                                <Link 
-                                    to={`/game/${n.gameSlug}`} 
-                                    key={n._id} 
-                                    style={{ ...styles.notiItem, backgroundColor: n.isRead ? '#202020' : '#2a2a2a' }}
-                                    onClick={() => setShowNoti(false)}
-                                >
-                                    <div style={styles.notiTitle}>{n.title}</div>
-                                    <div style={styles.notiMessage}>{n.message}</div>
-                                </Link>
-                            ))
-                        )}
-                    </div>
-                )}
-            </div>
+          <span style={styles.headerNickname}>
+            {(user.nickname || user.name || user.username || '사용자')}님
+          </span>
         )}
 
-        <ProfileDropdown user={user} onLogout={handleLogout} />
+        {!user ? (
+          <Link to="/login" style={styles.authButton}>
+            로그인
+          </Link>
+        ) : (
+          <button style={styles.logoutButton} onClick={handleLogout}>
+            로그아웃
+          </button>
+        )}
+
+        {user && (
+          <div style={{ position: 'relative' }} ref={notiRef}>
+            <button style={styles.bellIcon} onClick={handleNotiClick}>
+              🔔
+              {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
+            </button>
+            {showNoti && (
+              <div style={styles.notiDropdown}>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '15px', color: '#999', textAlign: 'center', fontSize: '14px' }}>
+                    새로운 알림이 없습니다.
+                  </div>
+                ) : (
+                  notifications.map(n => (
+                    <Link 
+                      to={`/game/${n.gameSlug}`} 
+                      key={n._id} 
+                      style={{ ...styles.notiItem, backgroundColor: n.isRead ? '#202020' : '#2a2a2a' }}
+                      onClick={() => setShowNoti(false)}
+                    >
+                      <div style={styles.notiTitle}>{n.title}</div>
+                      <div style={styles.notiMessage}>{n.message}</div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <ProfileDropdown user={user} />
       </div>
     </header>
   );
@@ -328,8 +391,12 @@ function App() {
   const handleLogout = async () => {
     try {
       await apiClient.post('/auth/logout');
-      setUser(null); alert("성공적으로 로그아웃 되었습니다."); window.location.reload();
-    } catch (error) { console.error("로그아웃 실패", error); }
+      setUser(null);
+      alert("성공적으로 로그아웃 되었습니다.");
+      window.location.reload();
+    } catch (error) {
+      console.error("로그아웃 실패", error);
+    }
   };
 
   if (loading) {
@@ -343,7 +410,14 @@ function App() {
   return (
     <Router>
       <div className="net-app">
-        <NavigationBar user={user} setUser={setUser} region={region} setRegion={setRegion} onCurrencyChange={handleCurrencyChange} handleLogout={handleLogout} />
+        <NavigationBar
+          user={user}
+          setUser={setUser}
+          region={region}
+          setRegion={setRegion}
+          onCurrencyChange={handleCurrencyChange}
+          handleLogout={handleLogout}
+        />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
           <Route path="/game/:id" element={<ShopPage region={region} />} />
