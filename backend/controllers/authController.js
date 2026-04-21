@@ -3,14 +3,14 @@ const Otp = require('../models/Otp');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto'); 
-const axios = require('axios'); // ★ 스팀 API 통신을 위해 추가됨
+const axios = require('axios'); 
 
 class AuthController {
     sendOtp = async (req, res) => {
         try {
             const { email } = req.body;
             const code = Math.floor(100000 + Math.random() * 900000).toString();
-            const expiresAt = new Date(Date.now() + 600000); // 10분 후 만료
+            const expiresAt = new Date(Date.now() + 600000); 
 
             await Otp.findOneAndUpdate({ email }, { code, expiresAt }, { upsert: true });
 
@@ -59,7 +59,7 @@ class AuthController {
 
     _sendOtpWithPurpose = async (email, purpose, subject, text) => {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 600000); // 10분
+        const expiresAt = new Date(Date.now() + 600000); 
 
         await Otp.findOneAndUpdate(
             { email, purpose },
@@ -173,7 +173,7 @@ class AuthController {
             const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
             user.passwordResetTokenHash = tokenHash;
-            user.passwordResetTokenExpiresAt = new Date(Date.now() + 1000 * 60 * 20); // 20분
+            user.passwordResetTokenExpiresAt = new Date(Date.now() + 1000 * 60 * 20); 
             await user.save();
 
             return res.json({ success: true, resetToken });
@@ -263,6 +263,7 @@ class AuthController {
             req.session.user = { 
                 id: user._id, 
                 username: user.username, 
+                displayName: user.displayName, // ★ 핵심: 세션에 displayName 명시적 주입 완료
                 email: user.email,
                 steamId: user.steamId,
                 role: user.role
@@ -308,7 +309,6 @@ class AuthController {
         });
     }
 
-    // ★ 3단계 분기 로직 적용: 초심자(beginner), 중급자(intermediate), 스트리머(streamer)
     syncSteamGames = async (userId, steamId) => {
         try {
             const apiKey = process.env.STEAM_API_KEY;
@@ -327,25 +327,21 @@ class AuthController {
             let totalPlaytimeMinutes = 0;
             let maxSinglePlaytime = 0;
 
-            // 총 플레이타임 합산 및 단일 게임 최대 플레이타임 추출
             games.forEach(game => {
                 const pt = game.playtime_forever || 0;
                 totalPlaytimeMinutes += pt;
                 if (pt > maxSinglePlaytime) maxSinglePlaytime = pt;
             });
 
-            let newPlayerType = 'beginner'; // 기본값
+            let newPlayerType = 'beginner'; 
 
-            // 기준 1: 스트리머 - 단일 게임 5000시간(300,000분) 이상 OR 게임 500개 이상
             if (maxSinglePlaytime >= 300000 || totalGames >= 500) {
                 newPlayerType = 'streamer';
             } 
-            // 기준 2: 중급자 - 총 플레이타임 300시간(18,000분) 이상 OR 게임 50개 이상
             else if (totalPlaytimeMinutes >= 18000 || totalGames >= 50) {
                 newPlayerType = 'intermediate';
             }
 
-            // 유저 DB 업데이트 시 playerType 함께 갱신
             await User.findByIdAndUpdate(userId, {
                 steamGames: games.map(g => ({
                     appid: g.appid,
