@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
-import { API_BASE_URL } from './config';
-import { formatPrice } from './utils/priceFormatter'; // ★ 가격 표시 유틸리티 임포트
+import { API_BASE_URL, apiClient } from './config'; // ★ 백엔드 통신을 위해 apiClient 추가
+import { formatPrice } from './utils/priceFormatter';
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
@@ -30,57 +30,54 @@ const styles = {
 };
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const hasSelection = selectedTags.length > 0;
-    const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
+  const [isOpen, setIsOpen] = useState(false);
+  const hasSelection = selectedTags.length > 0;
+  const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
 
-    return (
-        <div style={styles.filterBox}>
-            <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
-                <span style={styles.filterTitle}>{title}</span>
-                <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
-            </div>
-            {isOpen && (
-                <div style={styles.filterContent}>
-                    {tags.map(tag => {
-                        const isSelected = selectedTags.includes(tag);
-                        const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
-                        return (
-                            <button
-                                key={tag}
-                                style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn}
-                                onClick={() => !isDisabled && onToggleTag(tag)}
-                                disabled={isDisabled}
-                            >
-                                {tag}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
+  return (
+      <div style={styles.filterBox}>
+          <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
+              <span style={styles.filterTitle}>{title}</span>
+              <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
+          </div>
+          {isOpen && (
+              <div style={styles.filterContent}>
+                  {tags.map(tag => {
+                      const isSelected = selectedTags.includes(tag);
+                      const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
+                      return (
+                          <button
+                              key={tag}
+                              style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn}
+                              onClick={() => !isDisabled && onToggleTag(tag)}
+                              disabled={isDisabled}
+                          >
+                              {tag}
+                          </button>
+                      );
+                  })}
+              </div>
+          )}
+      </div>
+  );
 };
 
-function GameListItem({ game, region }) {
-  const [isWishlisted, setIsWishlisted] = useState(false);
+// ★ [수술 완료] 로컬 스토리지 제거, MainPage에서 props로 전달받아 찜 상태 결정
+function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
+  const isWishlisted = userWishlist.includes(game.slug);
 
-  useEffect(() => {
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    setIsWishlisted(wishlist.includes(game.slug));
-  }, [game.slug]);
-
-  const toggleWishlist = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    let newWishlist;
-    if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
-    else newWishlist = [...wishlist, game.slug];
-    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
-    setIsWishlisted(!isWishlisted);
+  const handleHeartClick = (e) => {
+    e.preventDefault(); 
+    e.stopPropagation();
+    
+    if (!user) {
+        alert("로그인이 필요한 기능입니다.");
+        return;
+    }
+    
+    onToggleWishlist(game.slug, isWishlisted);
   };
 
-  // ★ 가격 포매터 유틸리티 호출로 코드 최적화
   const currentPriceText = formatPrice(game.price_info, region);
   const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
 
@@ -90,15 +87,13 @@ function GameListItem({ game, region }) {
             <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
-            <button style={styles.heartBtn} onClick={toggleWishlist}>{isWishlisted ? '❤️' : '🤍'}</button>
+            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
-
             <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
               {game.reason || '이 조건에 잘 맞아 추천'}
             </div>
-
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
                     <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
@@ -120,6 +115,45 @@ export default function MainPage({ user, region }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
+  
+  // ★ [핵심 추가] DB 연동형 위시리스트 상태 관리
+  const [userWishlist, setUserWishlist] = useState([]);
+
+  // 컴포넌트 마운트 및 유저 변경 시 DB에서 찜 목록 로드
+  useEffect(() => {
+    if (user && user._id) {
+        apiClient.get('/user/wishlist')
+            .then(res => setUserWishlist(res.data || []))
+            .catch(err => console.error("찜 목록 로드 실패:", err));
+    } else {
+        setUserWishlist([]); // 로그아웃 상태면 초기화
+    }
+  }, [user]);
+
+  // DB 연동 찜하기 토글 함수
+  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
+      if (isCurrentlyWished) {
+          setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+      } else {
+          setUserWishlist(prev => [...prev, gameSlug]);
+      }
+
+      try {
+          if (isCurrentlyWished) {
+              await apiClient.delete(`/user/wishlist/${gameSlug}`);
+          } else {
+              await apiClient.post(`/user/wishlist`, { slug: gameSlug });
+          }
+      } catch (err) {
+          console.error("찜하기 DB 동기화 실패:", err);
+          if (isCurrentlyWished) {
+              setUserWishlist(prev => [...prev, gameSlug]);
+          } else {
+              setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+          }
+          alert("찜하기 처리 중 서버 오류가 발생했습니다.");
+      }
+  };
 
   useEffect(() => {
     setGames([]);
@@ -133,7 +167,6 @@ export default function MainPage({ user, region }) {
     const fetchGames = async () => {
         setLoading(true);
         setError(null);
-        
         const currentPlayerType = user?.playerType || 'beginner';
         
         try {
@@ -182,14 +215,7 @@ export default function MainPage({ user, region }) {
 
       <div style={styles.filterContainer}>
           {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-              <FilterCategoryBox
-                key={category}
-                title={category}
-                tags={tags}
-                selectedTags={selectedTags}
-                onToggleTag={toggleTag}
-                validTags={validTags}
-              />
+              <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
           ))}
       </div>
 
@@ -204,7 +230,16 @@ export default function MainPage({ user, region }) {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => <GameListItem key={game.slug} game={game} region={region} />)}
+          {games.map(game => (
+              <GameListItem 
+                  key={game.slug} 
+                  game={game} 
+                  region={region} 
+                  userWishlist={userWishlist} 
+                  onToggleWishlist={handleToggleWishlist} 
+                  user={user}
+              />
+          ))}
           {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
         </div>
       )}

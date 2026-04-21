@@ -6,7 +6,6 @@ import AdminInquiryPage from './pages/Support/AdminInquiryPage';
 import FindIdPage from './pages/FindIdPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
-import MainPage from './MainPage';
 import ShopPage from './ShopPage';
 import ComparisonPage from './ComparisonPage';
 import SearchResultsPage from './SearchResultsPage';
@@ -18,8 +17,35 @@ import InquiryNewPage from './pages/Support/InquiryNewPage';
 import InquiryListPage from './pages/Support/InquiryListPage';
 import FaqPage from './pages/Support/FaqPage';
 import ProfileDropdown from './components/ProfileDropdown';
+import Skeleton from './Skeleton';
+import { formatPrice } from './utils/priceFormatter';
+
+// ★ 신규 생성한 알림 페이지 임포트
+import NotificationPage from './pages/NotificationPage';
+
+const TAG_CATEGORIES = {
+  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
+  '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
+  '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
+  '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
+  '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '경쟁/PvP', '소울라이크']
+};
 
 const styles = {
+  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
+  tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
+  tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
+  loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
+  filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
+  filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
+  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: '#222', borderBottom: '1px solid #333', userSelect: 'none' },
+  filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
+  filterArrow: { color: '#666', fontSize: '12px' },
+  filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
+  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
+  tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
+  tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
+  heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 },
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
   clearButton: { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#999', fontSize: '18px', cursor: 'pointer' },
@@ -37,47 +63,234 @@ const styles = {
   historyRow: { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' },
   historyDelete: { color:'#999', cursor:'pointer', fontSize:'14px', flexShrink:0 },
   highlightText: { fontWeight: '800', color: '#fff' },
-
   bellIcon: { background: 'none', border: 'none', color: '#fff', fontSize: '22px', cursor: 'pointer', position: 'relative' },
   badge: { position: 'absolute', top: '-5px', right: '-5px', backgroundColor: '#E50914', color: '#fff', fontSize: '10px', fontWeight: 'bold', borderRadius: '50%', padding: '2px 6px' },
-  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: '#202020', border: '1px solid #444', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: '0 4px 12px rgba(0,0,0,0.5)' },
+  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: '#202020', border: '1px solid #444', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: '0 4px 12px rgba(0,0,0,0.5)', overflow: 'hidden' },
   notiItem: { padding: '12px 15px', borderBottom: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
   notiTitle: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
   notiMessage: { color: '#aaa', fontSize: '12px', lineHeight: '1.4' },
-
-  headerNickname: {
-    color: '#fff',
-    fontSize: '14px',
-    fontWeight: '700',
-    whiteSpace: 'nowrap'
-  },
-  authButton: {
-    backgroundColor: '#E50914',
-    color: '#fff',
-    border: 'none',
-    padding: '8px 14px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '700',
-    textDecoration: 'none',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    whiteSpace: 'nowrap'
-  },
-  logoutButton: {
-    backgroundColor: '#E50914',
-    color: '#fff',
-    border: 'none',
-    padding: '8px 14px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '700',
-    whiteSpace: 'nowrap'
-  }
+  headerNickname: { color: '#fff', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' },
+  authButton: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' },
+  logoutButton: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' }
 };
+
+const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasSelection = selectedTags.length > 0;
+  const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
+
+  return (
+      <div style={styles.filterBox}>
+          <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
+              <span style={styles.filterTitle}>{title}</span>
+              <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
+          </div>
+          {isOpen && (
+              <div style={styles.filterContent}>
+                  {tags.map(tag => {
+                      const isSelected = selectedTags.includes(tag);
+                      const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
+                      return (
+                          <button
+                              key={tag}
+                              style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn}
+                              onClick={() => !isDisabled && onToggleTag(tag)}
+                              disabled={isDisabled}
+                          >
+                              {tag}
+                          </button>
+                      );
+                  })}
+              </div>
+          )}
+      </div>
+  );
+};
+
+function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
+  const isWishlisted = userWishlist.includes(game.slug);
+
+  const handleHeartClick = (e) => {
+    e.preventDefault(); 
+    e.stopPropagation();
+    
+    if (!user) {
+        alert("로그인이 필요한 기능입니다.");
+        return;
+    }
+    
+    onToggleWishlist(game.slug, isWishlisted);
+  };
+
+  const currentPriceText = formatPrice(game.price_info, region);
+  const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
+
+  return (
+    <Link to={`/game/${game.slug}`} className="net-card">
+        <div className="net-card-thumb">
+            <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
+            <div className="net-card-gradient"></div>
+            {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
+            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
+        </div>
+        <div className="net-card-body">
+            <div className="net-card-title">{game.title_ko || game.title}</div>
+            <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
+              {game.reason || '이 조건에 잘 맞아 추천'}
+            </div>
+            <div className="net-card-footer">
+                <div style={{display:'flex', flexDirection:'column'}}>
+                    <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
+                        {currentPriceText}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </Link>
+  );
+}
+
+// ★ 컴파일 에러 해결: export default 삭제
+function MainPage({ user, region }) {
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('popular');
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [validTags, setValidTags] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const [userWishlist, setUserWishlist] = useState([]);
+
+  useEffect(() => {
+    if (user && user._id) {
+        apiClient.get('/user/wishlist')
+            .then(res => setUserWishlist(res.data || []))
+            .catch(err => console.error("찜 목록 로드 실패:", err));
+    } else {
+        setUserWishlist([]); 
+    }
+  }, [user]);
+
+  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
+      if (isCurrentlyWished) {
+          setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+      } else {
+          setUserWishlist(prev => [...prev, gameSlug]);
+      }
+
+      try {
+          if (isCurrentlyWished) {
+              await apiClient.delete(`/user/wishlist/${gameSlug}`);
+          } else {
+              await apiClient.post(`/user/wishlist`, { slug: gameSlug });
+          }
+      } catch (err) {
+          console.error("찜하기 DB 동기화 실패:", err);
+          if (isCurrentlyWished) {
+              setUserWishlist(prev => [...prev, gameSlug]);
+          } else {
+              setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+          }
+          alert("찜하기 처리 중 서버 오류가 발생했습니다.");
+      }
+  };
+
+  useEffect(() => {
+    setGames([]);
+    setPage(1);
+    setHasMore(true);
+  }, [selectedTags, activeTab]);
+
+  useEffect(() => {
+    if (page > 1 && !hasMore) return;
+
+    const fetchGames = async () => {
+        setLoading(true);
+        setError(null);
+        const currentPlayerType = user?.playerType || 'beginner';
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/recommend`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    tags: selectedTags, 
+                    sortBy: activeTab, 
+                    page,
+                    playerType: currentPlayerType
+                })
+            });
+            if (!response.ok) throw new Error("서버 연결 실패");
+            const data = await response.json();
+
+            if (data.validTags) setValidTags(data.validTags);
+
+            setGames(prev => {
+                if (page === 1) return data.games;
+                const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
+                return [...prev, ...newGames];
+            });
+            setHasMore(page < data.totalPages);
+        } catch (err) {
+            setError("서버와 연결할 수 없습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    fetchGames();
+  }, [page, selectedTags, activeTab, user]);
+
+  const toggleTag = (tag) => {
+      setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
+
+  return (
+    <div className="net-panel">
+      <div style={styles.tabContainer}>
+        {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
+            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
+        ))}
+      </div>
+
+      <div style={styles.filterContainer}>
+          {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
+              <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
+          ))}
+      </div>
+
+      {selectedTags.length > 0 && (
+        <div style={{marginBottom:'20px', color:'#b3b3b3', fontSize:'14px', textAlign:'right'}}>
+            선택된 태그: <span style={{color:'white'}}>{selectedTags.join(', ')}</span>
+            <button onClick={() => setSelectedTags([])} style={{marginLeft:'10px', background:'none', border:'none', color:'#E50914', cursor:'pointer', textDecoration:'underline'}}>초기화</button>
+        </div>
+      )}
+
+      {error ? (
+        <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
+      ) : (
+        <div className="net-cards">
+          {games.map(game => (
+              <GameListItem 
+                  key={game.slug} 
+                  game={game} 
+                  region={region} 
+                  userWishlist={userWishlist} 
+                  onToggleWishlist={handleToggleWishlist} 
+                  user={user}
+              />
+          ))}
+          {loading && Array(5).fill(0).map((_, i) => <Skeleton key={i} height="200px" />)}
+        </div>
+      )}
+
+      {!loading && !error && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
+      {!loading && !error && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
+    </div>
+  );
+}
 
 function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, handleLogout }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -122,12 +335,14 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
 
   const handleNotiClick = async () => {
     setShowNoti(!showNoti);
-    const unread = notifications.filter(n => !n.isRead);
-    if (!showNoti && unread.length > 0) {
-      try {
-        await apiClient.post('/notifications/read');
-        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-      } catch(e) {}
+    if (!showNoti) {
+        const unread = notifications.filter(n => !n.isRead);
+        if (unread.length > 0) {
+            try {
+                await apiClient.post('/notifications/read');
+                setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+            } catch(e) {}
+        }
     }
   };
 
@@ -305,9 +520,61 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
           <option value="JP">🇯🇵 JPY</option>
         </select>
 
+        {/* ★ [수술 완료] 알림 종 모양 아이콘을 환율과 닉네임 사이로 완벽히 재배치 */}
+        {user && (
+          <div style={{ position: 'relative' }} ref={notiRef}>
+            <button style={styles.bellIcon} onClick={handleNotiClick}>
+              🔔
+              {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
+            </button>
+            {showNoti && (
+              <div style={styles.notiDropdown}>
+                <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: '15px', color: '#999', textAlign: 'center', fontSize: '14px' }}>
+                      새로운 알림이 없습니다.
+                    </div>
+                  ) : (
+                    notifications.map(n => (
+                      <Link 
+                        to={`/game/${n.gameSlug}`} 
+                        key={n._id} 
+                        style={{ ...styles.notiItem, backgroundColor: n.isRead ? '#202020' : '#2a2a2a' }}
+                        onClick={() => setShowNoti(false)}
+                      >
+                        <div style={styles.notiTitle}>{n.title}</div>
+                        <div style={styles.notiMessage}>{n.message}</div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+                
+                <Link 
+                    to="/notifications" 
+                    style={{ 
+                        display: 'block', 
+                        padding: '12px', 
+                        textAlign: 'center', 
+                        backgroundColor: '#181818', 
+                        color: '#E50914', 
+                        textDecoration: 'none', 
+                        fontSize: '14px', 
+                        fontWeight: 'bold',
+                        borderTop: '1px solid #333'
+                    }}
+                    onClick={() => setShowNoti(false)}
+                >
+                    모든 알림 보기
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ★ [수술 완료] 닉네임 최우선 렌더링 수정 */}
         {user && (
           <span style={styles.headerNickname}>
-            {(user.nickname || user.name || user.username || '사용자')}님
+            {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
           </span>
         )}
 
@@ -319,36 +586,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
           <button style={styles.logoutButton} onClick={handleLogout}>
             로그아웃
           </button>
-        )}
-
-        {user && (
-          <div style={{ position: 'relative' }} ref={notiRef}>
-            <button style={styles.bellIcon} onClick={handleNotiClick}>
-              🔔
-              {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
-            </button>
-            {showNoti && (
-              <div style={styles.notiDropdown}>
-                {notifications.length === 0 ? (
-                  <div style={{ padding: '15px', color: '#999', textAlign: 'center', fontSize: '14px' }}>
-                    새로운 알림이 없습니다.
-                  </div>
-                ) : (
-                  notifications.map(n => (
-                    <Link 
-                      to={`/game/${n.gameSlug}`} 
-                      key={n._id} 
-                      style={{ ...styles.notiItem, backgroundColor: n.isRead ? '#202020' : '#2a2a2a' }}
-                      onClick={() => setShowNoti(false)}
-                    >
-                      <div style={styles.notiTitle}>{n.title}</div>
-                      <div style={styles.notiMessage}>{n.message}</div>
-                    </Link>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
         )}
 
         <ProfileDropdown user={user} />
@@ -434,6 +671,7 @@ function App() {
           <Route path="/find-id" element={<FindIdPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
+          <Route path="/notifications" element={<NotificationPage user={user} />} />
         </Routes>
       </div>
     </Router>
