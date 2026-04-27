@@ -55,9 +55,10 @@ const TAG_SYNONYMS = {
 
 const PERSONAL_TAG_POOL = Object.keys(TAG_SYNONYMS);
 
+// 정규식 배열을 반환 (빠른 $in 필터링용)
 function getExpandedRegexes(uiTag) {
     const pool = TAG_SYNONYMS[uiTag] || [uiTag];
-    return pool.map(t => new RegExp(String(t).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+    return pool.map(t => new RegExp(`^${String(t).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')); // 더 정확한 매칭을 위해 ^와 $ 추가 가능하지만 부분일치를 위해 유지
 }
 
 class RecommendController {
@@ -70,7 +71,7 @@ class RecommendController {
 
             const query = { isAdult: { $ne: true } };
 
-            // ★ 스팀 라이브러리 보유 게임 배제 (블랙리스트 처리)
+            // 스팀 라이브러리 격리 유지
             if (userId) {
                 const user = await User.findById(userId).select('steamGames');
                 if (user && user.steamGames && user.steamGames.length > 0) {
@@ -79,15 +80,18 @@ class RecommendController {
                 }
             }
 
-            // ★ 태그 필터링 오류 수정: 여러 태그를 누르면 무조건 AND(교집합)로 묶임
+            // ★ 진짜 해결책: 사용자가 선택한 태그 개수만큼 AND(교집합) 쿼리를 돌리되, 내부는 $in으로 깔끔하게 처리
             if (tags && tags.length > 0) {
                 query.$and = query.$and || [];
                 tags.forEach(tag => {
-                    const tagRegexes = getExpandedRegexes(tag);
+                    const pool = TAG_SYNONYMS[tag] || [tag];
+                    // 동의어 중 하나라도 포함되어 있는지 부분 일치(Regex) 배열 생성
+                    const regexArray = pool.map(t => new RegExp(String(t).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+                    
                     query.$and.push({
                         $or: [
-                            { smart_tags: { $in: tagRegexes } },
-                            { tags: { $in: tagRegexes } }
+                            { smart_tags: { $in: regexArray } },
+                            { tags: { $in: regexArray } }
                         ]
                     });
                 });
@@ -161,7 +165,6 @@ class RecommendController {
 
             const candidateQuery = { isAdult: { $ne: true } };
 
-            // ★ 스팀 라이브러리 보유 게임 배제 (맞춤 추천 페이지에서도 블랙리스트 처리)
             if (userSteamGames.length > 0) {
                 const ownedAppIds = userSteamGames.map(g => g.appid);
                 candidateQuery.steam_appid = { $nin: ownedAppIds };
@@ -175,15 +178,17 @@ class RecommendController {
                 ];
             }
 
-            // ★ 맞춤 추천 태그 필터링도 AND(교집합)로 수정
+            // 맞춤 추천 페이지용 동일 교집합 로직 적용
             if (userSelectedTags.length > 0) {
                 candidateQuery.$and = candidateQuery.$and || [];
                 userSelectedTags.forEach(tag => {
-                    const tagRegexes = getExpandedRegexes(tag);
+                    const pool = TAG_SYNONYMS[tag] || [tag];
+                    const regexArray = pool.map(t => new RegExp(String(t).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+                    
                     candidateQuery.$and.push({
                         $or: [
-                            { smart_tags: { $in: tagRegexes } },
-                            { tags: { $in: tagRegexes } }
+                            { smart_tags: { $in: regexArray } },
+                            { tags: { $in: regexArray } }
                         ]
                     });
                 });
