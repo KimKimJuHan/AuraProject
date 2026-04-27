@@ -20,7 +20,6 @@ import ProfileDropdown from './components/ProfileDropdown';
 import Skeleton from './Skeleton';
 import { formatPrice } from './utils/priceFormatter';
 
-// ★ 신규 생성한 알림 페이지 임포트
 import NotificationPage from './pages/NotificationPage';
 
 const TAG_CATEGORIES = {
@@ -110,6 +109,8 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
 function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   const isWishlisted = userWishlist.includes(game.slug);
 
+  const isOwned = user?.steamGames?.some(sg => sg.appid === game.steam_appid);
+
   const handleHeartClick = (e) => {
     e.preventDefault(); 
     e.stopPropagation();
@@ -118,7 +119,6 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
         alert("로그인이 필요한 기능입니다.");
         return;
     }
-    
     onToggleWishlist(game.slug, isWishlisted);
   };
 
@@ -131,6 +131,9 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
             <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
+            
+            {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>🎮 보유중</div>}
+            
             <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
         </div>
         <div className="net-card-body">
@@ -150,7 +153,6 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   );
 }
 
-// ★ 컴파일 에러 해결: export default 삭제
 function MainPage({ user, region }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -216,6 +218,7 @@ function MainPage({ user, region }) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                    userId: user?._id, // ★ 백엔드로 전달하여 보유 게임을 거를 수 있도록 추가
                     tags: selectedTags, 
                     sortBy: activeTab, 
                     page,
@@ -250,6 +253,7 @@ function MainPage({ user, region }) {
   return (
     <div className="net-panel">
       <div style={styles.tabContainer}>
+        {/* ★ 상단 탭 신규 항목 삭제, 원래 상태로 롤백 완료 */}
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
@@ -339,7 +343,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         const unread = notifications.filter(n => !n.isRead);
         if (unread.length > 0) {
             try {
-                await apiClient.post('/notifications/read');
+                await apiClient.post('/notifications/read-all');
                 setNotifications(notifications.map(n => ({ ...n, isRead: true })));
             } catch(e) {}
         }
@@ -520,7 +524,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
           <option value="JP">🇯🇵 JPY</option>
         </select>
 
-        {/* ★ [수술 완료] 알림 종 모양 아이콘을 환율과 닉네임 사이로 완벽히 재배치 */}
         {user && (
           <div style={{ position: 'relative' }} ref={notiRef}>
             <button style={styles.bellIcon} onClick={handleNotiClick}>
@@ -571,11 +574,15 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
           </div>
         )}
 
-        {/* ★ [수술 완료] 닉네임 최우선 렌더링 수정 */}
         {user && (
-          <span style={styles.headerNickname}>
-            {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={styles.headerNickname}>
+              {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
+            </span>
+            {user.playerType === 'streamer' && <span style={{background:'#8a2be2', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>스트리머</span>}
+            {user.playerType === 'intermediate' && <span style={{background:'#00bfff', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>중급자</span>}
+            {user.playerType === 'beginner' && <span style={{background:'#666', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>초심자</span>}
+          </div>
         )}
 
         {!user ? (
@@ -583,7 +590,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
             로그인
           </Link>
         ) : (
-          <button style={styles.logoutButton} onClick={handleLogout}>
+          <button style={styles.logoutButton} onClick={handleLogout} style={{marginLeft:'15px', ...styles.logoutButton}}>
             로그아웃
           </button>
         )}
