@@ -62,29 +62,40 @@ function getExpandedRegexes(uiTag) {
 
 class RecommendController {
     
-    // ★ 1. 메인 페이지 전용 무한 스크롤 엔진 (백지화 에러 해결의 핵심)
     async getMainPageGames(req, res) {
         try {
-            const { tags, sortBy, page = 1, playerType = 'beginner' } = req.body;
+            const { userId, tags, sortBy, page = 1, playerType = 'beginner' } = req.body;
             const limit = 20;
             const skip = (page - 1) * limit;
 
-            // 리뷰 수 족쇄 완전 삭제
             const query = { isAdult: { $ne: true } };
 
+            // ★ 스팀 라이브러리 보유 게임 배제 (블랙리스트 처리)
+            if (userId) {
+                const user = await User.findById(userId).select('steamGames');
+                if (user && user.steamGames && user.steamGames.length > 0) {
+                    const ownedAppIds = user.steamGames.map(g => g.appid);
+                    query.steam_appid = { $nin: ownedAppIds };
+                }
+            }
+
+            // ★ 태그 필터링 오류 수정: 여러 태그를 누르면 무조건 AND(교집합)로 묶임
             if (tags && tags.length > 0) {
-                const tagRegexes = tags.flatMap(t => getExpandedRegexes(t));
-                query.$and = [{
-                    $or: [
-                        { smart_tags: { $in: tagRegexes } },
-                        { tags: { $in: tagRegexes } }
-                    ]
-                }];
+                query.$and = query.$and || [];
+                tags.forEach(tag => {
+                    const tagRegexes = getExpandedRegexes(tag);
+                    query.$and.push({
+                        $or: [
+                            { smart_tags: { $in: tagRegexes } },
+                            { tags: { $in: tagRegexes } }
+                        ]
+                    });
+                });
             }
 
             let sortOption = {};
             if (sortBy === 'popular') sortOption = { "steam_reviews.overall.total": -1, "steam_ccu": -1 };
-            else if (sortBy === 'new') sortOption = { release_date: -1 };
+            else if (sortBy === 'new') sortOption = { releaseDate: -1 };
             else if (sortBy === 'discount') {
                 query["price_info.discount_percent"] = { $gt: 0 };
                 sortOption = { "price_info.discount_percent": -1 };
@@ -110,7 +121,6 @@ class RecommendController {
                 return { ...g, reason };
             });
 
-            // 프론트엔드가 정확히 기대하는 'games 배열' 형태로 반환
             res.json({
                 success: true,
                 games: games, 
@@ -123,7 +133,6 @@ class RecommendController {
         }
     }
 
-    // ★ 2. 맞춤 추천 페이지 전용 섹션 분류 엔진
     async getPersonalRecommendations(req, res) {
         try {
             const { userId, tags, term } = req.body;
@@ -150,8 +159,13 @@ class RecommendController {
             if (hasSteam) activeFactors += 1;
             const weightPerFactor = 100 / activeFactors;
 
-            // 리뷰 수 족쇄 완전 삭제
             const candidateQuery = { isAdult: { $ne: true } };
+
+            // ★ 스팀 라이브러리 보유 게임 배제 (맞춤 추천 페이지에서도 블랙리스트 처리)
+            if (userSteamGames.length > 0) {
+                const ownedAppIds = userSteamGames.map(g => g.appid);
+                candidateQuery.steam_appid = { $nin: ownedAppIds };
+            }
 
             if (term && String(term).trim()) {
                 const keyword = String(term).trim();
@@ -161,14 +175,17 @@ class RecommendController {
                 ];
             }
 
+            // ★ 맞춤 추천 태그 필터링도 AND(교집합)로 수정
             if (userSelectedTags.length > 0) {
-                const tagRegexes = userSelectedTags.flatMap(t => getExpandedRegexes(t));
                 candidateQuery.$and = candidateQuery.$and || [];
-                candidateQuery.$and.push({
-                    $or: [
-                        { smart_tags: { $in: tagRegexes } },
-                        { tags: { $in: tagRegexes } }
-                    ]
+                userSelectedTags.forEach(tag => {
+                    const tagRegexes = getExpandedRegexes(tag);
+                    candidateQuery.$and.push({
+                        $or: [
+                            { smart_tags: { $in: tagRegexes } },
+                            { tags: { $in: tagRegexes } }
+                        ]
+                    });
                 });
             }
 

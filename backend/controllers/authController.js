@@ -260,13 +260,16 @@ class AuthController {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
             }
 
+            // ★ 세션에 스팀 보유 게임 배열과 유저 등급 동기화
             req.session.user = { 
                 id: user._id, 
                 username: user.username, 
-                displayName: user.displayName, // ★ 핵심: 세션에 displayName 명시적 주입 완료
+                displayName: user.displayName,
                 email: user.email,
                 steamId: user.steamId,
-                role: user.role
+                role: user.role,
+                playerType: user.playerType || 'beginner',
+                steamGames: user.steamGames || []
             };
             
             if (rememberMe) req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
@@ -284,16 +287,18 @@ class AuthController {
                 return res.json({ isAuthenticated: false, user: null });
             }
 
-            if (sessionUser.role) {
-                return res.json({ isAuthenticated: true, user: sessionUser });
-            }
-
-            const dbUser = await User.findById(sessionUser.id).select('role');
+            // DB에서 최신 역할, 플레이어 등급, 스팀 라이브러리 데이터를 당겨옵니다.
+            const dbUser = await User.findById(sessionUser.id).select('role playerType steamGames');
             if (!dbUser) {
                 return res.json({ isAuthenticated: false, user: null });
             }
 
-            const patchedUser = { ...sessionUser, role: dbUser.role };
+            const patchedUser = { 
+                ...sessionUser, 
+                role: dbUser.role,
+                playerType: dbUser.playerType || 'beginner',
+                steamGames: dbUser.steamGames || []
+            };
             req.session.user = patchedUser;
 
             return res.json({ isAuthenticated: true, user: patchedUser });
