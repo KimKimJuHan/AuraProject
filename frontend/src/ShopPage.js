@@ -6,6 +6,7 @@ import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
 import { safeLocalStorage } from './utils/storage';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import MinSpecChecker from "./MinSpecChecker";
 
 const styles = {
   buyButton: {
@@ -820,7 +821,7 @@ export default function ShopPage({ region }) {
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <h3 className="net-section-title">시스템 요구 사항</h3>
+            <h3 className="net-section-title">시스템 요구 사항</h3>   
 
             <div style={{ display: 'flex', marginBottom: '15px', borderBottom: '1px solid #333' }}>
               <button
@@ -857,6 +858,7 @@ export default function ShopPage({ region }) {
                 <div dangerouslySetInnerHTML={{ __html: formatRequirements(gameData.pc_requirements?.recommended) }} />
               )}
             </div>
+            <MinSpecChecker />
           </div>
         </div>
 
