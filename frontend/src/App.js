@@ -20,8 +20,10 @@ import ProfileDropdown from './components/ProfileDropdown';
 import Skeleton from './Skeleton';
 import { formatPrice } from './utils/priceFormatter';
 import { checkPcCompatibility } from './utils/pcCompatibility';
-
+import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
+
+
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
@@ -673,14 +675,15 @@ function App() {
   return (
     <Router>
       <div className="net-app">
-        <NavigationBar
+        <NavigationBar 
           user={user}
           setUser={setUser}
           region={region}
           setRegion={setRegion}
           onCurrencyChange={handleCurrencyChange}
-          handleLogout={handleLogout}
+          handleLogout={handleLogout} 
         />
+        <OnboardingPopup />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
           <Route path="/game/:id" element={<ShopPage region={region} />} />
