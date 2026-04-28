@@ -19,6 +19,7 @@ import FaqPage from './pages/Support/FaqPage';
 import ProfileDropdown from './components/ProfileDropdown';
 import Skeleton from './Skeleton';
 import { formatPrice } from './utils/priceFormatter';
+import { checkPcCompatibility } from './utils/pcCompatibility';
 
 import NotificationPage from './pages/NotificationPage';
 
@@ -124,6 +125,7 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
 
   const currentPriceText = formatPrice(game.price_info, region);
   const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
+  const compatibility = checkPcCompatibility(game);
 
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
@@ -141,6 +143,23 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
             <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
               {game.reason || '이 조건에 잘 맞아 추천'}
             </div>
+
+            <div
+              style={{
+                color: compatibility.color,
+                background: compatibility.background,
+                border: `1px solid ${compatibility.border}`,
+                borderRadius: '999px',
+                padding: '4px 8px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                width: 'fit-content',
+                marginBottom: '8px'
+              }}
+            >
+              {compatibility.icon} {compatibility.label}
+            </div>
+
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
                     <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
@@ -590,7 +609,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
             로그인
           </Link>
         ) : (
-          <button style={styles.logoutButton} onClick={handleLogout} style={{marginLeft:'15px', ...styles.logoutButton}}>
+          <button onClick={handleLogout} style={{marginLeft:'15px', ...styles.logoutButton}}>
             로그아웃
           </button>
         )}

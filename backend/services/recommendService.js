@@ -67,7 +67,7 @@ class RecommendService {
 
     // 5. 후보군 검색
     const games = await Game.find(query)
-      .select("slug title title_ko smart_tags main_image price_info metacritic_score trend_score steam_appid play_time")
+      .select("slug title title_ko smart_tags main_image price_info metacritic_score trend_score steam_appid play_time pc_requirements")
       .lean();
 
     // 6. 개인화 알고리즘 점수 계산

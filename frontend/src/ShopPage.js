@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
 import { safeLocalStorage } from './utils/storage';
+import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 
 const styles = {
@@ -639,7 +640,8 @@ export default function ShopPage({ region }) {
         <h1 style={styles.heroTitle}>{gameData.title_ko || gameData.title}</h1>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          {gameData.steam_ccu > 0 && (
+          <PcCompatibilityBadge game={gameData} />
+                    {gameData.steam_ccu > 0 && (
             <span style={{ ...styles.trendBadge, backgroundColor: '#2a475e', border: '1px solid #66c0f4' }}>
               👥 Steam {gameData.steam_ccu.toLocaleString()}명
             </span>
