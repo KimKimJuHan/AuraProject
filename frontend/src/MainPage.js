@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL, apiClient } from './config'; // ★ 백엔드 통신을 위해 apiClient 추가
 import { formatPrice } from './utils/priceFormatter';
+import MinSpecChecker from "./MinSpecChecker";
 
 const TAG_CATEGORIES = {
   '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
@@ -206,7 +207,7 @@ export default function MainPage({ user, region }) {
   };
 
   return (
-    <div className="net-panel">
+    <div className="net-panel"> <MinSpecChecker />
       <div style={styles.tabContainer}>
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
