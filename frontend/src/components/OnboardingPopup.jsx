@@ -19,7 +19,7 @@ function OnboardingPopup() {
   return (
     <div style={{
       position: 'fixed',
-      top: 32,
+      top: 88,
       left: 32,
       zIndex: 9999,
       background: 'rgba(255,255,255,0.97)', // 반투명 테마
@@ -38,7 +38,7 @@ function OnboardingPopup() {
       transition: 'box-shadow 0.2s'
     }}>
       <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 6, letterSpacing: '-1.2px', color: "#1D242F"}}>
-        🚀 더 똑똑한 게임 추천을 원한다면?
+         더 똑똑한 게임 추천을 원한다면?
       </div>
       <ul style={{ fontSize: 15, margin: "18px 0 14px 20px", padding: 0, listStyle: "disc" }}>
         <li><b>로그인</b> 후 <b>마이페이지</b> 이동</li>
