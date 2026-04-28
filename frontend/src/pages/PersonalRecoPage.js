@@ -4,7 +4,8 @@ import axios from 'axios';
 import "../styles/Recommend.css"; 
 import { API_BASE_URL } from '../config'; 
 import { safeLocalStorage } from '../utils/storage'; 
-import { formatPrice } from '../utils/priceFormatter'; // ★ 가격 표시 유틸리티 임포트
+import { formatPrice } from '../utils/priceFormatter';
+import PcCompatibilityBadge from '../components/PcCompatibilityBadge'; // ★ 가격 표시 유틸리티 임포트
 
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
@@ -42,7 +43,8 @@ function GameCard({ game }) {
                 <button className="heart-btn" onClick={toggleWishlist}>{isWishlisted ? '❤️' : '🤍'}</button>
             </div>
             <div className="card-info">
-                <div className="game-title">{game.title_ko || game.title || game.name}</div>
+                <div className="game-title">{game.title_ko || game.title || game.name}
+                <PcCompatibilityBadge game={game} compact /></div>
                 <div className="game-meta-row">
                     {/* ★ 가격 포매터 유틸리티 적용 */}
                     <span className="game-price" style={{ color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>

@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { safeLocalStorage } from '../utils/storage';
+import PcCompatibilityBadge from '../components/PcCompatibilityBadge';
+import { CPU_OPTIONS } from '../data/hardware/cpuScores';
+import { GPU_OPTIONS } from '../data/hardware/gpuScores';
+import { savePcSpec, removePcSpec, getSavedPcSpec } from '../utils/pcCompatibility';
 import '../styles/Recommend.css';
 
 const AVAILABLE_TAGS = ['액션', 'RPG', '오픈월드', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '어드벤처', '로그라이크', '사이버펑크'];
@@ -15,11 +19,22 @@ function MyPage({ user, setUser }) {
     const navigate = useNavigate();
     const [isEditingNickname, setIsEditingNickname] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
+    const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 16 });
+    const [savedPcSpec, setSavedPcSpec] = useState(null);
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
         setCurrentTags(user.likedTags?.length > 0 ? user.likedTags : ['액션', 'RPG', '오픈월드']);
         setNewDisplayName(user?.displayName || user?.username || '');
+        const savedSpec = getSavedPcSpec();
+        setSavedPcSpec(savedSpec);
+        if (savedSpec) {
+            setPcSpecForm({
+                cpuName: savedSpec.cpuName || '',
+                gpuName: savedSpec.gpuName || '',
+                ram: savedSpec.ram || 16
+            });
+        }
         fetchData();
     }, [user, navigate]);
 
@@ -106,6 +121,35 @@ function MyPage({ user, setUser }) {
       } catch (e) {
         alert(e?.response?.data?.message || '닉네임 변경 실패');
       }
+    };
+
+    const handleSavePcSpec = () => {
+        const selectedCpu = CPU_OPTIONS.find(cpu => cpu.name === pcSpecForm.cpuName);
+        const selectedGpu = GPU_OPTIONS.find(gpu => gpu.name === pcSpecForm.gpuName);
+
+        if (!selectedCpu) return alert('CPU를 선택해주세요.');
+        if (!selectedGpu) return alert('그래픽카드를 선택해주세요.');
+
+        const nextSpec = {
+            cpuName: selectedCpu.name,
+            cpuScore: selectedCpu.score,
+            gpuName: selectedGpu.name,
+            gpuScore: selectedGpu.score,
+            ram: Number(pcSpecForm.ram)
+        };
+
+        savePcSpec(nextSpec);
+    window.dispatchEvent(new Event('pcSpecUpdated'));
+        setSavedPcSpec(nextSpec);
+        alert('PC 사양이 저장되었습니다.');
+    };
+
+    const handleRemovePcSpec = () => {
+        if (!window.confirm('저장된 PC 사양을 삭제하시겠습니까?')) return;
+        removePcSpec();
+        setSavedPcSpec(null);
+        setPcSpecForm({ cpuName: '', gpuName: '', ram: 16 });
+        alert('PC 사양이 삭제되었습니다.');
     };
 
     return (
@@ -200,6 +244,75 @@ function MyPage({ user, setUser }) {
             </div>
 
             <div className="search-panel" style={{marginTop:'20px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+                    <h3 style={{margin: 0}}>🖥️ 내 PC 사양 설정</h3>
+                    {savedPcSpec && (
+                        <span style={{fontSize:'12px', color:'#4CAF50', fontWeight:'bold'}}>저장됨</span>
+                    )}
+                </div>
+
+                <p style={{fontSize:'13px', color:'#aaa', lineHeight:1.5, marginTop:'10px'}}>
+                     저장 후 게임 카드에 호환 여부가 표시됩니다.
+                </p>
+
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'12px', marginTop:'15px'}}>
+                    <label style={{display:'flex', flexDirection:'column', gap:'6px', color:'#ddd', fontSize:'13px'}}>
+                        CPU
+                        <select
+                            value={pcSpecForm.cpuName}
+                            onChange={(e) => setPcSpecForm(prev => ({ ...prev, cpuName: e.target.value }))}
+                            style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
+                        >
+                            <option value="">CPU 선택</option>
+                            {CPU_OPTIONS.map(cpu => (
+                                <option key={cpu.name} value={cpu.name}>{cpu.name}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label style={{display:'flex', flexDirection:'column', gap:'6px', color:'#ddd', fontSize:'13px'}}>
+                        그래픽카드
+                        <select
+                            value={pcSpecForm.gpuName}
+                            onChange={(e) => setPcSpecForm(prev => ({ ...prev, gpuName: e.target.value }))}
+                            style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
+                        >
+                            <option value="">그래픽카드 선택</option>
+                            {GPU_OPTIONS.map(gpu => (
+                                <option key={gpu.name} value={gpu.name}>{gpu.name}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label style={{display:'flex', flexDirection:'column', gap:'6px', color:'#ddd', fontSize:'13px'}}>
+                        RAM
+                        <select
+                            value={pcSpecForm.ram}
+                            onChange={(e) => setPcSpecForm(prev => ({ ...prev, ram: Number(e.target.value) }))}
+                            style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
+                        >
+                            {[4, 8, 12, 16, 24, 32, 64].map(ram => (
+                                <option key={ram} value={ram}>{ram}GB</option>
+                            ))}
+                        </select>
+                    </label>
+                </div>
+
+                {savedPcSpec && (
+                    <div style={{marginTop:'12px', padding:'10px', background:'#111', border:'1px solid #333', borderRadius:'6px', color:'#ccc', fontSize:'13px', lineHeight:1.6}}>
+                        현재 저장 사양: {savedPcSpec.cpuName} / {savedPcSpec.gpuName} / RAM {savedPcSpec.ram}GB
+                    </div>
+                )}
+
+                <div style={{display:'flex', gap:'10px', marginTop:'15px', flexWrap:'wrap'}}>
+                    <button onClick={handleSavePcSpec} className="search-btn">PC 사양 저장</button>
+                    {savedPcSpec && (
+                        <button onClick={handleRemovePcSpec} className="search-btn" style={{backgroundColor:'#666'}}>삭제</button>
+                    )}
+                </div>
+            </div>
+
+            <div className="search-panel" style={{marginTop:'20px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <h3 style={{margin: 0}}>🏷️ 나의 선호 태그</h3>
                     {isEditingTags ? (
@@ -251,6 +364,7 @@ function MyPage({ user, setUser }) {
                             <img src={game.main_image} alt={game.title} style={{width:'100%', borderRadius:'4px'}} />
                             <div style={{padding:'10px'}}>
                                 <div style={{fontSize:'14px', fontWeight:'bold'}} className="text-truncate">{game.title_ko || game.title}</div>
+                                <PcCompatibilityBadge game={game} compact hideUnknown />
 
                                 {game.reason && (
                                   <div style={{
