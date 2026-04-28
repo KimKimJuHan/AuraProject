@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Skeleton from './Skeleton';
 import { API_BASE_URL } from './config';
+import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 
 const styles = {
   container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
@@ -61,7 +62,8 @@ function SearchResultsPage() {
                     <img src={game.main_image} alt={game.title} style={styles.thumb} onError={(e) => e.target.src = "https://via.placeholder.com/300x169?text=No+Image"} />
                 </div>
                 <div style={styles.cardBody}>
-                    <div style={styles.title}>{game.title_ko || game.title}</div>
+                    <div style={styles.title}>{game.title_ko || game.title}
+                                <PcCompatibilityBadge game={game} compact /></div>
                     <div style={styles.meta}>
                         <span>{game.price_info?.isFree ? '무료' : (game.price_info?.current_price ? `₩${game.price_info.current_price.toLocaleString()}` : '정보 없음')}</span>
                         {game.metacritic_score > 0 && <span>Ⓜ️ {game.metacritic_score}</span>}
