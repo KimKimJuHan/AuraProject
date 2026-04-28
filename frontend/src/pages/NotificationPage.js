@@ -80,7 +80,11 @@ export default function NotificationPage({ user }) {
                 <h2 style={styles.title}>알림 센터</h2>
                 <button style={styles.clearBtn} onClick={handleClearAll}>전체 삭제</button>
             </div>
-
+<div style={{ 
+  textAlign: 'center', color: '#ffc947', fontSize: '15px', marginBottom: '30px'
+}}>
+  <b>찜해놓은 유료게임 가격이 인하되면 알림으로 알려드립니다!</b>
+</div>
             {notifications.length === 0 ? (
                 <div style={styles.emptyState}>수신된 알림이 없습니다.</div>
             ) : (
