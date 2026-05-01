@@ -4,7 +4,10 @@ const mongoose = require('mongoose');
 
 const gameSchema = new mongoose.Schema({
   slug: { type: String, required: true, unique: true },
-  steam_appid: { type: Number, required: true },
+  // ★ 수술 완료: 타 플랫폼 게임도 저장할 수 있도록 required: true를 제거했습니다.
+  steam_appid: { type: Number }, 
+  // ★ 수술 완료: 플랫폼 구분용 필드를 복구했습니다. (기본값은 Steam)
+  platforms: { type: [String], default: ['Steam'], index: true }, 
   title: { type: String, required: true, index: true },
   title_ko: { type: String, default: "", index: true },
   main_image: { type: String },
