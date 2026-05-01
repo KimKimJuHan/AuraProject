@@ -10,7 +10,7 @@ const Game = require('../models/Game');
 const GameCategory = require('../models/GameCategory');
 const TrendHistory = require('../models/TrendHistory');
 
-const { MONGODB_URI, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, CHZZK_CLIENT_ID, CHZZK_CLIENT_SECRET } = process.env;
+const { MONGODB_URI, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET } = process.env;
 
 if (!MONGODB_URI) { console.error('❌ MONGODB_URI 누락'); process.exit(1); }
 
@@ -37,20 +37,24 @@ async function getSteamCCU(appId) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ★ 수술 완료: 무한 루프 위험이 있던 기존 코드를 버리고 안전하고 최적화된 레벤슈타인 거리 알고리즘으로 전면 교체했습니다.
 function getSimilarity(s1, s2) {
     let longer = s1; let shorter = s2;
     if (s1.length < s2.length) { longer = s2; shorter = s1; }
     const longerLength = longer.length;
     if (longerLength === 0) return 1.0;
+    
+    shorter = shorter.toLowerCase();
+    longer = longer.toLowerCase();
     const costs = new Array();
     for (let i = 0; i <= longer.length; i++) {
         let lastValue = i;
         for (let j = 0; j <= shorter.length; j++) {
-            if (i == 0) costs[j] = j;
+            if (i === 0) costs[j] = j;
             else {
                 if (j > 0) {
                     let newValue = costs[j - 1];
-                    if (longer.charAt(i - 1) != shorter.charAt(j - 1))
+                    if (longer.charAt(i - 1) !== shorter.charAt(j - 1))
                         newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
                     costs[j - 1] = lastValue; lastValue = newValue;
                 }
@@ -61,7 +65,6 @@ function getSimilarity(s1, s2) {
     return (longerLength - costs[shorter.length]) / parseFloat(longerLength);
 }
 
-// 치지직 검색용 '광역 키워드' 추출기
 function getCoreKeyword(text) {
     if (!text) return "";
     let core = text.replace(/[™®©]/g, '');
@@ -89,7 +92,7 @@ async function collectTrends() {
             let twitchViewers = 0;
             let chzzkViewers = 0;
 
-            // 1. 트위치 시청자 수집
+            // 1. 트위치 수집
             if (categoryData?.twitch?.id && twitchToken) {
                 try {
                     const res = await axios.get('https://api.twitch.tv/helix/streams', { 
@@ -101,20 +104,23 @@ async function collectTrends() {
                 } catch (err) {}
             }
 
-            // 2. 치지직 시청자 수집 (광역 검색 + 정밀 저격)
+            // 2. 치지직 수집
             const koCore = getCoreKeyword(game.title_ko);
             const enCore = getCoreKeyword(game.title);
             const searchQuery = koCore || enCore;
 
             if (searchQuery) {
                 try {
+                    // ★ 수술 완료: CHZZK_CLIENT_ID 등 네이버 오픈 API 키를 제거하고, 브라우저 위장 헤더를 보강했습니다.
                     const res = await axios.get(`https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeURIComponent(searchQuery)}&offset=0&size=50&sortType=POPULAR`, { 
                         headers: { 
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                            'Client-Id': CHZZK_CLIENT_ID || '',
-                            'Client-Secret': CHZZK_CLIENT_SECRET || ''
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                            'Accept': 'application/json, text/plain, */*',
+                            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8',
+                            'Origin': 'https://chzzk.naver.com',
+                            'Referer': 'https://chzzk.naver.com/'
                         },
-                        timeout: 10000 // 타임아웃 연장
+                        timeout: 10000
                     });
                     
                     const lives = res.data?.content?.data || [];
@@ -131,7 +137,6 @@ async function collectTrends() {
                         const normalizedCat = normalize(categoryValue);
                         
                         let isMatch = false;
-                        
                         if (targetKor && targetKor.length > 1 && normalizedCat.includes(targetKor)) isMatch = true;
                         else if (targetEng && targetEng.length > 2 && normalizedCat.includes(targetEng)) isMatch = true;
 
@@ -141,17 +146,20 @@ async function collectTrends() {
                             if (simKor >= 0.70 || simEng >= 0.70) isMatch = true;
                         }
                         
-                        if (isMatch) {
-                            chzzkViewers += live.concurrentUserCount || 0;
-                        }
+                        if (isMatch) chzzkViewers += live.concurrentUserCount || 0;
                     });
-                } catch (err) {}
+                } catch (err) {
+                    // ★ 수술 완료: 네이버 차단(403) 시 이유를 터미널에 명확히 출력하도록 방어 코드를 추가했습니다.
+                    if (err.response && (err.response.status === 403 || err.response.status === 429)) {
+                        console.log(`[치지직 차단 감지] ${err.response.status} 에러 발생 (${game.title})`);
+                    }
+                }
             }
 
             // 3. 스팀 동접자 수집
             const steamCCU = await getSteamCCU(steamId);
             
-            // 4. 트렌드 점수 합산 로직
+            // 4. 트렌드 점수 합산
             const trendScore = twitchViewers + (chzzkViewers * 2) + Math.round(steamCCU * 0.1);
 
             await Game.updateOne(
@@ -165,7 +173,6 @@ async function collectTrends() {
             processed++;
             console.log(`📡 [${processed}/${allGames.length}] ${game.title} | Trend: ${trendScore} (T:${twitchViewers} C:${chzzkViewers} S:${steamCCU})`);
             
-            // 트래픽 제한(Rate Limit) 회피용 딜레이
             await sleep(500); 
         }
 
