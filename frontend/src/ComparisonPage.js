@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from './config';
 import { formatPrice } from './utils/priceFormatter';
-import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 
 function ComparisonPage({ region, user }) {
   const [games, setGames] = useState([]);

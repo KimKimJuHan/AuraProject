@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 import AdminInquiryPage from './pages/Support/AdminInquiryPage';
@@ -265,7 +265,7 @@ function MainPage({ user, region }) {
     };
 
     fetchGames();
-  }, [page, selectedTags, activeTab, user]);
+  }, [page, selectedTags, activeTab, user, hasMore]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);

@@ -278,67 +278,8 @@ router.get('/games/:id/history', async (req, res) => {
 router.get('/games/:id/myvote', recoController.getMyVote);
 router.post('/games/:id/vote', recoController.voteGame);
 
-// 메인 추천 API + 검색 기능
-router.post('/recommend', async (req, res) => {
-    try {
-        const { tags = [], sortBy = 'popular', page = 1, searchQuery = '' } = req.body;
-        const limit = 20;
-        const currentPage = Number(page) || 1;
-        const skip = (currentPage - 1) * limit;
-        const query = {};
-
-        // ★ 수정: 고장난 모듈 참조를 없애고 안전한 내부 함수(safeGetQueryTags)로 교체
-        if (tags && tags.length > 0) {
-            query.smart_tags = { $in: tags.flatMap(t => safeGetQueryTags(t)) }; 
-        }
-
-        const trimmedQuery = String(searchQuery || '').trim();
-        if (trimmedQuery) {
-            const safeQuery = escapeRegex(trimmedQuery);
-            const regex = new RegExp(safeQuery, 'i');
-            query.$or = [{ title: regex }, { title_ko: regex }, { slug: regex }];
-        }
-
-        let sortOption = {};
-        switch (sortBy) {
-            case 'hype': sortOption = { trend_score: -1 }; break;
-            case 'new': sortOption = { releaseDate: -1 }; break;
-            case 'discount': sortOption = { 'price_info.discount_percent': -1 }; break;
-            case 'price': sortOption = { 'price_info.current_price': 1 }; break;
-            default: sortOption = { trend_score: -1 }; break;
-        }
-
-        const games = await Game.find(query).sort(sortOption).skip(skip).limit(limit).lean();
-
-        const totalCount = await Game.countDocuments(query);
-
-        const gamesWithReason = games.map(game => ({
-            ...game,
-            reason: getMainRecommendationReason(game, sortBy, tags)
-        }));
-
-        const validSet = new Set();
-        gamesWithReason.forEach(game => {
-            const gameTags = Array.isArray(game.smart_tags) ? game.smart_tags : [];
-            MAIN_TAG_POOL.forEach(tag => {
-                if (matchesMappedTag(gameTags, tag)) {
-                    validSet.add(tag);
-                }
-            });
-        });
-
-        res.json({
-            success: true,
-            games: gamesWithReason,
-            totalPages: Math.ceil(totalCount / limit),
-            currentPage,
-            validTags: Array.from(validSet)
-        });
-    } catch (error) {
-        console.error('Recommend API Error:', error);
-        res.status(500).json({ success: false, message: '서버 에러' });
-    }
-});
+// /recommend POST는 advancedRecoRoutes(recommendController)에서 처리
+// 이 파일에서는 /games/*, /search/*, /recommend/wishlist 만 담당
 
 router.post('/recommend/wishlist', async (req, res) => {
     try {
