@@ -2,10 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from 'axios'; 
 import "../styles/Recommend.css"; 
-import { API_BASE_URL } from '../config'; 
-import { safeLocalStorage } from '../utils/storage'; 
+import { API_BASE_URL, apiClient } from '../config'; 
 import { formatPrice } from '../utils/priceFormatter';
-import PcCompatibilityBadge from '../components/PcCompatibilityBadge'; // ★ 가격 표시 유틸리티 임포트
+import PcCompatibilityBadge from '../components/PcCompatibilityBadge';
 
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
@@ -17,22 +16,17 @@ const TAG_CATEGORIES = {
   '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
 };
 
-function GameCard({ game }) {
-    const [isWishlisted, setIsWishlisted] = useState(false);
-    
-    useEffect(() => {
-        const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || '[]');
-        setIsWishlisted(wishlist.includes(game.slug));
-    }, [game.slug]);
+function GameCard({ game, userWishlist, onToggleWishlist, user }) {
+    const isWishlisted = userWishlist.includes(game.slug);
 
-    const toggleWishlist = (e) => {
+    const handleHeartClick = (e) => {
         e.preventDefault();
-        const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || '[]');
-        let newWishlist;
-        if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== game.slug);
-        else newWishlist = [...wishlist, game.slug];
-        safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
-        setIsWishlisted(!isWishlisted);
+        e.stopPropagation();
+        if (!user) {
+            alert("로그인이 필요한 기능입니다.");
+            return;
+        }
+        onToggleWishlist(game.slug, isWishlisted);
     };
 
     return (
@@ -40,7 +34,7 @@ function GameCard({ game }) {
             <div className="thumb-wrapper">
                 <img src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
                 <div className="net-card-gradient"></div>
-                <button className="heart-btn" onClick={toggleWishlist}>{isWishlisted ? '❤️' : '🤍'}</button>
+                <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
             </div>
             <div className="card-info">
                 <div className="game-title">{game.title_ko || game.title || game.name}
@@ -61,7 +55,7 @@ function GameCard({ game }) {
     );
 }
 
-function RecoSection({ title, games }) {
+function RecoSection({ title, games, userWishlist, onToggleWishlist, user }) {
     const [expanded, setExpanded] = useState(false);
     if (!games || games.length === 0) return null;
     const displayGames = expanded ? games : games.slice(0, 4);
@@ -77,20 +71,63 @@ function RecoSection({ title, games }) {
                 )}
             </div>
             <div className="game-grid">
-                {displayGames.map((g, i) => <GameCard key={g.slug || i} game={g} />)}
+                {displayGames.map((g, i) => (
+                    <GameCard
+                        key={g.slug || i}
+                        game={g}
+                        userWishlist={userWishlist}
+                        onToggleWishlist={onToggleWishlist}
+                        user={user}
+                    />
+                ))}
             </div>
         </div>
     );
 }
 
 export default function PersonalRecoPage({ user }) {
-  const [term, setTerm] = useState("");
+  const term = ""; // 검색어 필드 (추후 검색창 UI 추가 시 useState로 교체)
   const [picked, setPicked] = useState(new Set());
   const [data, setData] = useState({ comprehensive: [], costEffective: [], trend: [], hiddenGem: [], multiplayer: [] });
-  // ★ 유저가 선택한 태그 전용 추천을 담을 State 추가
   const [tagSpecificData, setTagSpecificData] = useState([]);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [userWishlist, setUserWishlist] = useState([]);
+
+  // DB 위시리스트 로드
+  useEffect(() => {
+    if (user && user._id) {
+        apiClient.get('/user/wishlist')
+            .then(res => setUserWishlist(res.data || []))
+            .catch(() => setUserWishlist([]));
+    } else {
+        setUserWishlist([]);
+    }
+  }, [user]);
+
+  // DB 위시리스트 토글
+  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
+    if (isCurrentlyWished) {
+        setUserWishlist(prev => prev.filter(s => s !== gameSlug));
+    } else {
+        setUserWishlist(prev => [...prev, gameSlug]);
+    }
+    try {
+        if (isCurrentlyWished) {
+            await apiClient.delete(`/user/wishlist/${gameSlug}`);
+        } else {
+            await apiClient.post('/user/wishlist', { slug: gameSlug });
+        }
+    } catch {
+        // 롤백
+        if (isCurrentlyWished) {
+            setUserWishlist(prev => [...prev, gameSlug]);
+        } else {
+            setUserWishlist(prev => prev.filter(s => s !== gameSlug));
+        }
+        alert("찜하기 처리 중 오류가 발생했습니다.");
+    }
+  };
 
   useEffect(() => {
     const fetchReco = async () => {
@@ -127,7 +164,7 @@ export default function PersonalRecoPage({ user }) {
     };
     const timer = setTimeout(() => { fetchReco(); }, 500);
     return () => clearTimeout(timer);
-  }, [picked, term, user]); 
+  }, [picked, user]); 
 
   const toggle = (t) => {
     setPicked((prev) => {
@@ -164,16 +201,18 @@ export default function PersonalRecoPage({ user }) {
             {picked.size > 0 && tagSpecificData.length > 0 && (
                 <RecoSection 
                     title={`🎯 [${Array.from(picked).join(', ')}] 취향 저격`} 
-                    games={tagSpecificData} 
+                    games={tagSpecificData}
+                    userWishlist={userWishlist}
+                    onToggleWishlist={handleToggleWishlist}
+                    user={user}
                 />
             )}
             
-            {/* 기존 넷플릭스 탭들 */}
-            <RecoSection title="🌟 종합 추천 (맞춤형)" games={data.comprehensive} />
-            <RecoSection title="🔥 지금 뜨는 트렌드" games={data.trend} />
-            <RecoSection title="💰 가격 합리성 (가성비)" games={data.costEffective} />
-            <RecoSection title="💎 숨겨진 명작" games={data.hiddenGem} />
-            <RecoSection title="🤝 친구와 함께 (멀티플레이)" games={data.multiplayer} />
+            <RecoSection title="🌟 종합 추천 (맞춤형)" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="🔥 지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="💰 가격 합리성 (가성비)" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="💎 숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="🤝 친구와 함께 (멀티플레이)" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
         </div>
       )}
       {!loading && err && <div className="error-box">{err}</div>}
