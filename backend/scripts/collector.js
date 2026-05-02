@@ -129,15 +129,26 @@ async function getSteamReviews(appId) {
   try {
     const { data: html } = await axios.get(`https://store.steampowered.com/app/${appId}/?l=koreana`, { headers: STEAM_HEADERS, timeout: 8000 });
     const recentMatch = html.match(/Recent Reviews:[\s\S]*?game_review_summary[^>]*?>([\s\S]*?)<[\s\S]*?responsive_hidden[^>]*?>\s*\(([\d,]+)\)/);
-    if (recentMatch) result.recent = { summary: recentMatch[1].trim(), positive: 0, total: parseInt(recentMatch[2].replace(/,/g, '')) || 0, percent: 0 };
+    if (recentMatch) {
+        const total = parseInt(recentMatch[2].replace(/,/g, '')) || 0;
+        result.recent = { summary: recentMatch[1].trim(), positive: 0, total, percent: 0 };
+    }
     const overallMatch = html.match(/All Reviews:[\s\S]*?game_review_summary[^>]*?>([\s\S]*?)<[\s\S]*?responsive_hidden[^>]*?>\s*\(([\d,]+)\)/);
-    if (overallMatch) result.overall = { summary: overallMatch[1].trim(), positive: 0, total: parseInt(overallMatch[2].replace(/,/g, '')) || 0, percent: 0 };
-    if (result.overall.total === 0) {
+    if (overallMatch) {
+        const total = parseInt(overallMatch[2].replace(/,/g, '')) || 0;
+        result.overall = { summary: overallMatch[1].trim(), positive: 0, total, percent: 0 };
+    }
+    // Steam 리뷰 API로 positive 수와 percent 보완 (항상 실행)
+    try {
         const res = await axios.get(`https://store.steampowered.com/appreviews/${appId}?json=1&language=all`, { timeout: 5000 });
         if (res.data?.query_summary) {
-            result.overall = { summary: res.data.query_summary.review_score_desc, total: res.data.query_summary.total_reviews, positive: res.data.query_summary.total_positive, percent: 0 };
+            const qs = res.data.query_summary;
+            const total = qs.total_reviews || 0;
+            const positive = qs.total_positive || 0;
+            const percent = total > 0 ? Math.round((positive / total) * 100) : 0;
+            result.overall = { summary: qs.review_score_desc || result.overall.summary, total, positive, percent };
         }
-    }
+    } catch (e) {}
   } catch (e) {}
   return result;
 }

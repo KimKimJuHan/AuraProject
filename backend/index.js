@@ -196,12 +196,11 @@ if (process.env.MONGODB_URI) {
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/recommend', advancedRecoRoutes);
+// recoRoutes: /api/games/*, /api/search/*, /api/recommend/wishlist 등 세부 경로 우선 등록
 app.use('/api', recoRoutes);
-app.use('/api/steam', advancedRecoRoutes); 
-app.use('/api/advanced', advancedRecoRoutes); 
+// advancedRecoRoutes: /api/recommend (POST 메인), /api/recommend/personal, /api/recommend/reco
+app.use('/api/recommend', advancedRecoRoutes);
 app.use('/api/support', supportRoutes);
-// ★ 알림 라우터 마운트 (이 부분이 누락되어 프론트엔드에서 알림을 못 불러옵니다)
 app.use('/api/notifications', notificationsRoutes);
 
 const errorHandler = require('./middleware/errorHandler');
