@@ -1,14 +1,12 @@
 /**
- * retry_skipped_tags.js
+ * remap_smart_tags.js
  *
- * 이전 remap_smart_tags.js 실행에서 스킵된 게임들
- * (tags 없는 게임) 을 재시도합니다.
+ * 새 TAG_MAPPING 기준으로 smart_tags 전면 재매핑
+ * - tags 원본이 있으면 → 즉시 재매핑 (벌크, 빠름)
+ * - tags 없으면 → Steam appdetails API로 보완 후 저장
+ * 모두 자동 처리 (인터랙션 없음)
  *
- * Steam API rate limit 대응:
- * - 429 또는 빈 응답 시 최대 3회 재시도 (지수 백오프)
- * - 재시도 간격: 5s → 15s → 30s
- *
- * 실행: node scripts/retry_skipped_tags.js
+ * 실행: node scripts/remap_smart_tags.js
  */
 
 const path = require('path');
@@ -24,128 +22,163 @@ if (!MONGODB_URI) { console.error('❌ MONGODB_URI 없음'); process.exit(1); }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-async function fetchTagsWithRetry(appId, maxRetry = 3) {
+async function fetchTagsFromApi(appId, retries = 3) {
     const delays = [5000, 15000, 30000];
 
-    for (let attempt = 0; attempt <= maxRetry; attempt++) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const res = await axios.get('https://store.steampowered.com/api/appdetails', {
                 params: { appids: appId, filters: 'genres,categories', cc: 'kr' },
                 timeout: 10000,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
                     'Accept-Language': 'ko-KR,ko;q=0.9'
                 }
             });
 
-            // rate limit 감지
+            // rate limit
             if (res.status === 429) {
                 const wait = delays[attempt] || 30000;
-                console.log(`     ⏳ rate limit (429) — ${wait / 1000}초 대기 후 재시도 (${attempt + 1}/${maxRetry})`);
+                console.log(`     ⏳ rate limit — ${wait / 1000}초 대기 (${attempt + 1}/${retries})`);
                 await sleep(wait);
                 continue;
             }
 
             const data = res.data?.[appId]?.data;
-            // 응답은 왔는데 data가 null → 실제로 없는 앱 (DLC, 삭제됨 등)
-            if (!data) return { tags: [], reallyMissing: true };
-
+            if (!data) return null; // DLC/삭제된 앱
             const genres = (data.genres || []).map(g => g.description);
             const categories = (data.categories || []).map(c => c.description);
-            return { tags: [...new Set([...genres, ...categories])], reallyMissing: false };
+            return [...new Set([...genres, ...categories])];
 
         } catch (err) {
             const status = err.response?.status;
-            if ((status === 429 || status === 503 || !status) && attempt < maxRetry) {
+            if (attempt < retries) {
                 const wait = delays[attempt] || 30000;
-                console.log(`     ⏳ 오류(${status || 'timeout'}) — ${wait / 1000}초 대기 후 재시도 (${attempt + 1}/${maxRetry})`);
+                console.log(`     ⏳ 오류(${status || 'timeout'}) — ${wait / 1000}초 대기 후 재시도 (${attempt + 1}/${retries})`);
                 await sleep(wait);
             } else {
-                return { tags: [], reallyMissing: false }; // 재시도 소진
+                return []; // 재시도 소진
             }
         }
     }
-    return { tags: [], reallyMissing: false };
+    return [];
 }
 
 async function run() {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ DB 연결 완료');
 
-    // 이전에 스킵된 게임: tags 없는 게임
     const games = await Game.find({
-        steam_appid: { $exists: true, $ne: null },
-        $or: [
-            { tags: { $exists: false } },
-            { tags: { $size: 0 } }
-        ]
-    }).select('_id title steam_appid smart_tags').lean();
+        steam_appid: { $exists: true, $ne: null }
+    }).select('_id title steam_appid tags smart_tags').lean();
 
-    console.log(`📋 재시도 대상: ${games.length}개`);
-    console.log(`⏱  예상 소요: 약 ${Math.ceil(games.length * 1.5 / 60)}분 (rate limit 대기 포함)\n`);
+    const withTags    = games.filter(g => Array.isArray(g.tags) && g.tags.length > 0);
+    const withoutTags = games.filter(g => !Array.isArray(g.tags) || g.tags.length === 0);
 
-    let saved = 0;
-    let reallyMissing = 0;   // 실제로 Steam에 없는 앱
-    let exhausted = 0;        // 재시도 소진
-    let noMapping = 0;        // API는 왔는데 TAG_MAPPING에 해당 없음
+    console.log(`📋 전체: ${games.length}개`);
+    console.log(`   tags 있음 (즉시 재매핑): ${withTags.length}개`);
+    console.log(`   tags 없음 (API 보완):    ${withoutTags.length}개\n`);
 
-    for (let i = 0; i < games.length; i++) {
-        const game = games[i];
-        const progress = `[${i + 1}/${games.length}]`;
+    // ── 1단계: tags 있는 게임 벌크 재매핑 ──────────────────────────────────
+    console.log('1단계: 즉시 재매핑 중...');
+    const bulkOps = [];
+    let changed = 0;
+    let unchanged = 0;
 
-        const { tags: sourceTags, reallyMissing: isMissing } = await fetchTagsWithRetry(game.steam_appid);
+    for (const game of withTags) {
+        const newSmartTags = mapSteamTags(game.tags);
+        const oldStr = Array.isArray(game.smart_tags) ? [...game.smart_tags].sort().join(',') : '';
+        const newStr = [...newSmartTags].sort().join(',');
+        if (oldStr === newStr) { unchanged++; continue; }
+        bulkOps.push({
+            updateOne: {
+                filter: { _id: game._id },
+                update: { $set: { smart_tags: newSmartTags } }
+            }
+        });
+        changed++;
+    }
 
-        if (isMissing) {
-            console.log(`${progress} ❌ 실제 없는 앱 (DLC/삭제): ${game.title} (appid: ${game.steam_appid})`);
-            reallyMissing++;
-            await sleep(400);
-            continue;
+    if (bulkOps.length > 0) {
+        for (let i = 0; i < bulkOps.length; i += 500) {
+            await Game.bulkWrite(bulkOps.slice(i, i + 500));
+        }
+    }
+    console.log(`   ✅ 변경: ${changed}개 / 동일: ${unchanged}개\n`);
+
+    // ── 2단계: tags 없는 게임 API 보완 (자동) ───────────────────────────────
+    if (withoutTags.length === 0) {
+        console.log('2단계: 보완 대상 없음.');
+    } else {
+        console.log(`2단계: ${withoutTags.length}개 API 보완 중...`);
+        let apiSaved = 0;
+        let apiMissing = 0;
+        let apiFailed = 0;
+        let apiNoMap = 0;
+        let failStreak = 0;
+        const STREAK_LIMIT = 10; // 10연속 실패 시 60초 휴식
+
+        for (let i = 0; i < withoutTags.length; i++) {
+            const game = withoutTags[i];
+            const progress = `[${i + 1}/${withoutTags.length}]`;
+
+            // 연속 실패 시 강제 휴식
+            if (failStreak >= STREAK_LIMIT) {
+                console.log(`\n  ⏸  ${STREAK_LIMIT}연속 실패 — 60초 휴식 중...\n`);
+                await sleep(60000);
+                failStreak = 0;
+            }
+
+            const sourceTags = await fetchTagsFromApi(game.steam_appid);
+
+            if (sourceTags === null) {
+                console.log(`${progress} ❌ 없는 앱 (DLC/삭제 추정): ${game.title}`);
+                apiMissing++;
+                failStreak++;
+                await sleep(300);
+                continue;
+            }
+
+            if (sourceTags.length === 0) {
+                console.log(`${progress} ⏩ API 오류 스킵: ${game.title}`);
+                apiFailed++;
+                failStreak++;
+                await sleep(500);
+                continue;
+            }
+
+            failStreak = 0;
+            const newSmartTags = mapSteamTags(sourceTags);
+
+            if (newSmartTags.length === 0) {
+                await Game.updateOne({ _id: game._id }, { $set: { tags: sourceTags } });
+                console.log(`${progress} ⚠️  매핑 없음 (원본만 저장): ${game.title}`);
+                apiNoMap++;
+                await sleep(500);
+                continue;
+            }
+
+            await Game.updateOne(
+                { _id: game._id },
+                { $set: { tags: sourceTags, smart_tags: newSmartTags } }
+            );
+            console.log(`${progress} ✅ ${game.title} → [${newSmartTags.join(', ')}]`);
+            apiSaved++;
+            await sleep(800);
         }
 
-        if (sourceTags.length === 0) {
-            console.log(`${progress} ⏩ 재시도 소진: ${game.title}`);
-            exhausted++;
-            await sleep(400);
-            continue;
-        }
-
-        const newSmartTags = mapSteamTags(sourceTags);
-
-        if (newSmartTags.length === 0) {
-            // 원본 tags는 저장 (나중에 매핑 추가 시 활용)
-            await Game.updateOne({ _id: game._id }, { $set: { tags: sourceTags } });
-            console.log(`${progress} ⚠️  매핑 없음 (원본 저장): ${game.title}`);
-            console.log(`     원본: [${sourceTags.slice(0, 5).join(', ')}]`);
-            noMapping++;
-            await sleep(600);
-            continue;
-        }
-
-        await Game.updateOne(
-            { _id: game._id },
-            { $set: { tags: sourceTags, smart_tags: newSmartTags } }
-        );
-        console.log(`${progress} ✅ ${game.title}`);
-        console.log(`     변환: [${newSmartTags.join(', ')}]`);
-        saved++;
-
-        // 정상 처리 후 딜레이 (rate limit 방지)
-        await sleep(800);
+        console.log(`\n   ✅ 저장: ${apiSaved}개`);
+        console.log(`   ❌ 없는 앱: ${apiMissing}개`);
+        console.log(`   ⏩ API 오류: ${apiFailed}개`);
+        console.log(`   ⚠️  매핑 없음: ${apiNoMap}개`);
+        changed += apiSaved;
     }
 
     console.log('\n════════════════════════════════════');
-    console.log('🎉 재시도 완료!');
-    console.log(`   ✅ 저장: ${saved}개`);
-    console.log(`   ❌ 실제 없는 앱: ${reallyMissing}개`);
-    console.log(`   ⏩ 재시도 소진: ${exhausted}개`);
-    console.log(`   ⚠️  매핑 없음: ${noMapping}개`);
+    console.log('🎉 재매핑 완료!');
+    console.log(`   ✅ 총 변경: ${changed}개`);
+    console.log(`   ✔  동일 스킵: ${unchanged}개`);
     console.log('════════════════════════════════════');
-
-    if (reallyMissing > 0) {
-        console.log(`\n💡 '실제 없는 앱' ${reallyMissing}개는 DLC나 삭제된 게임입니다.`);
-        console.log(`   정리하려면: node scripts/cleanup_missing_games.js`);
-    }
-
     process.exit(0);
 }
 
