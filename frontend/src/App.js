@@ -26,11 +26,20 @@ import NotificationPage from './pages/NotificationPage';
 
 
 const TAG_CATEGORIES = {
-  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
-  '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
-  '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
-  '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
-  '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '경쟁/PvP', '소울라이크']
+  '장르':   ['RPG', 'FPS', '액션', '어드벤처', '전략', '턴제', '시뮬레이션', '퍼즐', '플랫포머', '공포', '생존', '로그라이크', '소울라이크', '메트로배니아', '리듬', '격투', '카드게임', 'MOBA', '배틀로얄', '비주얼노벨'],
+  '시점':   ['1인칭', '3인칭', '쿼터뷰', '탑다운', '횡스크롤'],
+  '그래픽': ['픽셀아트', '2D', '3D', '애니메이션풍', '현실적', '귀여운', '힐링', '캐주얼'],
+  '테마':   ['판타지', '다크판타지', 'SF', '우주', '사이버펑크', '스팀펑크', '중세', '역사', '좀비', '포스트아포칼립스', '전쟁', '밀리터리', '현대', '느와르'],
+  '특징':   ['오픈월드', '샌드박스', '스토리', '선택지', '멀티엔딩', '고난이도', '협동', '로컬협동', 'PvP', '경쟁', '멀티플레이', '싱글플레이', '캐릭터커스텀', '자원관리', '기지건설'],
+};
+
+// 카테고리별 기본 노출 태그 수 (나머지는 '더보기'로 숨김)
+const TAG_DEFAULT_SHOW = {
+  '장르':   10,  // RPG~소울라이크까지
+  '시점':   5,   // 전부 노출
+  '그래픽': 6,   // 픽셀아트~귀여운
+  '테마':   7,   // 판타지~좀비
+  '특징':   8,   // 오픈월드~협동
 };
 
 const styles = {
@@ -78,18 +87,31 @@ const styles = {
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const hasSelection = selectedTags.length > 0;
   const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
+
+  const defaultShow = TAG_DEFAULT_SHOW[title] || tags.length;
+  const hasMore = tags.length > defaultShow;
+  const hiddenSelected = !showAll && tags.slice(defaultShow).some(t => selectedTags.includes(t));
+  const displayTags = (showAll || hiddenSelected) ? tags : tags.slice(0, defaultShow);
 
   return (
       <div style={styles.filterBox}>
           <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
-              <span style={styles.filterTitle}>{title}</span>
+              <span style={styles.filterTitle}>
+                {title}
+                {selectedTags.filter(t => tags.includes(t)).length > 0 && (
+                  <span style={{marginLeft:'6px', backgroundColor:'#E50914', color:'#fff', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:'bold'}}>
+                    {selectedTags.filter(t => tags.includes(t)).length}
+                  </span>
+                )}
+              </span>
               <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
           </div>
           {isOpen && (
               <div style={styles.filterContent}>
-                  {tags.map(tag => {
+                  {displayTags.map(tag => {
                       const isSelected = selectedTags.includes(tag);
                       const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
                       return (
@@ -103,6 +125,22 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                           </button>
                       );
                   })}
+                  {hasMore && !hiddenSelected && (
+                      <button
+                          onClick={(e) => { e.stopPropagation(); setShowAll(!showAll); }}
+                          style={{
+                              backgroundColor: 'transparent',
+                              border: '1px dashed #555',
+                              color: '#888',
+                              padding: '4px 10px',
+                              borderRadius: '15px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                          }}
+                      >
+                          {showAll ? '▲ 접기' : `+${tags.length - defaultShow}개 더보기`}
+                      </button>
+                  )}
               </div>
           )}
       </div>
@@ -686,7 +724,7 @@ function App() {
         <OnboardingPopup />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
-          <Route path="/game/:id" element={<ShopPage region={region} />} />
+          <Route path="/game/:id" element={<ShopPage region={region} user={user} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />

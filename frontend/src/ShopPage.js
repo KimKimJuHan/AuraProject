@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
@@ -368,7 +368,7 @@ function RecentGames({ currentSlug }) {
   );
 }
 
-export default function ShopPage({ region }) {
+export default function ShopPage({ region, user }) {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -454,8 +454,15 @@ export default function ShopPage({ region }) {
           setIsPlaying(false);
         }
 
-        const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || '[]');
-        setIsWishlisted(wishlist.includes(data.slug));
+        // 위시리스트 DB 연동
+        if (user?._id) {
+          try {
+            const wlRes = await apiClient.get('/user/wishlist');
+            setIsWishlisted((wlRes.data || []).includes(data.slug));
+          } catch { setIsWishlisted(false); }
+        } else {
+          setIsWishlisted(false);
+        }
         setLikes(data.likes_count || 0);
         setDislikes(data.dislikes_count || 0);
 
@@ -527,16 +534,25 @@ export default function ShopPage({ region }) {
     }
   };
 
-  const toggleWishlist = () => {
-    const wishlistStr = safeLocalStorage.getItem('gameWishlist');
-    const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
-
-    let newWishlist;
-    if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
-    else newWishlist = [...wishlist, gameData.slug];
-
-    safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
-    setIsWishlisted(!isWishlisted);
+  const toggleWishlist = async () => {
+    if (!user) {
+      if (window.confirm('로그인 후 이용해 주세요. 로그인 페이지로 이동하시겠습니까?')) {
+        navigate('/login');
+      }
+      return;
+    }
+    const newState = !isWishlisted;
+    setIsWishlisted(newState); // 낙관적 업데이트
+    try {
+      if (newState) {
+        await apiClient.post('/user/wishlist', { slug: gameData.slug });
+      } else {
+        await apiClient.delete(`/user/wishlist/${gameData.slug}`);
+      }
+    } catch {
+      setIsWishlisted(!newState); // 실패 시 롤백
+      alert('찜하기 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const cleanHTML = (html) => DOMPurify.sanitize(html);
