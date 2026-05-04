@@ -34,7 +34,7 @@ function GameCard({ game, userWishlist, onToggleWishlist, user }) {
             <div className="thumb-wrapper">
                 <img src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
                 <div className="net-card-gradient"></div>
-                <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
+                <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
             </div>
             <div className="card-info">
                 <div className="game-title">{game.title_ko || game.title || game.name}
@@ -96,7 +96,7 @@ export default function PersonalRecoPage({ user }) {
 
   // DB 위시리스트 로드
   useEffect(() => {
-    if (user && (user.id || user._id)) {
+    if (user && user._id) {
         apiClient.get('/user/wishlist')
             .then(res => setUserWishlist(res.data || []))
             .catch(() => setUserWishlist([]));
@@ -137,7 +137,7 @@ export default function PersonalRecoPage({ user }) {
           
           // 1. 기존 맞춤형 추천 API 호출
           const res = await axios.post(`${API_BASE_URL}/api/recommend/reco`, { 
-              userId: user?.id || user?._id, tags: tagsArray, term 
+              userId: user?._id, tags: tagsArray, term 
           }, { withCredentials: true });
           
           if (res.data.success && res.data.data) {
@@ -200,7 +200,7 @@ export default function PersonalRecoPage({ user }) {
             {/* ★ 기획 적용: 사용자가 선택한 태그가 있다면 그 태그에 찰떡인 게임 탭을 가장 최상단에 생성 */}
             {picked.size > 0 && tagSpecificData.length > 0 && (
                 <RecoSection 
-                    title={`🎯 [${Array.from(picked).join(', ')}] 취향 저격`} 
+                    title={`[${Array.from(picked).join(', ')}] 취향 저격`} 
                     games={tagSpecificData}
                     userWishlist={userWishlist}
                     onToggleWishlist={handleToggleWishlist}
@@ -208,11 +208,11 @@ export default function PersonalRecoPage({ user }) {
                 />
             )}
             
-            <RecoSection title="🌟 종합 추천 (맞춤형)" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="🔥 지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="💰 가격 합리성 (가성비)" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="💎 숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="🤝 친구와 함께 (멀티플레이)" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="종합 추천" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="가성비 추천" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="멀티플레이 추천" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
         </div>
       )}
       {!loading && err && <div className="error-box">{err}</div>}
