@@ -31,7 +31,12 @@ const userSchema = new mongoose.Schema({
     }],
     
     likedTags: { type: [String], default: [] },
-    wishlist: { type: [String], default: [] }
+    wishlist: { type: [String], default: [] },
+    notificationSettings: {
+        saleAlert:    { type: Boolean, default: true },
+        newGameAlert: { type: Boolean, default: false },
+        emailAlert:   { type: Boolean, default: true },
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

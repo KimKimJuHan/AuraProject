@@ -1,69 +1,209 @@
-name: Game Data Collector
+name: AuraProject Data Pipeline
 
 on:
   schedule:
-    # 1. 시청자/트렌드 전수조사 (매일 KST 오후 7시 = UTC 10:00)
-    - cron: '0 10 * * *'
-    
-    # 2. 신작/플탐/메타데이터 무거운 수집 (매일 KST 새벽 3시 = UTC 18:00)
+    # KST 03:00 (UTC 18:00 전날) — 신규 게임 + 가격 + 메타데이터
     - cron: '0 18 * * *'
-    
+    # KST 19:00 (UTC 10:00) — 트렌드 (CCU + Twitch + 치지직)
+    - cron: '0 10 * * *'
+    # KST 매주 월요일 02:00 (UTC 일요일 17:00) — 전체 리뷰/가격 전수 갱신
+    - cron: '0 17 * * 0'
+
   workflow_dispatch:
     inputs:
       job_type:
-        description: '강제 실행 (trend, game, all 중 택1)'
+        description: '실행할 작업 선택'
         required: true
-        default: 'all'
+        default: 'trend'
         type: choice
         options:
-          - trend
-          - game
-          - all
+          - trend       # 트렌드만
+          - game        # 신규 게임 + 가격 + 메타
+          - review      # 리뷰 percent 전수 갱신
+          - remap       # smart_tags 재매핑
+          - metadata    # difficulty + IGDB 재계산
+          - all         # 전체
 
 jobs:
-  collect:
+  # ── Job 1: 트렌드 수집 ────────────────────────────────────────────────────
+  trend:
+    name: 트렌드 수집 (CCU + Twitch + 치지직)
     runs-on: ubuntu-latest
+    if: |
+      github.event.schedule == '0 10 * * *' ||
+      github.event.inputs.job_type == 'trend' ||
+      github.event.inputs.job_type == 'all'
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 패키지 설치
+        run: cd backend && npm ci
+
+      - name: 트렌드 수집기 실행
+        run: |
+          echo "🚀 트렌드 수집 시작 (KST $(TZ=Asia/Seoul date))"
+          cd backend && node scripts/trend_collector.js
+        timeout-minutes: 120
+
+  # ── Job 2: 신규 게임 + 가격 + 메타데이터 ────────────────────────────────
+  game:
+    name: 신규 게임 수집 + 가격 갱신
+    runs-on: ubuntu-latest
+    if: |
+      github.event.schedule == '0 18 * * *' ||
+      github.event.inputs.job_type == 'game' ||
+      github.event.inputs.job_type == 'all'
 
     env:
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
       TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
       TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
-      CHZZK_CLIENT_ID: ${{ secrets.CHZZK_CLIENT_ID }}
-      CHZZK_CLIENT_SECRET: ${{ secrets.CHZZK_CLIENT_SECRET }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
+      - name: 패키지 설치
+        run: cd backend && npm ci
 
-    - name: Install Dependencies
-      run: |
-        cd backend
-        npm install
+      - name: Chrome 설치 (Puppeteer용)
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -q
+          sudo apt-get install -y google-chrome-stable
 
-    # ==========================================
-    # Task A: 시청자 전수조사
-    # ==========================================
-    - name: Run Trend Collector
-      if: github.event.schedule == '0 10 * * *' || github.event.inputs.job_type == 'trend' || github.event.inputs.job_type == 'all'
-      run: |
-        echo "🚀 시청자 트렌드 전수조사 가동"
-        cd backend
-        node scripts/trend_collector.js
+      - name: 신규 게임 수집 실행
+        run: |
+          echo "🚀 신규 게임 수집 시작 (KST $(TZ=Asia/Seoul date))"
+          cd backend && node scripts/daily_game_collector.js
+        timeout-minutes: 180
 
-    # ==========================================
-    # Task B: 신작 및 메타데이터 수집
-    # ==========================================
-    - name: Run Game Metadata Collector
-      if: github.event.schedule == '0 18 * * *' || github.event.inputs.job_type == 'game' || github.event.inputs.job_type == 'all'
-      run: |
-        echo "🚀 게임 메타데이터 수집 가동"
-        cd backend
-        node scripts/metadata_seeder.js
-        node scripts/category_seeder.js
-        node scripts/game_collector.js
+  # ── Job 3: 전수 리뷰/가격 갱신 (매주 월요일) ────────────────────────────
+  weekly:
+    name: 주간 전수 갱신
+    runs-on: ubuntu-latest
+    if: |
+      github.event.schedule == '0 17 * * 0' ||
+      github.event.inputs.job_type == 'review'
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 패키지 설치
+        run: cd backend && npm ci
+
+      - name: 리뷰 percent 전수 갱신
+        run: |
+          echo "🚀 주간 리뷰 갱신 시작"
+          cd backend && node scripts/repatch_review_percent.js
+        timeout-minutes: 120
+
+  # ── Job 4: smart_tags 재매핑 (수동 실행) ─────────────────────────────────
+  remap:
+    name: smart_tags 재매핑
+    runs-on: ubuntu-latest
+    if: github.event.inputs.job_type == 'remap'
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 패키지 설치
+        run: cd backend && npm ci
+
+      - name: smart_tags 재매핑
+        run: cd backend && node scripts/remap_smart_tags.js
+        timeout-minutes: 60
+
+  # ── Job 6: 찜목록 할인 알림 (매일 KST 10:00) ────────────────────────────
+  notify:
+    name: 찜목록 할인 알림 발송
+    runs-on: ubuntu-latest
+    if: |
+      github.event.schedule == '0 10 * * *' ||
+      github.event.inputs.job_type == 'all'
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      EMAIL_USER: ${{ secrets.EMAIL_USER }}
+      EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 패키지 설치
+        run: cd backend && npm ci
+
+      - name: 찜목록 할인 알림 발송
+        run: |
+          echo "🚀 찜목록 할인 알림 발송 시작"
+          cd backend && node scripts/notify_sales.js
+        timeout-minutes: 30
+  metadata:
+    name: 메타데이터 재계산
+    runs-on: ubuntu-latest
+    if: github.event.inputs.job_type == 'metadata'
+
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 패키지 설치
+        run: cd backend && npm ci
+
+      - name: 메타데이터 재계산
+        run: cd backend && node scripts/repatch_metadata.js
+        timeout-minutes: 120
