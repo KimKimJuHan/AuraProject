@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, apiClient } from '../config';
 import { safeLocalStorage } from '../utils/storage';
 import PcCompatibilityBadge from '../components/PcCompatibilityBadge';
 import { CPU_OPTIONS } from '../data/hardware/cpuScores';
@@ -40,9 +40,11 @@ function MyPage({ user, setUser }) {
 
     const fetchData = async () => {
         try {
-            const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || "[]");
-            if (wishlist.length > 0) {
-                const res = await axios.post(`${API_BASE_URL}/api/recommend/wishlist`, { slugs: wishlist }, { withCredentials: true });
+            // [수정] localStorage 대신 DB에서 찜 목록 slug 배열 조회 후 게임 정보 요청
+            const wlRes = await apiClient.get('/user/wishlist');
+            const slugs = wlRes.data || [];
+            if (slugs.length > 0) {
+                const res = await apiClient.post('/recommend/wishlist', { slugs });
                 setWishlistGames(res.data.games || []);
             } else {
                 setWishlistGames([]);
