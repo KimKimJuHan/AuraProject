@@ -19,5 +19,8 @@ jobs:
         script: |
           echo "Starting CI/CD Deployment Pipeline..."
           cd ~/AuraProject
+          git config pull.rebase false
+          git fetch origin main
+          git reset --hard origin/main
           chmod +x deploy.sh
           ./deploy.sh
