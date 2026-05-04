@@ -13,16 +13,25 @@ function ComparisonPage({ region, user }) {
 
   useEffect(() => {
     const fetchWishlistGames = async () => {
-      const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-
-      if (wishlist.length === 0) {
+      // [수정] 비로그인 상태면 빈 목록 처리
+      if (!user) {
         setGames([]);
         setLoading(false);
         return;
       }
 
       try {
-        const response = await apiClient.post('/recommend/wishlist', { slugs: wishlist });
+        // [수정] localStorage 대신 DB에서 slug 배열 조회
+        const wlRes = await apiClient.get('/user/wishlist');
+        const slugs = wlRes.data || [];
+
+        if (slugs.length === 0) {
+          setGames([]);
+          setLoading(false);
+          return;
+        }
+
+        const response = await apiClient.post('/recommend/wishlist', { slugs });
         if (response.data.success) {
           setGames(response.data.games || []);
         }
@@ -35,13 +44,17 @@ function ComparisonPage({ region, user }) {
     };
 
     fetchWishlistGames();
-  }, []);
+  }, [user]);
 
-  const removeFromWishlist = (slug) => {
-    const wishlist = JSON.parse(localStorage.getItem('gameWishlist') || '[]');
-    const newWishlist = wishlist.filter(id => id !== slug);
-    localStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
-    setGames(games.filter(g => g.slug !== slug));
+  const removeFromWishlist = async (slug) => {
+    try {
+      // [수정] localStorage 대신 DB에서 삭제
+      await apiClient.delete(`/user/wishlist/${slug}`);
+      setGames(prev => prev.filter(g => g.slug !== slug));
+    } catch (err) {
+      console.error('찜 삭제 실패:', err);
+      alert('삭제 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const getGameName = (game) => {
