@@ -23,6 +23,7 @@ const gameSchema = new mongoose.Schema({
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
   chzzk_viewers: { type: Number, default: 0 },
+  soop_viewers:  { type: Number, default: 0 },
   steam_ccu: { type: Number, default: 0 },
 
   steam_reviews: {
