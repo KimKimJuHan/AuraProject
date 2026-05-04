@@ -96,7 +96,7 @@ export default function PersonalRecoPage({ user }) {
 
   // DB 위시리스트 로드
   useEffect(() => {
-    if (user && user._id) {
+    if (user && (user.id || user._id)) {
         apiClient.get('/user/wishlist')
             .then(res => setUserWishlist(res.data || []))
             .catch(() => setUserWishlist([]));
@@ -137,7 +137,7 @@ export default function PersonalRecoPage({ user }) {
           
           // 1. 기존 맞춤형 추천 API 호출
           const res = await axios.post(`${API_BASE_URL}/api/recommend/reco`, { 
-              userId: user?._id, tags: tagsArray, term 
+              userId: user?.id || user?._id, tags: tagsArray, term 
           }, { withCredentials: true });
           
           if (res.data.success && res.data.data) {

@@ -29,11 +29,8 @@ function SearchResultsPage() {
     const fetchResults = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/recommend`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ searchQuery: query })
-        });
+        // [수정] 전용 검색 엔드포인트 사용 (title + title_ko + slug 3개 필드 검색)
+        const response = await fetch(`${API_BASE_URL}/api/search/results?q=${encodeURIComponent(query)}`);
         const data = await response.json();
         setResults(data.games || []);
       } catch (err) {
