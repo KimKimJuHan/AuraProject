@@ -794,7 +794,7 @@ export default function ShopPage({ region, user }) {
 
         {pi?.discount_percent > 0 && countdown && (
           <div style={{ color: '#E50914', fontWeight: 'bold', fontSize: '16px', marginBottom: '40px' }}>
-            🔥 특가 할인 중! (남은 시간: {countdown})
+            특가 할인 중! (남은 시간: {countdown})
           </div>
         )}
 
