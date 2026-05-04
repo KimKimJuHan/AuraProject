@@ -224,6 +224,42 @@ router.get('/search/autocomplete', async (req, res) => {
     }
 });
 
+// 검색 결과 페이지 전용 엔드포인트
+// autocomplete와 동일하게 title, title_ko, slug 3개 필드 검색
+router.get('/search/results', async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q) return res.json({ success: true, games: [] });
+
+        const safeQuery = escapeRegex(q);
+        const regex = new RegExp(safeQuery, 'i');
+
+        const games = await Game.find({
+            $or: [
+                { title: regex },
+                { title_ko: regex },
+                { slug: regex }
+            ]
+        })
+            .sort({ steam_ccu: -1, trend_score: -1, 'steam_reviews.overall.percent': -1 })
+            .limit(60)
+            .lean();
+
+        const uniqueGames = [];
+        const seen = new Set();
+        for (const game of games) {
+            if (!game.slug || seen.has(game.slug)) continue;
+            seen.add(game.slug);
+            uniqueGames.push(game);
+        }
+
+        res.json({ success: true, games: uniqueGames });
+    } catch (error) {
+        console.error('Search Results API Error:', error);
+        res.status(500).json({ success: false, games: [] });
+    }
+});
+
 router.get('/games/:id', async (req, res) => {
     try {
         const { id } = req.params;
