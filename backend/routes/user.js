@@ -205,6 +205,24 @@ router.patch("/me/displayName", authenticateToken, async (req, res) => {
   }
 });
 
+// playerType 직접 설정
+router.put("/playerType", authenticateToken, async (req, res) => {
+    try {
+        const { playerType } = req.body;
+        const valid = ['casual', 'beginner', 'intermediate', 'hardcore', 'streamer'];
+        if (!valid.includes(playerType))
+            return res.status(400).json({ message: "올바르지 않은 플레이어 타입입니다." });
+
+        await User.findByIdAndUpdate(req.user._id, {
+            playerType,
+            playerTypeSetByUser: true
+        });
+        res.json({ success: true, playerType });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
 // 비밀번호 변경
 router.put("/password", authenticateToken, async (req, res) => {
     try {
