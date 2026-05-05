@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Game = require('../models/Game');
 const Otp = require('../models/Otp');
 const bcrypt = require('bcrypt');
 const nodemailer = require('nodemailer');
@@ -338,23 +339,48 @@ class AuthController {
                 if (pt > maxSinglePlaytime) maxSinglePlaytime = pt;
             });
 
-            let newPlayerType = 'beginner'; 
+            // 유저가 직접 설정했으면 자동분류 안 함
+            const existingUser = await User.findById(userId).select('playerTypeSetByUser').lean();
+            let newPlayerType = 'beginner';
 
-            if (maxSinglePlaytime >= 300000 || totalGames >= 500) {
-                newPlayerType = 'streamer';
-            } 
-            else if (totalPlaytimeMinutes >= 18000 || totalGames >= 50) {
-                newPlayerType = 'intermediate';
+            if (!existingUser?.playerTypeSetByUser) {
+                // 자동 분류 기준 (Steam 연동 시에만)
+                // casual: 게임 5개 미만, 총 플레이 5시간 미만
+                // beginner: 기본값
+                // intermediate: 총 300시간 이상 or 게임 50개 이상
+                // hardcore: 총 1000시간 이상 or 단일게임 500시간 이상
+                // streamer: 직접 설정만 가능 (자동분류 제외)
+                if (totalPlaytimeMinutes >= 60000 || maxSinglePlaytime >= 30000) {
+                    newPlayerType = 'hardcore';
+                } else if (totalPlaytimeMinutes >= 18000 || totalGames >= 50) {
+                    newPlayerType = 'intermediate';
+                } else if (totalGames < 5 && totalPlaytimeMinutes < 300) {
+                    newPlayerType = 'casual';
+                } else {
+                    newPlayerType = 'beginner';
+                }
+            } else {
+                // 유저가 직접 설정한 경우 기존 값 유지
+                newPlayerType = existingUser.playerType || 'beginner';
             }
+
+            // DB에서 Steam 게임들의 smart_tags 일괄 조회
+            const appIds = games.map(g => g.appid);
+            const dbGames = await Game.find({ steam_appid: { $in: appIds } })
+                .select('steam_appid smart_tags')
+                .lean();
+            const tagMap = {};
+            dbGames.forEach(g => { tagMap[g.steam_appid] = g.smart_tags || []; });
 
             await User.findByIdAndUpdate(userId, {
                 steamGames: games.map(g => ({
                     appid: g.appid,
                     name: g.name,
                     playtime_forever: g.playtime_forever,
-                    img_icon_url: g.img_icon_url
+                    img_icon_url: g.img_icon_url,
+                    smart_tags: tagMap[g.appid] || []  // DB 태그 주입
                 })),
-                playerType: newPlayerType
+                ...(existingUser?.playerTypeSetByUser ? {} : { playerType: newPlayerType })
             });
 
             return { success: true, type: newPlayerType };
