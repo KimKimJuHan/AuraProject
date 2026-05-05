@@ -157,6 +157,15 @@ function MyPage({ user, setUser }) {
     };
 
     // 알림 설정 저장
+    // 플레이어 타입 저장
+    const handleSavePlayerType = async (newType) => {
+        try {
+            await apiClient.put('/user/playerType', { playerType: newType });
+            setPlayerTypeSaved(true);
+            setTimeout(() => setPlayerTypeSaved(false), 2000);
+        } catch { alert('설정 저장 실패'); }
+    };
+
     const handleSaveNotifSettings = async () => {
         try {
             await apiClient.put('/user/notifications/settings', notifSettings);
