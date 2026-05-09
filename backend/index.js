@@ -257,3 +257,11 @@ cron.schedule('0 0 * * *', () => {
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
+app.get('/api/debug/tags', async (req, res) => {
+    const Game = require('./models/Game');
+    const games = await Game.find({ isAdult: true })
+        .select('title steam_appid')
+        .sort({ title: 1 })
+        .lean();
+    res.json({ count: games.length, games: games.map(g => `${g.steam_appid}: ${g.title}`) });
+});
