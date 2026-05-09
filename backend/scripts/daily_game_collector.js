@@ -59,6 +59,12 @@ async function getSteamDetails(appId) {
         });
         const data = res.data?.[appId]?.data;
         if (!data || data.type !== 'game') return null;
+        // trailers(movies) 필드 가공
+        data._trailers = (data.movies || [])
+            .filter(m => m.mp4)
+            .map(m => m.mp4?.max || m.mp4?.['480'] || '')
+            .filter(Boolean)
+            .slice(0, 3);
         return data;
     } catch { return null; }
 }
@@ -85,13 +91,11 @@ async function getSteamCCU(appId) {
 async function getITADPrice(itadUuid) {
     if (!ITAD_API_KEY || !itadUuid) return null;
     try {
-        const res = await axios.get('https://api.isthereanydeal.com/games/prices/v3', {
-            params: { key: ITAD_API_KEY, country: 'KR', capacity: 5 },
-            data: JSON.stringify([itadUuid]),
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 10000
-        });
+        const res = await axios.post(
+            `https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR&capacity=5`,
+            [itadUuid],
+            { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
+        );
         const deals = res.data?.[0]?.deals || [];
         if (deals.length === 0) return null;
         const sorted = [...deals].sort((a, b) => a.price.amount - b.price.amount);
@@ -118,8 +122,19 @@ let browser = null;
 let page = null;
 
 async function initBrowser() {
-    // GitHub Actions 환경 (Linux)
-    const chromePath = '/usr/bin/google-chrome-stable';
+    const candidates = [
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+    ];
+    const { existsSync } = require('fs');
+    const chromePath = candidates.find(p => existsSync(p));
+    if (!chromePath) {
+        console.warn('⚠️ Chrome 없음 — Puppeteer 스크래핑 비활성화, Steam API만 사용');
+        return;
+    }
+    console.log(`🌐 Chrome: ${chromePath}`);
     browser = await puppeteer.launch({
         executablePath: chromePath,
         headless: 'new',
@@ -138,6 +153,7 @@ async function initBrowser() {
 }
 
 async function scrapeAppTags(appId) {
+    if (!browser || !page) return []; // Puppeteer 없으면 스킵
     try {
         await page.goto(`https://store.steampowered.com/app/${appId}/`, { waitUntil: 'domcontentloaded', timeout: 15000 });
         const ageGate = await page.$('#ageYear');
@@ -202,7 +218,11 @@ async function run() {
         await mongoose.connect(MONGODB_URI);
         console.log('✅ DB 연결 완료');
         await getIGDBToken();
-        await initBrowser();
+        try {
+            await initBrowser();
+        } catch (e) {
+            console.warn('⚠️ Puppeteer 초기화 실패 — Steam API 폴백 모드:', e.message);
+        }
 
         // ── 1단계: 신규 게임 수집 ────────────────────────────────────────────
         console.log('\n📥 1단계: 신규 게임 수집 시작');
@@ -260,6 +280,7 @@ async function run() {
                     description: data.short_description || '',
                     main_image: data.header_image || '',
                     screenshots: (data.screenshots || []).slice(0, 10).map(s => s.path_full),
+                    trailers: data._trailers || [],
                     releaseDate: data.release_date?.date ? new Date(data.release_date.date) : null,
                     metacritic_score: data.metacritic?.score || 0,
                     igdb_score: igdbScore,
@@ -278,7 +299,8 @@ async function run() {
                 };
 
                 await Game.updateOne({ steam_appid: candidate.appid }, { $set: gameDoc }, { upsert: true });
-                console.log(`  ✅ 신규: ${data.name} (태그:${smartTags.length}개)`);
+                const tagNote = browser ? `태그:${smartTags.length}개` : '태그:Puppeteer없음';
+            console.log(`  ✅ 신규: ${data.name} (${tagNote})`);
                 newCollected++;
                 await sleep(1500);
             } catch (e) {
@@ -300,10 +322,30 @@ async function run() {
         for (const game of staleGames) {
             try {
                 const meta = await GameMetadata.findOne({ steamAppId: game.steam_appid }).lean();
-                if (!meta?.itad?.uuid) { await sleep(200); continue; }
+                let priceInfo = null;
 
-                const priceInfo = await getITADPrice(meta.itad.uuid);
-                if (!priceInfo) { await sleep(300); continue; }
+                if (meta?.itad?.uuid) {
+                    priceInfo = await getITADPrice(meta.itad.uuid);
+                }
+
+                // ITAD 없으면 Steam appdetails에서 직접 가격 가져오기
+                if (!priceInfo) {
+                    const steamData = await getSteamDetails(game.steam_appid);
+                    if (steamData?.price_overview) {
+                        const po = steamData.price_overview;
+                        priceInfo = {
+                            current_price: Math.round((po.final || 0) / 100 * 1350),
+                            regular_price: Math.round((po.initial || 0) / 100 * 1350),
+                            discount_percent: po.discount_percent || 0,
+                            store_url: `https://store.steampowered.com/app/${game.steam_appid}`,
+                            store_name: 'Steam',
+                            deals: []
+                        };
+                    }
+                    await sleep(300);
+                }
+
+                if (!priceInfo) { await sleep(200); continue; }
 
                 const reviews = await getSteamReviews(game.steam_appid);
                 const ccu = await getSteamCCU(game.steam_appid);
