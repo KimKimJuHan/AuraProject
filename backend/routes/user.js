@@ -271,4 +271,51 @@ router.put("/notifications/settings", authenticateToken, async (req, res) => {
     }
 });
 
+
+
+// 목표 가격 알림 설정
+router.post("/price-alert", authenticateToken, async (req, res) => {
+    try {
+        const { slug, targetPrice } = req.body;
+        if (!slug || !targetPrice || targetPrice <= 0)
+            return res.status(400).json({ message: "slug와 목표 가격을 입력해주세요." });
+        const user = await User.findById(req.user._id);
+        if (!user.priceAlerts) user.priceAlerts = [];
+        const existing = user.priceAlerts.find(a => a.slug === slug);
+        if (existing) {
+            existing.targetPrice = targetPrice;
+        } else {
+            user.priceAlerts.push({ slug, targetPrice });
+        }
+        await user.save();
+        res.json({ success: true, message: "목표 가격이 설정되었습니다." });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 목표 가격 알림 조회
+router.get("/price-alert/:slug", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("priceAlerts");
+        const found = (user.priceAlerts || []).find(a => a.slug === req.params.slug);
+        res.json({ targetPrice: found ? found.targetPrice : null });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 목표 가격 알림 삭제
+router.delete("/price-alert/:slug", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        user.priceAlerts = (user.priceAlerts || []).filter(a => a.slug !== req.params.slug);
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+
 module.exports = router;
