@@ -57,6 +57,7 @@ const gameSchema = new mongoose.Schema({
     historical_low: Number,
     expiry: String,
     isFree: { type: Boolean, default: false },
+    expiry: { type: Date, default: null }, // 할인 종료 시각
     deals: [
       {
         shopName: String,

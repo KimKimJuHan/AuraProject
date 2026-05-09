@@ -23,6 +23,25 @@ import { checkPcCompatibility } from './utils/pcCompatibility';
 import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
 
+function NotFoundPage() {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '60vh', color: '#fff', textAlign: 'center'
+    }}>
+      <div style={{ fontSize: '80px', fontWeight: 'bold', color: '#E50914', lineHeight: 1 }}>404</div>
+      <div style={{ fontSize: '22px', margin: '16px 0 8px', fontWeight: 'bold' }}>페이지를 찾을 수 없습니다</div>
+      <div style={{ color: '#888', fontSize: '14px', marginBottom: '28px' }}>
+        요청하신 페이지가 존재하지 않거나 이동되었습니다.
+      </div>
+      <a href="/" style={{
+        background: '#E50914', color: '#fff', padding: '12px 28px',
+        borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px'
+      }}>메인으로 돌아가기</a>
+    </div>
+  );
+}
+
 
 
 const TAG_CATEGORIES = {
@@ -180,9 +199,28 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
-            <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
-              {game.reason || '이 조건에 잘 맞아 추천'}
+            <div style={{ color:'#888', fontSize:'11px', marginTop:'6px', marginBottom:'6px', lineHeight:'1.4', minHeight:'28px' }}>
+              {game.reason || '맞춤 추천'}
             </div>
+
+            {/* 리뷰 점수 */}
+            {game.steam_reviews?.overall?.percent > 0 && game.steam_reviews?.overall?.total >= 10 && (
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
+                  <span style={{ fontSize:'11px', color: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72' }}>
+                    {({'Overwhelmingly Positive':'압도적으로 긍정적','Very Positive':'매우 긍정적','Positive':'긍정적','Mostly Positive':'대체로 긍정적','Mixed':'복합적','Mostly Negative':'대체로 부정적','Negative':'부정적','Very Negative':'매우 부정적','Overwhelmingly Negative':'압도적으로 부정적'})[game.steam_reviews.overall.summary] || (game.steam_reviews.overall.percent >= 80 ? '긍정적' : '복합적')}
+                  </span>
+                  <span style={{ fontSize:'11px', color:'#888' }}>{game.steam_reviews.overall.percent}%</span>
+                </div>
+                <div style={{ background:'#333', borderRadius:'3px', height:'3px', overflow:'hidden' }}>
+                  <div style={{
+                    width: `${game.steam_reviews.overall.percent}%`, height:'100%',
+                    background: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72',
+                    borderRadius:'3px'
+                  }}/>
+                </div>
+              </div>
+            )}
 
             <div
               style={{
@@ -223,6 +261,8 @@ function MainPage({ user, region }) {
   const [error, setError] = useState(null);
   
   const [userWishlist, setUserWishlist] = useState([]);
+  const [priceFilter, setPriceFilter] = useState({ min: '', max: '', minDiscount: '' });
+  const [showPriceFilter, setShowPriceFilter] = useState(false);
 
   useEffect(() => {
     if (user && user._id) {
@@ -742,6 +782,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
           <Route path="/notifications" element={<NotificationPage user={user} />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
     </Router>
