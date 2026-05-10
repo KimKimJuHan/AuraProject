@@ -9,7 +9,6 @@ import { GPU_OPTIONS } from '../data/hardware/gpuScores';
 import { savePcSpec, removePcSpec, getSavedPcSpec } from '../utils/pcCompatibility';
 import '../styles/Recommend.css';
 
-// 새 태그 시스템과 동기화
 const AVAILABLE_TAGS = [
     'RPG', 'FPS', '액션', '어드벤처', '전략', '턴제', '시뮬레이션', '퍼즐', '플랫포머',
     '공포', '생존', '로그라이크', '소울라이크', '메트로배니아', '리듬', '격투', '카드게임', 'MOBA', '배틀로얄',
@@ -27,14 +26,13 @@ function MyPage({ user, setUser }) {
     const [isEditingNickname, setIsEditingNickname] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
 
-    // 비밀번호 변경
     const [isEditingPassword, setIsEditingPassword] = useState(false);
     const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
     const [pwError, setPwError] = useState('');
 
-    // 알림 설정
     const [notifSettings, setNotifSettings] = useState({ saleAlert: true, newGameAlert: false, emailAlert: true });
     const [notifSaved, setNotifSaved] = useState(false);
+    const [playerTypeSaved, setPlayerTypeSaved] = useState(false); // 추가
 
     const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 16 });
     const [savedPcSpec, setSavedPcSpec] = useState(null);
@@ -117,30 +115,27 @@ function MyPage({ user, setUser }) {
     };
 
     const handleSaveNickname = async () => {
-      const value = String(newDisplayName || '').trim();
-      if (!value) return alert('닉네임을 입력해주세요.');
-      if (value.length < 2 || value.length > 20) return alert('닉네임은 2~20자로 입력해주세요.');
+        const value = String(newDisplayName || '').trim();
+        if (!value) return alert('닉네임을 입력해주세요.');
+        if (value.length < 2 || value.length > 20) return alert('닉네임은 2~20자로 입력해주세요.');
 
-      try {
-        const res = await axios.patch(
-          `${API_BASE_URL}/api/user/me/displayName`,
-          { displayName: value },
-          { withCredentials: true }
-        );
+        try {
+            const res = await axios.patch(
+                `${API_BASE_URL}/api/user/me/displayName`,
+                { displayName: value },
+                { withCredentials: true }
+            );
 
-        const updatedUser = res.data;
-
-        setUser(updatedUser);
-        safeLocalStorage.setItem('user', JSON.stringify(updatedUser));
-
-        alert('닉네임이 변경되었습니다.');
-        setIsEditingNickname(false);
-      } catch (e) {
-        alert(e?.response?.data?.message || '닉네임 변경 실패');
-      }
+            const updatedUser = res.data;
+            setUser(updatedUser);
+            safeLocalStorage.setItem('user', JSON.stringify(updatedUser));
+            alert('닉네임이 변경되었습니다.');
+            setIsEditingNickname(false);
+        } catch (e) {
+            alert(e?.response?.data?.message || '닉네임 변경 실패');
+        }
     };
 
-    // 비밀번호 변경
     const handleChangePassword = async () => {
         setPwError('');
         if (!pwForm.current || !pwForm.next || !pwForm.confirm) return setPwError('모든 항목을 입력해주세요.');
@@ -156,8 +151,6 @@ function MyPage({ user, setUser }) {
         }
     };
 
-    // 알림 설정 저장
-    // 플레이어 타입 저장
     const handleSavePlayerType = async (newType) => {
         try {
             await apiClient.put('/user/playerType', { playerType: newType });
@@ -174,7 +167,6 @@ function MyPage({ user, setUser }) {
         } catch { alert('알림 설정 저장 실패'); }
     };
 
-    // 찜 목록 삭제
     const handleRemoveWishlist = async (slug) => {
         try {
             await apiClient.delete(`/user/wishlist/${slug}`);
@@ -198,7 +190,7 @@ function MyPage({ user, setUser }) {
         };
 
         savePcSpec(nextSpec);
-    window.dispatchEvent(new Event('pcSpecUpdated'));
+        window.dispatchEvent(new Event('pcSpecUpdated'));
         setSavedPcSpec(nextSpec);
         alert('PC 사양이 저장되었습니다.');
     };
@@ -225,60 +217,54 @@ function MyPage({ user, setUser }) {
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
                     <div style={{ marginBottom: '8px' }}>
-                      <p style={{ margin: 0 }}>
-                        <b>이름(닉네임):</b> {user?.displayName || user?.username}
-                      </p>
+                        <p style={{ margin: 0 }}>
+                            <b>이름(닉네임):</b> {user?.displayName || user?.username}
+                        </p>
 
-                      {isEditingNickname ? (
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                          <input
-                            value={newDisplayName}
-                            onChange={(e) => setNewDisplayName(e.target.value)}
-                            placeholder="새 닉네임 (2~20자)"
-                            style={{
-                              flex: 1,
-                              padding: '8px 10px',
-                              borderRadius: '6px',
-                              border: '1px solid #444',
-                              background: '#111',
-                              color: '#fff',
-                            }}
-                          />
-                          <button
-                            onClick={handleSaveNickname}
-                            className="search-btn"
-                            style={{ whiteSpace: 'nowrap' }}
-                          >
-                            저장
-                          </button>
-                          <button
-                            onClick={() => {
-                              setIsEditingNickname(false);
-                              setNewDisplayName(user?.displayName || user?.username || '');
-                            }}
-                            className="search-btn"
-                            style={{ backgroundColor: '#666', whiteSpace: 'nowrap' }}
-                          >
-                            취소
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setIsEditingNickname(true)}
-                          className="search-btn"
-                          style={{ marginTop: '10px', backgroundColor: '#666' }}
-                        >
-                          닉네임 변경
-                        </button>
-                      )}
+                        {isEditingNickname ? (
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                                <input
+                                    value={newDisplayName}
+                                    onChange={(e) => setNewDisplayName(e.target.value)}
+                                    placeholder="새 닉네임 (2~20자)"
+                                    style={{
+                                        flex: 1,
+                                        padding: '8px 10px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #444',
+                                        background: '#111',
+                                        color: '#fff',
+                                    }}
+                                />
+                                <button onClick={handleSaveNickname} className="search-btn" style={{ whiteSpace: 'nowrap' }}>저장</button>
+                                <button
+                                    onClick={() => {
+                                        setIsEditingNickname(false);
+                                        setNewDisplayName(user?.displayName || user?.username || '');
+                                    }}
+                                    className="search-btn"
+                                    style={{ backgroundColor: '#666', whiteSpace: 'nowrap' }}
+                                >
+                                    취소
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsEditingNickname(true)}
+                                className="search-btn"
+                                style={{ marginTop: '10px', backgroundColor: '#666' }}
+                            >
+                                닉네임 변경
+                            </button>
+                        )}
                     </div>
                     <p><b>이메일:</b> {user?.email || "정보 없음"}</p>
                     <button
-                      className="search-btn"
-                      style={{ marginTop: '10px' }}
-                      onClick={() => navigate('/change-password')}
+                        className="search-btn"
+                        style={{ marginTop: '10px' }}
+                        onClick={() => navigate('/change-password')}
                     >
-                      비밀번호 변경
+                        비밀번호 변경
                     </button>
                 </div>
 
@@ -311,7 +297,7 @@ function MyPage({ user, setUser }) {
                 </div>
 
                 <p style={{fontSize:'13px', color:'#aaa', lineHeight:1.5, marginTop:'10px'}}>
-                     저장 후 게임 카드에 호환 여부가 표시됩니다.
+                    저장 후 게임 카드에 호환 여부가 표시됩니다.
                 </p>
 
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'12px', marginTop:'15px'}}>
@@ -385,7 +371,7 @@ function MyPage({ user, setUser }) {
                 </div>
 
                 {isEditingTags ? (
-                  <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                    <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
                         {AVAILABLE_TAGS.map(tag => {
                             const isSelected = currentTags.includes(tag);
                             return (
@@ -433,17 +419,17 @@ function MyPage({ user, setUser }) {
                                 <PcCompatibilityBadge game={game} compact hideUnknown />
 
                                 {game.reason && (
-                                  <div style={{
-                                    fontSize:'11px',
-                                    color:'#E50914',
-                                    marginTop:'6px',
-                                    marginBottom:'6px',
-                                    lineHeight:'1.3',
-                                    fontWeight:'bold',
-                                    wordBreak:'keep-all'
-                                  }}>
-                                    {game.reason}
-                                  </div>
+                                    <div style={{
+                                        fontSize:'11px',
+                                        color:'#E50914',
+                                        marginTop:'6px',
+                                        marginBottom:'6px',
+                                        lineHeight:'1.3',
+                                        fontWeight:'bold',
+                                        wordBreak:'keep-all'
+                                    }}>
+                                        {game.reason}
+                                    </div>
                                 )}
 
                                 <div style={{fontSize:'12px', color:'#e50914', marginTop:'5px'}}>
