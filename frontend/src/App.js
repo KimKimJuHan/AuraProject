@@ -351,6 +351,7 @@ function MainPage({ user, region }) {
 
   return (
     <div className="net-panel">
+      <OnboardingPopup />
       <div style={styles.tabContainer}>
         {/* ★ 상단 탭 신규 항목 삭제, 원래 상태로 롤백 완료 */}
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
@@ -681,9 +682,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
             <span style={styles.headerNickname}>
               {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
             </span>
-            {user.playerType === 'streamer' && <span style={{background:'#8a2be2', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>스트리머</span>}
-            {user.playerType === 'intermediate' && <span style={{background:'#00bfff', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>중급자</span>}
-            {user.playerType === 'beginner' && <span style={{background:'#666', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>초심자</span>}
           </div>
         )}
 
@@ -764,7 +762,6 @@ function App() {
           onCurrencyChange={handleCurrencyChange}
           handleLogout={handleLogout} 
         />
-        <OnboardingPopup />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
           <Route path="/game/:id" element={<ShopPage region={region} user={user} />} />
