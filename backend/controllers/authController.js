@@ -289,7 +289,7 @@ class AuthController {
             }
 
             // DB에서 최신 역할, 플레이어 등급, 스팀 라이브러리 데이터를 당겨옵니다.
-            const dbUser = await User.findById(sessionUser.id).select('role playerType steamGames');
+            const dbUser = await User.findById(sessionUser.id).select('role playerType steamGames steamId');
             if (!dbUser) {
                 return res.json({ isAuthenticated: false, user: null });
             }
@@ -298,7 +298,8 @@ class AuthController {
                 ...sessionUser, 
                 role: dbUser.role,
                 playerType: dbUser.playerType || 'beginner',
-                steamGames: dbUser.steamGames || []
+                steamGames: dbUser.steamGames || [],
+                steamId: dbUser.steamId || null
             };
             req.session.user = patchedUser;
 

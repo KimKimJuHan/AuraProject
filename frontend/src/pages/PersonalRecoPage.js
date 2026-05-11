@@ -198,18 +198,26 @@ export default function PersonalRecoPage({ user }) {
       )}
 
       {/* Steam 미연동 안내 */}
-      {user && !user.steamId && (
-        <div style={{
-          background:'#1a1a2a', border:'1px solid #336699', borderRadius:'10px',
-          padding:'14px 20px', marginBottom:'20px',
-          display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px'
-        }}>
-          <div style={{color:'#ccc', fontSize:'13px'}}>
-            <span style={{color:'#66c0f4', fontWeight:'bold'}}>Steam 연동</span>하면 플레이 이력 기반 맞춤 추천을 받을 수 있습니다.
-          </div>
-          <a href="/mypage" style={{color:'#66c0f4', fontSize:'13px', textDecoration:'underline'}}>마이페이지에서 연동하기</a>
-        </div>
-      )}
+{user && !user.steamId && (
+  <div style={{
+    background:'#1a1a2a', border:'1px solid #336699', borderRadius:'10px',
+    padding:'14px 20px', marginBottom:'20px',
+    display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px'
+  }}>
+    <div style={{color:'#ccc', fontSize:'13px'}}>
+      <span style={{color:'#66c0f4', fontWeight:'bold'}}>Steam 연동</span>하면 플레이 이력 기반 맞춤 추천을 받을 수 있습니다.
+    </div>
+    <a href="/mypage" style={{color:'#66c0f4', fontSize:'13px', textDecoration:'underline'}}>마이페이지에서 연동하기</a>
+  </div>
+)}
+{user && user.steamId && (
+  <div style={{
+    background:'#1a1a2a', border:'1px solid #1a3a1a', borderRadius:'10px',
+    padding:'14px 20px', marginBottom:'20px'
+  }}>
+    <span style={{color:'#46d369', fontSize:'13px', fontWeight:'bold'}}>✅ 이미 Steam 연동이 되어 있습니다</span>
+  </div>
+)}
 
       <div className="search-panel">
         <h1>게임 맞춤 추천</h1>
