@@ -172,6 +172,7 @@ const TAG_MAPPING = {
     "Music":                    "리듬",
     "Dance":                    "리듬",
     "Music-Based Procedural Generation": "리듬",
+    "음악":                     "리듬",  // DB에 기존에 '음악'으로 저장된 것도 커버
 
     // 카드/덱빌딩
     "Card Game":                "카드게임",
@@ -220,12 +221,12 @@ const TAG_MAPPING = {
     "Realistic":                "현실적",
     "Photorealistic":           "현실적",
     "Cute":                     "귀여운",
-    "Colorful":                 "컬러풀",
+    "Colorful":                 "귀여운",
+    "Family Friendly":          "캐주얼",
     "Wholesome":                "힐링",
     "Cozy":                     "힐링",
     "Relaxing":                 "힐링",
     "Casual":                   "캐주얼",
-    "Family Friendly":          "캐주얼",
 
     // ════════════════════════════════════════════════════════════
     // 테마 / 세계관
@@ -283,6 +284,7 @@ const TAG_MAPPING = {
     "Lore-Rich":                "스토리",
     "Choices Matter":           "선택지",
     "Multiple Endings":         "멀티엔딩",
+    "다중결말":                 "멀티엔딩",  // 혹시 한국어로 저장된 경우 커버
     "Branching Storylines":     "선택지",
     "Character Customization":  "캐릭터커스텀",
     "Character Creation":       "캐릭터커스텀",

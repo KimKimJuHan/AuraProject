@@ -10,7 +10,7 @@ const TAG_CATEGORIES = {
   '시점':   ['1인칭', '3인칭', '쿼터뷰', '탑다운', '횡스크롤'],
   '그래픽': ['픽셀아트', '2D', '3D', '애니메이션풍', '현실적', '귀여운', '힐링', '캐주얼'],
   '테마':   ['판타지', '다크판타지', 'SF', '우주', '사이버펑크', '스팀펑크', '중세', '역사', '좀비', '포스트아포칼립스', '전쟁', '밀리터리', '현대', '느와르'],
-  '특징':   ['오픈월드', '샌드박스', '스토리', '선택지', '멀티엔딩', '고난이도', '협동', '로컬협동', 'PvP', '멀티플레이', '싱글플레이', '캐릭터커스텀', '자원관리', '기지건설'],
+  '특징':   ['오픈월드', '샌드박스', '스토리', '선택지', '멀티엔딩', '고난이도', '협동', '로컬협동', 'PvP', '경쟁', '멀티플레이', '싱글플레이', '캐릭터커스텀', '자원관리', '기지건설'],
 };
 
 const styles = {
@@ -209,7 +209,7 @@ export default function MainPage({ user, region }) {
   };
 
   return (
-    <div className="net-panel"> <MinSpecChecker />
+    <div className="net-panel"> <OnboardingPopup /><MinSpecChecker />
       <div style={styles.tabContainer}>
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
