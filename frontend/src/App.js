@@ -23,14 +23,42 @@ import { checkPcCompatibility } from './utils/pcCompatibility';
 import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
 
+function NotFoundPage() {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '60vh', color: '#fff', textAlign: 'center'
+    }}>
+      <div style={{ fontSize: '80px', fontWeight: 'bold', color: '#E50914', lineHeight: 1 }}>404</div>
+      <div style={{ fontSize: '22px', margin: '16px 0 8px', fontWeight: 'bold' }}>페이지를 찾을 수 없습니다</div>
+      <div style={{ color: '#888', fontSize: '14px', marginBottom: '28px' }}>
+        요청하신 페이지가 존재하지 않거나 이동되었습니다.
+      </div>
+      <a href="/" style={{
+        background: '#E50914', color: '#fff', padding: '12px 28px',
+        borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px'
+      }}>메인으로 돌아가기</a>
+    </div>
+  );
+}
+
 
 
 const TAG_CATEGORIES = {
-  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '리듬', '액션', '어드벤처'],
-  '시점': ['1인칭', '3인칭', '쿼터뷰', '횡스크롤'],
-  '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '귀여운'],
-  '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
-  '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '경쟁/PvP', '소울라이크']
+  '장르':   ['RPG', 'FPS', '액션', '어드벤처', '전략', '턴제', '시뮬레이션', '퍼즐', '플랫포머', '공포', '생존', '로그라이크', '소울라이크', '메트로배니아', '리듬', '격투', '카드게임', 'MOBA', '배틀로얄', '비주얼노벨'],
+  '시점':   ['1인칭', '3인칭', '쿼터뷰', '탑다운', '횡스크롤'],
+  '그래픽': ['픽셀아트', '2D', '3D', '애니메이션풍', '현실적', '귀여운', '힐링', '캐주얼'],
+  '테마':   ['판타지', '다크판타지', 'SF', '우주', '사이버펑크', '스팀펑크', '중세', '역사', '좀비', '포스트아포칼립스', '전쟁', '밀리터리', '현대', '느와르'],
+  '특징':   ['오픈월드', '샌드박스', '스토리', '선택지', '멀티엔딩', '고난이도', '협동', '로컬협동', 'PvP', '경쟁', '멀티플레이', '싱글플레이', '캐릭터커스텀', '자원관리', '기지건설'],
+};
+
+// 카테고리별 기본 노출 태그 수 (나머지는 '더보기'로 숨김)
+const TAG_DEFAULT_SHOW = {
+  '장르':   10,  // RPG~소울라이크까지
+  '시점':   5,   // 전부 노출
+  '그래픽': 6,   // 픽셀아트~귀여운
+  '테마':   7,   // 판타지~좀비
+  '특징':   8,   // 오픈월드~협동
 };
 
 const styles = {
@@ -78,18 +106,31 @@ const styles = {
 
 const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const hasSelection = selectedTags.length > 0;
   const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
+
+  const defaultShow = TAG_DEFAULT_SHOW[title] || tags.length;
+  const hasMore = tags.length > defaultShow;
+  const hiddenSelected = !showAll && tags.slice(defaultShow).some(t => selectedTags.includes(t));
+  const displayTags = (showAll || hiddenSelected) ? tags : tags.slice(0, defaultShow);
 
   return (
       <div style={styles.filterBox}>
           <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
-              <span style={styles.filterTitle}>{title}</span>
+              <span style={styles.filterTitle}>
+                {title}
+                {selectedTags.filter(t => tags.includes(t)).length > 0 && (
+                  <span style={{marginLeft:'6px', backgroundColor:'#E50914', color:'#fff', borderRadius:'10px', padding:'1px 7px', fontSize:'11px', fontWeight:'bold'}}>
+                    {selectedTags.filter(t => tags.includes(t)).length}
+                  </span>
+                )}
+              </span>
               <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
           </div>
           {isOpen && (
               <div style={styles.filterContent}>
-                  {tags.map(tag => {
+                  {displayTags.map(tag => {
                       const isSelected = selectedTags.includes(tag);
                       const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
                       return (
@@ -103,6 +144,22 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                           </button>
                       );
                   })}
+                  {hasMore && !hiddenSelected && (
+                      <button
+                          onClick={(e) => { e.stopPropagation(); setShowAll(!showAll); }}
+                          style={{
+                              backgroundColor: 'transparent',
+                              border: '1px dashed #555',
+                              color: '#888',
+                              padding: '4px 10px',
+                              borderRadius: '15px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                          }}
+                      >
+                          {showAll ? '▲ 접기' : `+${tags.length - defaultShow}개 더보기`}
+                      </button>
+                  )}
               </div>
           )}
       </div>
@@ -136,15 +193,34 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
             
-            {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>🎮 보유중</div>}
+            {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>보유중</div>}
             
-            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
+            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
-            <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
-              {game.reason || '이 조건에 잘 맞아 추천'}
+            <div style={{ color:'#888', fontSize:'11px', marginTop:'6px', marginBottom:'6px', lineHeight:'1.4', minHeight:'28px' }}>
+              {game.reason || '맞춤 추천'}
             </div>
+
+            {/* 리뷰 점수 */}
+            {game.steam_reviews?.overall?.percent > 0 && game.steam_reviews?.overall?.total >= 10 && (
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
+                  <span style={{ fontSize:'11px', color: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72' }}>
+                    {({'Overwhelmingly Positive':'압도적으로 긍정적','Very Positive':'매우 긍정적','Positive':'긍정적','Mostly Positive':'대체로 긍정적','Mixed':'복합적','Mostly Negative':'대체로 부정적','Negative':'부정적','Very Negative':'매우 부정적','Overwhelmingly Negative':'압도적으로 부정적'})[game.steam_reviews.overall.summary] || (game.steam_reviews.overall.percent >= 80 ? '긍정적' : '복합적')}
+                  </span>
+                  <span style={{ fontSize:'11px', color:'#888' }}>{game.steam_reviews.overall.percent}%</span>
+                </div>
+                <div style={{ background:'#333', borderRadius:'3px', height:'3px', overflow:'hidden' }}>
+                  <div style={{
+                    width: `${game.steam_reviews.overall.percent}%`, height:'100%',
+                    background: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72',
+                    borderRadius:'3px'
+                  }}/>
+                </div>
+              </div>
+            )}
 
             <div
               style={{
@@ -185,6 +261,8 @@ function MainPage({ user, region }) {
   const [error, setError] = useState(null);
   
   const [userWishlist, setUserWishlist] = useState([]);
+  const [priceFilter, setPriceFilter] = useState({ min: '', max: '', minDiscount: '' });
+  const [showPriceFilter, setShowPriceFilter] = useState(false);
 
   useEffect(() => {
     if (user && user._id) {
@@ -273,6 +351,7 @@ function MainPage({ user, region }) {
 
   return (
     <div className="net-panel">
+      <OnboardingPopup />
       <div style={styles.tabContainer}>
         {/* ★ 상단 탭 신규 항목 삭제, 원래 상태로 롤백 완료 */}
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
@@ -548,7 +627,10 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         {user && (
           <div style={{ position: 'relative' }} ref={notiRef}>
             <button style={styles.bellIcon} onClick={handleNotiClick}>
-              🔔
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
               {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
             </button>
             {showNoti && (
@@ -600,9 +682,6 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
             <span style={styles.headerNickname} className="net-header-nickname">
               {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
             </span>
-            {user.playerType === 'streamer' && <span style={{background:'#8a2be2', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>스트리머</span>}
-            {user.playerType === 'intermediate' && <span style={{background:'#00bfff', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>중급자</span>}
-            {user.playerType === 'beginner' && <span style={{background:'#666', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>초심자</span>}
           </div>
         )}
 
@@ -683,10 +762,9 @@ function App() {
           onCurrencyChange={handleCurrencyChange}
           handleLogout={handleLogout} 
         />
-        <OnboardingPopup />
         <Routes>
           <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
-          <Route path="/game/:id" element={<ShopPage region={region} />} />
+          <Route path="/game/:id" element={<ShopPage region={region} user={user} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
@@ -701,6 +779,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
           <Route path="/notifications" element={<NotificationPage user={user} />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
     </Router>

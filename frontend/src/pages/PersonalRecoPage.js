@@ -9,11 +9,11 @@ import PcCompatibilityBadge from '../components/PcCompatibilityBadge';
 const FALLBACK_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 const TAG_CATEGORIES = {
-  '장르': ['RPG', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '액션', '어드벤처'],
-  '시점': ['1인칭', '3인칭', '탑다운', '사이드뷰', '쿼터뷰'],
-  '그래픽': ['픽셀 그래픽', '2D', '3D', '만화 같은', '현실적', '애니메이션', '귀여운'],
-  '테마': ['판타지', '공상과학', '중세', '현대', '우주', '좀비', '사이버펑크', '마법', '전쟁', '포스트아포칼립스'],
-  '특징': ['오픈 월드', '자원관리', '스토리 중심', '선택의 중요성', '캐릭터 커스터마이즈', '협동 캠페인', '멀티플레이', '싱글플레이', '로그라이크', '소울라이크']
+  '장르':   ['RPG', 'FPS', '액션', '어드벤처', '전략', '턴제', '시뮬레이션', '퍼즐', '플랫포머', '공포', '생존', '로그라이크', '소울라이크', '메트로배니아', '리듬', '격투', '카드게임', 'MOBA', '배틀로얄', '비주얼노벨'],
+  '시점':   ['1인칭', '3인칭', '쿼터뷰', '탑다운', '횡스크롤'],
+  '그래픽': ['픽셀아트', '2D', '3D', '애니메이션풍', '현실적', '귀여운', '힐링', '캐주얼'],
+  '테마':   ['판타지', '다크판타지', 'SF', '우주', '사이버펑크', '스팀펑크', '중세', '역사', '좀비', '포스트아포칼립스', '전쟁', '밀리터리', '현대', '느와르'],
+  '특징':   ['오픈월드', '샌드박스', '스토리', '선택지', '멀티엔딩', '고난이도', '협동', '로컬협동', 'PvP', '경쟁', '멀티플레이', '싱글플레이', '캐릭터커스텀', '자원관리', '기지건설'],
 };
 
 function GameCard({ game, userWishlist, onToggleWishlist, user }) {
@@ -34,7 +34,7 @@ function GameCard({ game, userWishlist, onToggleWishlist, user }) {
             <div className="thumb-wrapper">
                 <img src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
                 <div className="net-card-gradient"></div>
-                <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
+                <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
             </div>
             <div className="card-info">
                 <div className="game-title">{game.title_ko || game.title || game.name}
@@ -176,8 +176,51 @@ export default function PersonalRecoPage({ user }) {
 
   return (
     <div className="reco-container">
+
+      {/* 비로그인 안내 배너 */}
+      {!user && (
+        <div style={{
+          background:'linear-gradient(135deg,#1a1a1a,#2a1a1a)',
+          border:'1px solid #E50914', borderRadius:'10px',
+          padding:'16px 20px', marginBottom:'20px',
+          display:'flex', alignItems:'center',
+          justifyContent:'space-between', flexWrap:'wrap', gap:'12px'
+        }}>
+          <div>
+            <div style={{fontWeight:'bold', color:'#fff', marginBottom:'4px'}}>더 정확한 추천을 받으려면 로그인하세요</div>
+            <div style={{color:'#888', fontSize:'13px'}}>Steam 연동 시 플레이 이력을 분석해 맞춤 추천을 드립니다.</div>
+          </div>
+          <div style={{display:'flex', gap:'8px'}}>
+            <a href="/login" style={{background:'#E50914', color:'#fff', padding:'8px 18px', borderRadius:'6px', textDecoration:'none', fontWeight:'bold', fontSize:'13px'}}>로그인</a>
+            <a href="/signup" style={{background:'transparent', color:'#ccc', padding:'8px 18px', borderRadius:'6px', textDecoration:'none', border:'1px solid #555', fontSize:'13px'}}>회원가입</a>
+          </div>
+        </div>
+      )}
+
+      {/* Steam 미연동 안내 */}
+{user && !user.steamId && (
+  <div style={{
+    background:'#1a1a2a', border:'1px solid #336699', borderRadius:'10px',
+    padding:'14px 20px', marginBottom:'20px',
+    display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px'
+  }}>
+    <div style={{color:'#ccc', fontSize:'13px'}}>
+      <span style={{color:'#66c0f4', fontWeight:'bold'}}>Steam 연동</span>하면 플레이 이력 기반 맞춤 추천을 받을 수 있습니다.
+    </div>
+    <a href="/mypage" style={{color:'#66c0f4', fontSize:'13px', textDecoration:'underline'}}>마이페이지에서 연동하기</a>
+  </div>
+)}
+{user && user.steamId && (
+  <div style={{
+    background:'#1a1a2a', border:'1px solid #1a3a1a', borderRadius:'10px',
+    padding:'14px 20px', marginBottom:'20px'
+  }}>
+    <span style={{color:'#46d369', fontSize:'13px', fontWeight:'bold'}}>✅ 이미 Steam 연동이 되어 있습니다</span>
+  </div>
+)}
+
       <div className="search-panel">
-        <h1>🤖 게임 맞춤 추천</h1>
+        <h1>게임 맞춤 추천</h1>
         <div className="tags-panel">
             {Object.entries(TAG_CATEGORIES).map(([group, list]) => (
                 <div className="tag-group" key={group}>
@@ -200,7 +243,7 @@ export default function PersonalRecoPage({ user }) {
             {/* ★ 기획 적용: 사용자가 선택한 태그가 있다면 그 태그에 찰떡인 게임 탭을 가장 최상단에 생성 */}
             {picked.size > 0 && tagSpecificData.length > 0 && (
                 <RecoSection 
-                    title={`🎯 [${Array.from(picked).join(', ')}] 취향 저격`} 
+                    title={`[${Array.from(picked).join(', ')}] 취향 저격`} 
                     games={tagSpecificData}
                     userWishlist={userWishlist}
                     onToggleWishlist={handleToggleWishlist}
@@ -208,11 +251,11 @@ export default function PersonalRecoPage({ user }) {
                 />
             )}
             
-            <RecoSection title="🌟 종합 추천 (맞춤형)" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="🔥 지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="💰 가격 합리성 (가성비)" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="💎 숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="🤝 친구와 함께 (멀티플레이)" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="종합 추천" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="가성비 추천" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="멀티플레이 추천" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
         </div>
       )}
       {!loading && err && <div className="error-box">{err}</div>}
