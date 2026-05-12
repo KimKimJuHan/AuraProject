@@ -4,6 +4,7 @@ const router = express.Router();
 const User = require("../models/User");
 const Game = require("../models/Game");
 const axios = require("axios");
+const bcrypt = require("bcryptjs");
 const { authenticateToken } = require("../middleware/auth");
 
 // 1. 유저 IP 조회
@@ -203,5 +204,118 @@ router.patch("/me/displayName", authenticateToken, async (req, res) => {
     return res.status(500).json({ message: "server error" });
   }
 });
+
+// playerType 직접 설정
+router.put("/playerType", authenticateToken, async (req, res) => {
+    try {
+        const { playerType } = req.body;
+        const valid = ['casual', 'beginner', 'intermediate', 'hardcore', 'streamer'];
+        if (!valid.includes(playerType))
+            return res.status(400).json({ message: "올바르지 않은 플레이어 타입입니다." });
+
+        await User.findByIdAndUpdate(req.user._id, {
+            playerType,
+            playerTypeSetByUser: true
+        });
+        res.json({ success: true, playerType });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 비밀번호 변경
+router.put("/password", authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword)
+            return res.status(400).json({ message: "현재 비밀번호와 새 비밀번호를 입력해주세요." });
+        if (newPassword.length < 8)
+            return res.status(400).json({ message: "새 비밀번호는 8자 이상이어야 합니다." });
+
+        const user = await User.findById(req.user._id);
+        if (!user.password)
+            return res.status(400).json({ message: "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다." });
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch)
+            return res.status(401).json({ message: "현재 비밀번호가 일치하지 않습니다." });
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+        res.json({ success: true, message: "비밀번호가 변경되었습니다." });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 알림 설정 조회
+router.get("/notifications/settings", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("notificationSettings");
+        res.json(user.notificationSettings || { saleAlert: true, newGameAlert: false, emailAlert: true });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 알림 설정 저장
+router.put("/notifications/settings", authenticateToken, async (req, res) => {
+    try {
+        const { saleAlert, newGameAlert, emailAlert } = req.body;
+        await User.findByIdAndUpdate(req.user._id, {
+            $set: { notificationSettings: { saleAlert, newGameAlert, emailAlert } }
+        });
+        res.json({ success: true, message: "알림 설정이 저장되었습니다." });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+
+
+// 목표 가격 알림 설정
+router.post("/price-alert", authenticateToken, async (req, res) => {
+    try {
+        const { slug, targetPrice } = req.body;
+        if (!slug || !targetPrice || targetPrice <= 0)
+            return res.status(400).json({ message: "slug와 목표 가격을 입력해주세요." });
+        const user = await User.findById(req.user._id);
+        if (!user.priceAlerts) user.priceAlerts = [];
+        const existing = user.priceAlerts.find(a => a.slug === slug);
+        if (existing) {
+            existing.targetPrice = targetPrice;
+        } else {
+            user.priceAlerts.push({ slug, targetPrice });
+        }
+        await user.save();
+        res.json({ success: true, message: "목표 가격이 설정되었습니다." });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 목표 가격 알림 조회
+router.get("/price-alert/:slug", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("priceAlerts");
+        const found = (user.priceAlerts || []).find(a => a.slug === req.params.slug);
+        res.json({ targetPrice: found ? found.targetPrice : null });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+// 목표 가격 알림 삭제
+router.delete("/price-alert/:slug", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        user.priceAlerts = (user.priceAlerts || []).filter(a => a.slug !== req.params.slug);
+        await user.save();
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
 
 module.exports = router;

@@ -15,6 +15,7 @@ const gameSchema = new mongoose.Schema({
   
   isAdult: { type: Boolean, default: false },
   smart_tags: { type: [String], index: true },
+  tags: { type: [String], default: undefined }, // Steam 원본 태그 (smart_tags 생성 소스)
   
   // ★ [과제 3] 난이도 필드 추가
   difficulty: { type: String, enum: ['초심자', '보통', '심화', '정보 없음'], default: '정보 없음', index: true },
@@ -22,6 +23,7 @@ const gameSchema = new mongoose.Schema({
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
   chzzk_viewers: { type: Number, default: 0 },
+  soop_viewers:  { type: Number, default: 0 },
   steam_ccu: { type: Number, default: 0 },
 
   steam_reviews: {
@@ -55,6 +57,7 @@ const gameSchema = new mongoose.Schema({
     historical_low: Number,
     expiry: String,
     isFree: { type: Boolean, default: false },
+    expiry: { type: Date, default: null }, // 할인 종료 시각
     deals: [
       {
         shopName: String,
@@ -85,3 +88,12 @@ const gameSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Game', gameSchema, 'games');
+// ── 복합 인덱스 (추천 API 쿼리 최적화) ───────────────────────────────────────
+// 메인 추천 API가 항상 isAdult 필터 + 정렬 조합으로 쿼리함
+gameSchema.index({ isAdult: 1, steam_ccu: -1 });
+gameSchema.index({ isAdult: 1, 'price_info.discount_percent': -1 });
+gameSchema.index({ isAdult: 1, releaseDate: -1 });
+gameSchema.index({ isAdult: 1, 'steam_reviews.overall.percent': -1 });
+gameSchema.index({ isAdult: 1, 'price_info.current_price': 1 });
+// 태그 + isAdult 복합 (태그 필터링 쿼리)
+gameSchema.index({ isAdult: 1, smart_tags: 1, steam_ccu: -1 });

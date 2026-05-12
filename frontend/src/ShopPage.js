@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
@@ -368,7 +368,7 @@ function RecentGames({ currentSlug }) {
   );
 }
 
-export default function ShopPage({ region }) {
+export default function ShopPage({ region, user }) {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -378,6 +378,10 @@ export default function ShopPage({ region }) {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [mediaList, setMediaList] = useState([]);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [priceAlert, setPriceAlert] = useState(null);
+  const [showPriceAlert, setShowPriceAlert] = useState(false);
+  const [priceAlertInput, setPriceAlertInput] = useState('');
+  const [priceAlertMsg, setPriceAlertMsg] = useState('');
   const [likes, setLikes] = useState(0);
   const [dislikes, setDislikes] = useState(0);
   const [myVote, setMyVote] = useState(null);
@@ -395,6 +399,20 @@ export default function ShopPage({ region }) {
       if (p?.catch) p.catch(() => {});
     });
   };
+
+  const REVIEW_KO = {
+    'Overwhelmingly Positive': '압도적으로 긍정적',
+    'Very Positive': '매우 긍정적',
+    'Positive': '긍정적',
+    'Mostly Positive': '대체로 긍정적',
+    'Mixed': '복합적',
+    'Mostly Negative': '대체로 부정적',
+    'Negative': '부정적',
+    'Very Negative': '매우 부정적',
+    'Overwhelmingly Negative': '압도적으로 부정적',
+  };
+
+  const toKoReview = (summary) => REVIEW_KO[summary] || summary || '정보 없음';
 
   const getReviewColor = (summary) => {
     if (!summary || summary === '정보 없음') return '#aaa';
@@ -424,6 +442,7 @@ export default function ShopPage({ region }) {
               time: dateStr,
               twitch: item.twitch_viewers || 0,
               chzzk: item.chzzk_viewers || 0,
+              soop: item.soop_viewers || 0,
               steam: item.steam_ccu || 0
             };
           });
@@ -454,9 +473,25 @@ export default function ShopPage({ region }) {
           setIsPlaying(false);
         }
 
-        const wishlist = JSON.parse(safeLocalStorage.getItem('gameWishlist') || '[]');
-        setIsWishlisted(wishlist.includes(data.slug));
+        // 위시리스트 DB 연동
+        if (user?._id) {
+          try {
+            const wlRes = await apiClient.get('/user/wishlist');
+            setIsWishlisted((wlRes.data || []).includes(data.slug));
+          } catch { setIsWishlisted(false); }
+        } else {
+          setIsWishlisted(false);
+        }
         setLikes(data.likes_count || 0);
+        if (user?._id && data.slug) {
+          try {
+            const alertRes = await apiClient.get('/user/price-alert/' + data.slug);
+            if (alertRes.data?.targetPrice) {
+              setPriceAlert(alertRes.data.targetPrice);
+              setPriceAlertInput(String(alertRes.data.targetPrice));
+            }
+          } catch {}
+        }
         setDislikes(data.dislikes_count || 0);
 
         try {
@@ -496,8 +531,11 @@ export default function ShopPage({ region }) {
     if (isFree || priceVal === 0) return '무료';
     if (!priceVal) return '가격 정보 없음';
 
-    const isBaseKRW = priceVal > 500;
+    // KRW 기준: Steam KRW 가격은 최소 1000원 이상 (달러 가격은 0.01~999)
+    const isBaseKRW = priceVal >= 1000;
     const krwPrice = isBaseKRW ? priceVal : priceVal * 1350;
+    // 비합리적 가격 필터 (100만원 초과 = 통화 단위 오류 가능성)
+    if (krwPrice > 1000000) return '가격 정보 없음';
     const usdPrice = isBaseKRW ? priceVal / 1350 : priceVal;
     const jpyPrice = isBaseKRW ? priceVal / 9 : priceVal * 150;
 
@@ -527,16 +565,47 @@ export default function ShopPage({ region }) {
     }
   };
 
-  const toggleWishlist = () => {
-    const wishlistStr = safeLocalStorage.getItem('gameWishlist');
-    const wishlist = wishlistStr ? JSON.parse(wishlistStr) : [];
+  const handleSavePriceAlert = async () => {
+    if (!user) return alert('로그인이 필요합니다.');
+    const price = Number(priceAlertInput);
+    if (!price || price <= 0) return setPriceAlertMsg('올바른 가격을 입력해주세요.');
+    try {
+      await apiClient.post('/user/price-alert', { slug: gameData.slug, targetPrice: price });
+      setPriceAlert(price);
+      setPriceAlertMsg('설정되었습니다.');
+      setTimeout(() => setPriceAlertMsg(''), 3000);
+    } catch { setPriceAlertMsg('저장 실패'); }
+  };
 
-    let newWishlist;
-    if (isWishlisted) newWishlist = wishlist.filter(slug => slug !== gameData.slug);
-    else newWishlist = [...wishlist, gameData.slug];
+  const handleDeletePriceAlert = async () => {
+    try {
+      await apiClient.delete('/user/price-alert/' + gameData.slug);
+      setPriceAlert(null);
+      setPriceAlertInput('');
+      setPriceAlertMsg('알림이 해제되었습니다.');
+      setTimeout(() => setPriceAlertMsg(''), 2000);
+    } catch {}
+  };
 
-    safeLocalStorage.setItem('gameWishlist', JSON.stringify(newWishlist));
-    setIsWishlisted(!isWishlisted);
+  const toggleWishlist = async () => {
+    if (!user) {
+      if (window.confirm('로그인 후 이용해 주세요. 로그인 페이지로 이동하시겠습니까?')) {
+        navigate('/login');
+      }
+      return;
+    }
+    const newState = !isWishlisted;
+    setIsWishlisted(newState); // 낙관적 업데이트
+    try {
+      if (newState) {
+        await apiClient.post('/user/wishlist', { slug: gameData.slug });
+      } else {
+        await apiClient.delete(`/user/wishlist/${gameData.slug}`);
+      }
+    } catch {
+      setIsWishlisted(!newState); // 실패 시 롤백
+      alert('찜하기 처리 중 오류가 발생했습니다.');
+    }
   };
 
   const cleanHTML = (html) => DOMPurify.sanitize(html);
@@ -560,8 +629,9 @@ export default function ShopPage({ region }) {
   if (!gameData) return <div className="net-panel net-empty">게임을 찾을 수 없습니다.</div>;
 
   const pi = gameData.price_info;
-  const overall = gameData.steam_reviews?.overall || { summary: '정보 없음', total: 0 };
+  const overall = gameData.steam_reviews?.overall || { summary: '정보 없음', total: 0, percent: 0 };
   const reviewSummaryText = overall.summary;
+  const reviewPercent = overall.percent || 0;
 
   const renderPlayTimeTooltip = () => {
     if (!gameData.play_time || typeof gameData.play_time !== 'object' || gameData.play_time === null) {
@@ -742,10 +812,21 @@ export default function ShopPage({ region }) {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#aaa', gap: '10px', flexWrap: 'wrap' }}>
-              <span>모든 평가 ({overall.total.toLocaleString()})</span>
+              <span>모든 평가 ({overall.total.toLocaleString()}개)</span>
               <span style={{ color: getReviewColor(reviewSummaryText), fontWeight: 'bold' }}>
-                {reviewSummaryText}
+                {toKoReview(reviewSummaryText)} {reviewPercent > 0 ? `(${reviewPercent}%)` : ''}
               </span>
+              {reviewPercent > 0 && (
+                <div style={{ marginTop: '6px', background: '#333', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${reviewPercent}%`,
+                    height: '100%',
+                    background: reviewPercent >= 80 ? '#66c0f4' : reviewPercent >= 60 ? '#d29922' : '#ff7b72',
+                    borderRadius: '4px',
+                    transition: 'width 0.5s ease'
+                  }} />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -762,6 +843,45 @@ export default function ShopPage({ region }) {
           >
             {isWishlisted ? '✔ 찜함' : '+ 찜하기'}
           </button>
+          <div style={{marginTop:'10px'}}>
+            {!showPriceAlert ? (
+              <button onClick={() => setShowPriceAlert(true)}
+                style={{background:'none', border:'1px solid #555',
+                  color: priceAlert ? '#4CAF50' : '#aaa',
+                  padding:'8px 16px', borderRadius:'6px', cursor:'pointer',
+                  fontSize:'13px', width:'100%'}}>
+                {priceAlert ? '목표가: ₩' + priceAlert.toLocaleString() + ' (설정됨)' : '목표 가격 알림 설정'}
+              </button>
+            ) : (
+              <div style={{border:'1px solid #444', borderRadius:'8px', padding:'12px', background:'#1a1a1a'}}>
+                <div style={{color:'#ccc', fontSize:'13px', marginBottom:'8px'}}>이 가격 이하가 되면 알림을 드립니다</div>
+                <div style={{display:'flex', gap:'8px'}}>
+                  <input type="number" placeholder="가격 입력 (원)" value={priceAlertInput}
+                    onChange={e => setPriceAlertInput(e.target.value)}
+                    style={{flex:1, background:'#111', border:'1px solid #444', color:'#fff',
+                      padding:'6px 10px', borderRadius:'6px', fontSize:'13px'}}/>
+                  <button onClick={handleSavePriceAlert}
+                    style={{background:'#4CAF50', border:'none', color:'#fff',
+                      padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontSize:'13px'}}>
+                    저장
+                  </button>
+                </div>
+                {priceAlert && (
+                  <button onClick={handleDeletePriceAlert}
+                    style={{marginTop:'6px', background:'none', border:'none',
+                      color:'#888', cursor:'pointer', fontSize:'12px', textDecoration:'underline'}}>
+                    알림 해제
+                  </button>
+                )}
+                {priceAlertMsg && <div style={{color:'#4CAF50', fontSize:'12px', marginTop:'6px'}}>{priceAlertMsg}</div>}
+                <button onClick={() => setShowPriceAlert(false)}
+                  style={{marginTop:'4px', background:'none', border:'none',
+                    color:'#555', cursor:'pointer', fontSize:'12px', float:'right'}}>
+                  닫기
+                </button>
+              </div>
+            )}
+          </div>
           <button
             style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton}
             onClick={() => handleVote('like')}
@@ -778,14 +898,14 @@ export default function ShopPage({ region }) {
 
         {pi?.discount_percent > 0 && countdown && (
           <div style={{ color: '#E50914', fontWeight: 'bold', fontSize: '16px', marginBottom: '40px' }}>
-            🔥 특가 할인 중! (남은 시간: {countdown})
+            특가 할인 중! (남은 시간: {countdown})
           </div>
         )}
 
       {historyData.length > 0 && (
   <div style={styles.chartsGrid}>
     <div style={styles.chartBox}>
-      <h3 className="net-section-title">📡 방송 시청자 트렌드</h3>
+      <h3 className="net-section-title">방송 시청자 트렌드</h3>
       <div style={{ width: '100%', overflowX: 'auto' }}>
         <LineChart width={chartWidth} height={250} data={historyData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -795,12 +915,13 @@ export default function ShopPage({ region }) {
           <Legend />
           <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />
           <Line type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="soop" name="SOOP" stroke="#FF6B35" strokeWidth={2} dot={false} />
         </LineChart>
       </div>
     </div>
 
     <div style={styles.chartBox}>
-      <h3 className="net-section-title">👥 스팀 동접자 추이</h3>
+      <h3 className="net-section-title">스팀 동접자 추이</h3>
       <div style={{ width: '100%', overflowX: 'auto' }}>
         <AreaChart width={chartWidth} height={250} data={historyData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
