@@ -34,7 +34,7 @@ const TAG_CATEGORIES = {
 };
 
 const styles = {
-  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
+  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px', overflowX:'auto', flexWrap:'nowrap' },
   tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
   tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
@@ -276,7 +276,7 @@ function MainPage({ user, region }) {
       <div style={styles.tabContainer}>
         {/* ★ 상단 탭 신규 항목 삭제, 원래 상태로 롤백 완료 */}
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
-            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
+            <button key={t.k} onClick={() => setActiveTab(t.k)} className="net-tab-btn" style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
       </div>
 
@@ -538,12 +538,12 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         )}
       </div>
 
-      <div style={styles.rightGroup}>
-        <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
-          <option value="KR">🇰🇷 KRW</option>
-          <option value="US">🇺🇸 USD</option>
-          <option value="JP">🇯🇵 JPY</option>
-        </select>
+      <div style={styles.rightGroup} className="net-header-right">
+  <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
+    <option value="KR">🇰🇷 KRW</option>
+    <option value="US">🇺🇸 USD</option>
+    <option value="JP">🇯🇵 JPY</option>
+  </select>
 
         {user && (
           <div style={{ position: 'relative' }} ref={notiRef}>
@@ -597,7 +597,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
 
         {user && (
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={styles.headerNickname}>
+            <span style={styles.headerNickname} className="net-header-nickname">
               {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
             </span>
             {user.playerType === 'streamer' && <span style={{background:'#8a2be2', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>스트리머</span>}
@@ -607,11 +607,11 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         )}
 
         {!user ? (
-          <Link to="/login" style={styles.authButton}>
+          <Link to="/login" style={styles.authButton} className="login-btn">
             로그인
           </Link>
         ) : (
-          <button onClick={handleLogout} style={{marginLeft:'15px', ...styles.logoutButton}}>
+          <button onClick={handleLogout} className="logout-btn" style={{...styles.logoutButton}}>
             로그아웃
           </button>
         )}
