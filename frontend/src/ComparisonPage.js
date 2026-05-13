@@ -283,7 +283,7 @@ function ComparisonPage({ region, user }) {
                   margin: '5px 0'
                 }}
               >
-                🔥 동접자: {game.steam_ccu?.toLocaleString() || 0}명
+                동접자: {game.steam_ccu?.toLocaleString() || 0}명
               </p>
 
               <p
@@ -293,7 +293,7 @@ function ComparisonPage({ region, user }) {
                   margin: '5px 0'
                 }}
               >
-                💰 가격: {formatPrice(game.price_info, region)}
+                가격: {formatPrice(game.price_info, region)}
               </p>
 
               <Link
