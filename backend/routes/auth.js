@@ -33,7 +33,9 @@ router.get(
       avatar: req.user.avatar,
       role: req.user.role,
     };
-    const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
+    // 첫 소셜 로그인 유저는 온보딩으로 (req.user에 DB 유저 객체 포함)
+    const baseUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
+    const redirectUrl = (!req.user?.playerTypeSetByUser) ? `${baseUrl}/onboarding` : baseUrl;
     res.redirect(redirectUrl);
   }
 );
@@ -94,7 +96,9 @@ router.get(
         }
     }
 
-    const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
+    // 첫 소셜 로그인 유저는 온보딩으로
+    const baseUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
+    const redirectUrl = (!req.user?.playerTypeSetByUser) ? `${baseUrl}/onboarding` : baseUrl;
     res.redirect(redirectUrl);
   }
 );

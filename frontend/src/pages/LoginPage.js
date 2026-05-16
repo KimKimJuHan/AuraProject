@@ -7,6 +7,8 @@ function LoginPage({ user, setUser }) {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  // URL 파라미터 직접 파싱
+  const getRedirectParam = () => new URLSearchParams(window.location.search).get('redirect');
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
@@ -27,7 +29,13 @@ function LoginPage({ user, setUser }) {
 
       if (response.data.success) {
         setUser(response.data.user);
-        navigate('/');
+        // playerTypeSetByUser 확인 - 미설정이면 온보딩으로
+        const fromSignup = getRedirectParam() === 'onboarding';
+        if (fromSignup) {
+          navigate('/onboarding');
+        } else {
+          navigate('/');
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || '로그인 실패: 아이디 또는 비밀번호를 확인하세요.');

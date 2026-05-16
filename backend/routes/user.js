@@ -318,4 +318,18 @@ router.delete("/price-alert/:slug", authenticateToken, async (req, res) => {
 });
 
 
+// 선호 태그 저장
+router.put("/liked-tags", authenticateToken, async (req, res) => {
+    try {
+        const { tags } = req.body;
+        if (!Array.isArray(tags)) return res.status(400).json({ message: "tags 배열이 필요합니다." });
+        const filtered = tags.slice(0, 5); // 최대 5개
+        await User.findByIdAndUpdate(req.user._id, { $set: { likedTags: filtered } });
+        res.json({ success: true, likedTags: filtered });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+
 module.exports = router;
