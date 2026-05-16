@@ -22,6 +22,7 @@ import { formatPrice } from './utils/priceFormatter';
 import { checkPcCompatibility } from './utils/pcCompatibility';
 import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
+import OnboardingPage from './pages/OnboardingPage';
 
 function NotFoundPage() {
   return (
@@ -261,8 +262,6 @@ function MainPage({ user, region }) {
   const [error, setError] = useState(null);
   
   const [userWishlist, setUserWishlist] = useState([]);
-  const [priceFilter, setPriceFilter] = useState({ min: '', max: '', minDiscount: '' });
-  const [showPriceFilter, setShowPriceFilter] = useState(false);
 
   useEffect(() => {
     if (user && user._id) {
@@ -769,6 +768,7 @@ function App() {
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/onboarding" element={<OnboardingPage user={user} setUser={setUser} />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
           <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
           <Route path="/support/faq" element={<FaqPage />} />

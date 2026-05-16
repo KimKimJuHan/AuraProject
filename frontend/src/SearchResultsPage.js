@@ -18,9 +18,9 @@ const REVIEW_KO = {
 const styles = {
   container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
   header: { fontSize: '24px', marginBottom: '16px', borderLeft: '5px solid #E50914', paddingLeft: '15px' },
-  toolbar: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' },
-  sortBtn: { background: '#2a2a2a', border: '1px solid #444', color: '#ccc', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' },
-  sortBtnActive: { background: '#E50914', border: '1px solid #E50914', color: '#fff', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' },
+  toolbar: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' },
+  sortBtn: { background: '#2a2a2a', border: '1px solid #444', color: '#ccc', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
+  sortBtnActive: { background: '#E50914', border: '1px solid #E50914', color: '#fff', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' },
   card: { backgroundColor: '#181818', borderRadius: '4px', overflow: 'hidden', textDecoration: 'none', color: '#fff', transition: 'transform 0.2s', display: 'block' },
   thumbWrapper: { position: 'relative', width: '100%', paddingTop: '56.25%' },
