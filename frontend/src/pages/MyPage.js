@@ -26,13 +26,10 @@ function MyPage({ user, setUser }) {
     const [isEditingNickname, setIsEditingNickname] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
 
-    const [isEditingPassword, setIsEditingPassword] = useState(false);
     const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
-    const [pwError, setPwError] = useState('');
 
-    const [notifSettings, setNotifSettings] = useState({ saleAlert: true, newGameAlert: false, emailAlert: true });
-    const [notifSaved, setNotifSaved] = useState(false);
-    const [playerTypeSaved, setPlayerTypeSaved] = useState(false); // 추가
+    const [notifSettings] = useState({ saleAlert: true, newGameAlert: false, emailAlert: true });
+    const [playerTypeSaved, setPlayerTypeSaved] = useState(false); // eslint-disable-line
 
     const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 16 });
     const [savedPcSpec, setSavedPcSpec] = useState(null);
@@ -136,6 +133,7 @@ function MyPage({ user, setUser }) {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleChangePassword = async () => {
         setPwError('');
         if (!pwForm.current || !pwForm.next || !pwForm.confirm) return setPwError('모든 항목을 입력해주세요.');
@@ -151,6 +149,7 @@ function MyPage({ user, setUser }) {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleSavePlayerType = async (newType) => {
         try {
             await apiClient.put('/user/playerType', { playerType: newType });
@@ -159,6 +158,7 @@ function MyPage({ user, setUser }) {
         } catch { alert('설정 저장 실패'); }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleSaveNotifSettings = async () => {
         try {
             await apiClient.put('/user/notifications/settings', notifSettings);
@@ -167,6 +167,7 @@ function MyPage({ user, setUser }) {
         } catch { alert('알림 설정 저장 실패'); }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleRemoveWishlist = async (slug) => {
         try {
             await apiClient.delete(`/user/wishlist/${slug}`);
