@@ -23,6 +23,7 @@ const gameSchema = new mongoose.Schema({
   trend_score: { type: Number, default: 0 },
   twitch_viewers: { type: Number, default: 0 },
   chzzk_viewers: { type: Number, default: 0 },
+  soop_viewers:  { type: Number, default: 0 },
   steam_ccu: { type: Number, default: 0 },
 
   steam_reviews: {
@@ -56,6 +57,7 @@ const gameSchema = new mongoose.Schema({
     historical_low: Number,
     expiry: String,
     isFree: { type: Boolean, default: false },
+    expiry: { type: Date, default: null }, // 할인 종료 시각
     deals: [
       {
         shopName: String,

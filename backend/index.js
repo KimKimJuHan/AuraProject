@@ -35,40 +35,35 @@ const PORT = process.env.PORT || 8000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 
+const VALID_PLAYER_TYPES = ['casual', 'beginner', 'intermediate', 'hardcore', 'streamer'];
+
 app.set('trust proxy', 1);
 
-// ── 보안 헤더 ─────────────────────────────────────────────────────────────────
 app.use(helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: false,
 }));
 
-// ── 응답 압축 ─────────────────────────────────────────────────────────────────
 app.use(compression());
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
     origin: [FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'],
     credentials: true
 }));
 
-// ── 요청 크기 제한 ────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 
-// ── Rate Limiting ─────────────────────────────────────────────────────────────
-// 일반 API: 1분에 100회
 const generalLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
-    skip: (req) => req.path.startsWith('/api/auth'), // 인증 경로는 별도 처리
+    skip: (req) => req.path.startsWith('/api/auth'),
 });
 
-// 추천 API: 1분에 30회 (무거운 쿼리)
 const recommendLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 30,
@@ -77,7 +72,6 @@ const recommendLimiter = rateLimit({
     message: { success: false, message: '추천 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
 });
 
-// 인증 API: 15분에 20회 (브루트포스 방지)
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
@@ -91,7 +85,6 @@ app.use('/api/recommend', recommendLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
-// ── 세션 ──────────────────────────────────────────────────────────────────────
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secret_key_aura',
     resave: false,
@@ -165,6 +158,7 @@ if (process.env.GOOGLE_CLIENT_ID) {
                 if (existing && googleEmail !== 'no-email@google.com') {
                     existing.googleId = profile.id;
                     if (!existing.avatar && googleAvatar) existing.avatar = googleAvatar;
+                    if (!VALID_PLAYER_TYPES.includes(existing.playerType)) existing.playerType = 'beginner';
                     await existing.save();
                     return done(null, existing);
                 }
@@ -173,6 +167,7 @@ if (process.env.GOOGLE_CLIENT_ID) {
                 let updated = false;
                 if (!user.displayName || user.displayName === user.username) { user.displayName = googleName; updated = true; }
                 if (!user.avatar && googleAvatar) { user.avatar = googleAvatar; updated = true; }
+                if (!VALID_PLAYER_TYPES.includes(user.playerType)) { user.playerType = 'beginner'; updated = true; }
                 if (updated) await user.save();
             }
             return done(null, user);
@@ -198,6 +193,7 @@ if (process.env.NAVER_CLIENT_ID) {
                 if (existing && !naverEmail.includes('@no-email.com')) {
                     existing.naverId = profile.id;
                     if (!existing.avatar && naverAvatar) existing.avatar = naverAvatar;
+                    if (!VALID_PLAYER_TYPES.includes(existing.playerType)) existing.playerType = 'beginner';
                     await existing.save();
                     return done(null, existing);
                 }
@@ -206,6 +202,7 @@ if (process.env.NAVER_CLIENT_ID) {
                 let updated = false;
                 if (!user.displayName || user.displayName === user.username) { user.displayName = naverName; updated = true; }
                 if (!user.avatar && naverAvatar) { user.avatar = naverAvatar; updated = true; }
+                if (!VALID_PLAYER_TYPES.includes(user.playerType)) { user.playerType = 'beginner'; updated = true; }
                 if (updated) await user.save();
             }
             return done(null, user);
@@ -224,19 +221,17 @@ passport.deserializeUser(async (id, done) => {
     } catch (err) { done(err); }
 });
 
-// ── MongoDB 연결 (커넥션 풀 최적화) ──────────────────────────────────────────
 if (process.env.MONGODB_URI) {
     mongoose.connect(process.env.MONGODB_URI, {
-        maxPoolSize: 20,        // 동시 연결 최대 20개 (기본 5)
-        minPoolSize: 5,         // 항상 5개 유지 (콜드스타트 방지)
-        socketTimeoutMS: 45000, // 소켓 타임아웃 45초
-        serverSelectionTimeoutMS: 10000, // 서버 선택 타임아웃 10초
+        maxPoolSize: 20,
+        minPoolSize: 5,
+        socketTimeoutMS: 45000,
+        serverSelectionTimeoutMS: 10000,
     })
     .then(() => console.log('✅ MongoDB Connected'))
     .catch(err => console.error('❌ DB Error:', err));
 }
 
-// ── 라우터 마운트 ─────────────────────────────────────────────────────────────
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
@@ -248,7 +243,6 @@ app.use('/api/notifications', notificationsRoutes);
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
-// ── Cron ──────────────────────────────────────────────────────────────────────
 cron.schedule('0 0 * * *', () => {
     console.log('[Cron] 자정 환율 업데이트');
     updateExchangeRates();
@@ -256,4 +250,13 @@ cron.schedule('0 0 * * *', () => {
 
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
+});
+
+app.get('/api/debug/tags', async (req, res) => {
+    const Game = require('./models/Game');
+    const games = await Game.find({ isAdult: true })
+        .select('title steam_appid')
+        .sort({ title: 1 })
+        .lean();
+    res.json({ count: games.length, games: games.map(g => `${g.steam_appid}: ${g.title}`) });
 });

@@ -166,6 +166,76 @@ async function getChzzkViewers(game) {
     return 0;
 }
 
+// ── SOOP (구 아프리카TV) ─────────────────────────────────────────────────────
+const SOOP_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8',
+    'Origin': 'https://www.sooplive.co.kr',
+    'Referer': 'https://www.sooplive.co.kr/',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-site',
+};
+
+async function getSoopViewers(game) {
+    const koCore = getCoreKeyword(game.title_ko);
+    const enCore = getCoreKeyword(game.title);
+    const searchQuery = koCore || enCore;
+    if (!searchQuery) return 0;
+
+    const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
+    const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
+
+    const ENDPOINTS = [
+        `https://live.sooplive.co.kr/api/search/searchLive?szKeyword=${encodeURIComponent(searchQuery)}&nPageNo=1&nListCnt=50&szSearchType=game`,
+        `https://live.afreecatv.com/api/search/searchLive?szKeyword=${encodeURIComponent(searchQuery)}&nPageNo=1&nListCnt=50&szSearchType=game`,
+    ];
+
+    for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
+        try {
+            const res = await axios.get(ENDPOINTS[attempt], {
+                headers: SOOP_HEADERS,
+                timeout: 10000
+            });
+
+            // SOOP 응답 구조: data.list 또는 RESULT 배열
+            const lives = res.data?.data?.list || res.data?.RESULT || res.data?.list || [];
+            let viewers = 0;
+
+            for (const item of lives) {
+                const gameName = item.game_name || item.GAME_NM || item.categoryName || '';
+                const normGame = normalize(gameName);
+
+                let isMatch = false;
+                if (targetKor && targetKor.length > 1 && normGame.includes(targetKor)) isMatch = true;
+                else if (targetEng && targetEng.length > 2 && normGame.includes(targetEng)) isMatch = true;
+
+                if (!isMatch && normGame.length > 0) {
+                    const simKor = targetKor ? getSimilarity(targetKor, normGame) : 0;
+                    const simEng = targetEng ? getSimilarity(targetEng, normGame) : 0;
+                    if (simKor >= 0.75 || simEng >= 0.75) isMatch = true;
+                }
+
+                if (isMatch) {
+                    const viewerCount = item.current_sum_viewer || item.VIEWER_CNT || item.view_cnt || 0;
+                    viewers += Number(viewerCount) || 0;
+                }
+            }
+
+            return viewers;
+
+        } catch (err) {
+            const status = err.response?.status;
+            if (status === 403 || status === 429) {
+                console.log(`  [SOOP ${status}] ${game.title} — ${attempt < ENDPOINTS.length - 1 ? '엔드포인트 전환' : '포기'}`);
+                if (attempt < ENDPOINTS.length - 1) await sleep(2000);
+            }
+        }
+    }
+    return 0;
+}
+
 // ── Twitch viewers ───────────────────────────────────────────────────────────
 async function getTwitchViewers(steamId) {
     if (!twitchToken || !TWITCH_CLIENT_ID) return 0;

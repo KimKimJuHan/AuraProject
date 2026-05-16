@@ -12,9 +12,10 @@ const userSchema = new mongoose.Schema({
     // 향후 스팀 로그인 연동 시, 플레이타임 총합과 보유 게임 개수에 따라 자동 등급이 나뉩니다.
     playerType: {
         type: String,
-        enum: ['beginner', 'intermediate', 'streamer'], // 초심자, 중급자, 방송인(하드코어 유저)
+        enum: ['casual', 'beginner', 'intermediate', 'hardcore', 'streamer'],
         default: 'beginner'
     },
+    playerTypeSetByUser: { type: Boolean, default: false },
 
     passwordResetTokenHash: { type: String },
     passwordResetTokenExpiresAt: { type: Date },
@@ -31,7 +32,17 @@ const userSchema = new mongoose.Schema({
     }],
     
     likedTags: { type: [String], default: [] },
-    wishlist: { type: [String], default: [] }
+    wishlist: { type: [String], default: [] },
+    priceAlerts: [{
+        slug: String,
+        targetPrice: Number,
+        createdAt: { type: Date, default: Date.now }
+    }],
+    notificationSettings: {
+        saleAlert:    { type: Boolean, default: true },
+        newGameAlert: { type: Boolean, default: false },
+        emailAlert:   { type: Boolean, default: true },
+    },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
