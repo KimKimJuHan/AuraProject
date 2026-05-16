@@ -50,7 +50,9 @@ body,
   justify-content: space-between;
   border-bottom: 1px solid #333;
 }
-
+.net-header-right {
+  gap: 15px;
+}
 .net-logo {
   font-size: 28px;
   font-weight: 900;
@@ -368,66 +370,79 @@ body,
   .net-panel {
     padding: 16px 10px;
   }
-
   .net-header {
     padding: 10px 12px;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 2px;
   }
-
+  .net-header-right {
+    gap: 4px;
+  }
+  .net-header-nickname {
+    display: none;
+  }
   .net-logo {
-    font-size: 16px;
+    font-size: 11px;
     line-height: 1.1;
-    letter-spacing: 0.5px;
+    letter-spacing: 0px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    max-width: none;
   }
-
   .net-search-input {
-    width: 120px;
+    width: 60px;
     font-size: 12px;
-    padding: 8px 10px;
+    padding: 8px 6px;
   }
-
   .net-search-input:focus {
     width: 130px;
   }
-
+  .login-btn {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+  }
+  .logout-btn {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+  }
+  .profile-dropdown-btn {
+    font-size: 26px !important;
+    padding: 4px 6px !important;
+  }
+  .net-tab-btn {
+    font-size: 14px !important;
+    padding: 8px 20px !important;
+  }
   .net-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
-
   .net-card-body {
     padding: 10px;
   }
-
   .net-card-title {
     font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
   .net-card-footer {
     font-size: 12px;
   }
-
   .game-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
     padding: 10px;
   }
-
   .game-card h3 {
     font-size: 14px;
   }
-
   .game-card p {
     font-size: 12px;
   }
-
-  /* 상점 상세 상단 버튼 영역 */
   .shop-action-row,
   .detail-action-row,
   .game-action-row {
@@ -435,7 +450,6 @@ body,
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
-
   .shop-action-row button,
   .shop-action-row a,
   .detail-action-row button,
@@ -448,8 +462,6 @@ body,
     padding: 12px 10px;
     box-sizing: border-box;
   }
-
-  /* 차트/그래프 박스 */
   .chart-container,
   .recharts-wrapper,
   .trend-chart,
@@ -458,8 +470,6 @@ body,
     max-width: 100%;
     overflow-x: hidden;
   }
-
-  /* 카드/패널 내부 여백 */
   .shop-section,
   .detail-section,
   .game-detail-section,
@@ -468,8 +478,6 @@ body,
     padding-right: 10px;
     box-sizing: border-box;
   }
-
-  /* 긴 제목/텍스트 */
   .shop-title,
   .game-title,
   .detail-title {
@@ -477,17 +485,14 @@ body,
     line-height: 1.25;
     word-break: keep-all;
   }
-
   .auth-container,
   .auth-box {
     padding: 36px 20px 28px;
   }
-
   .auth-title,
   .auth-box h2 {
     font-size: 26px;
   }
-
   .auth-input,
   .auth-btn,
   .steam-btn {

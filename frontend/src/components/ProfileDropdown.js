@@ -19,18 +19,20 @@ export default function ProfileDropdown({ user }) {
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       <button
         onClick={() => setOpen(v => !v)}
+        className="profile-dropdown-btn"
         style={{
           background: "none",
           border: "none",
           cursor: "pointer",
           color: "#fff",
-          fontSize: 22,
-          padding: "6px 10px"
+          fontSize: 32,
+          padding: "6px 10px",
+          lineHeight: 1
         }}
         aria-label="메뉴 열기"
         type="button"
       >
-        <span role="img" aria-label="menu">☰</span>
+        <span role="img" aria-label="menu" style={{fontSize: '32px'}}>≡</span>
       </button>
 
       {open && (

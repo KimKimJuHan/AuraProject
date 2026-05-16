@@ -55,7 +55,7 @@ function SignupPage() {
       await apiClient.post('/auth/signup', formData);
       
       alert("가입이 완료되었습니다! 로그인해주세요.");
-      navigate('/login');
+      navigate('/login?redirect=onboarding');
     } catch (err) {
       alert("가입 실패: " + (err.response?.data?.message || err.message));
     } finally {

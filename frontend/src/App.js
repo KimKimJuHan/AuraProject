@@ -22,6 +22,26 @@ import { formatPrice } from './utils/priceFormatter';
 import { checkPcCompatibility } from './utils/pcCompatibility';
 import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
+import OnboardingPage from './pages/OnboardingPage';
+
+function NotFoundPage() {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', minHeight: '60vh', color: '#fff', textAlign: 'center'
+    }}>
+      <div style={{ fontSize: '80px', fontWeight: 'bold', color: '#E50914', lineHeight: 1 }}>404</div>
+      <div style={{ fontSize: '22px', margin: '16px 0 8px', fontWeight: 'bold' }}>페이지를 찾을 수 없습니다</div>
+      <div style={{ color: '#888', fontSize: '14px', marginBottom: '28px' }}>
+        요청하신 페이지가 존재하지 않거나 이동되었습니다.
+      </div>
+      <a href="/" style={{
+        background: '#E50914', color: '#fff', padding: '12px 28px',
+        borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px'
+      }}>메인으로 돌아가기</a>
+    </div>
+  );
+}
 
 
 
@@ -43,7 +63,7 @@ const TAG_DEFAULT_SHOW = {
 };
 
 const styles = {
-  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
+  tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px', overflowX:'auto', flexWrap:'nowrap' },
   tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
   tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
@@ -174,15 +194,34 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
             
-            {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>🎮 보유중</div>}
+            {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>보유중</div>}
             
-            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '❤️' : '🤍'}</button>
+            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
-            <div style={{ color:'#38bdf8', fontSize:'12px', marginTop:'6px', marginBottom:'8px', lineHeight:'1.4', minHeight:'34px' }}>
-              {game.reason || '이 조건에 잘 맞아 추천'}
+            <div style={{ color:'#888', fontSize:'11px', marginTop:'6px', marginBottom:'6px', lineHeight:'1.4', minHeight:'28px' }}>
+              {game.reason || '맞춤 추천'}
             </div>
+
+            {/* 리뷰 점수 */}
+            {game.steam_reviews?.overall?.percent > 0 && game.steam_reviews?.overall?.total >= 10 && (
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
+                  <span style={{ fontSize:'11px', color: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72' }}>
+                    {({'Overwhelmingly Positive':'압도적으로 긍정적','Very Positive':'매우 긍정적','Positive':'긍정적','Mostly Positive':'대체로 긍정적','Mixed':'복합적','Mostly Negative':'대체로 부정적','Negative':'부정적','Very Negative':'매우 부정적','Overwhelmingly Negative':'압도적으로 부정적'})[game.steam_reviews.overall.summary] || (game.steam_reviews.overall.percent >= 80 ? '긍정적' : '복합적')}
+                  </span>
+                  <span style={{ fontSize:'11px', color:'#888' }}>{game.steam_reviews.overall.percent}%</span>
+                </div>
+                <div style={{ background:'#333', borderRadius:'3px', height:'3px', overflow:'hidden' }}>
+                  <div style={{
+                    width: `${game.steam_reviews.overall.percent}%`, height:'100%',
+                    background: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72',
+                    borderRadius:'3px'
+                  }}/>
+                </div>
+              </div>
+            )}
 
             <div
               style={{
@@ -212,7 +251,7 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   );
 }
 
-function MainPage({ user, region, userWishlist, onToggleWishlist }) {
+function MainPage({ user, region }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
@@ -221,6 +260,42 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
+  
+  const [userWishlist, setUserWishlist] = useState([]);
+
+  useEffect(() => {
+    if (user && user._id) {
+        apiClient.get('/user/wishlist')
+            .then(res => setUserWishlist(res.data || []))
+            .catch(err => console.error("찜 목록 로드 실패:", err));
+    } else {
+        setUserWishlist([]); 
+    }
+  }, [user]);
+
+  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
+      if (isCurrentlyWished) {
+          setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+      } else {
+          setUserWishlist(prev => [...prev, gameSlug]);
+      }
+
+      try {
+          if (isCurrentlyWished) {
+              await apiClient.delete(`/user/wishlist/${gameSlug}`);
+          } else {
+              await apiClient.post(`/user/wishlist`, { slug: gameSlug });
+          }
+      } catch (err) {
+          console.error("찜하기 DB 동기화 실패:", err);
+          if (isCurrentlyWished) {
+              setUserWishlist(prev => [...prev, gameSlug]);
+          } else {
+              setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+          }
+          alert("찜하기 처리 중 서버 오류가 발생했습니다.");
+      }
+  };
 
   useEffect(() => {
     setGames([]);
@@ -241,7 +316,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    userId: user?.id || user?._id, // ★ 백엔드로 전달하여 보유 게임을 거를 수 있도록 추가
+                    userId: user?._id, // ★ 백엔드로 전달하여 보유 게임을 거를 수 있도록 추가
                     tags: selectedTags, 
                     sortBy: activeTab, 
                     page,
@@ -275,10 +350,11 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
 
   return (
     <div className="net-panel">
+      <OnboardingPopup />
       <div style={styles.tabContainer}>
         {/* ★ 상단 탭 신규 항목 삭제, 원래 상태로 롤백 완료 */}
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
-            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
+            <button key={t.k} onClick={() => setActiveTab(t.k)} className="net-tab-btn" style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
         ))}
       </div>
 
@@ -305,7 +381,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                   game={game} 
                   region={region} 
                   userWishlist={userWishlist} 
-                  onToggleWishlist={onToggleWishlist} 
+                  onToggleWishlist={handleToggleWishlist} 
                   user={user}
               />
           ))}
@@ -526,7 +602,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
             value={searchTerm}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onFocus={() => { setIsFocused(true); if (searchTerm.length > 0) fetchSuggestions(searchTerm); }}
+            onFocus={() => setIsFocused(true)}
           />
         </form>
         {searchTerm.length > 0 && <button onClick={handleClear} style={styles.clearButton}>✕</button>}
@@ -540,17 +616,20 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         )}
       </div>
 
-      <div style={styles.rightGroup}>
-        <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
-          <option value="KR">🇰🇷 KRW</option>
-          <option value="US">🇺🇸 USD</option>
-          <option value="JP">🇯🇵 JPY</option>
-        </select>
+      <div style={styles.rightGroup} className="net-header-right">
+  <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
+    <option value="KR">🇰🇷 KRW</option>
+    <option value="US">🇺🇸 USD</option>
+    <option value="JP">🇯🇵 JPY</option>
+  </select>
 
         {user && (
           <div style={{ position: 'relative' }} ref={notiRef}>
             <button style={styles.bellIcon} onClick={handleNotiClick}>
-              🔔
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
               {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
             </button>
             {showNoti && (
@@ -599,21 +678,18 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
 
         {user && (
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={styles.headerNickname}>
+            <span style={styles.headerNickname} className="net-header-nickname">
               {(user.displayName || user.nickname || user.name || user.username || '사용자')}님
             </span>
-            {user.playerType === 'streamer' && <span style={{background:'#8a2be2', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>스트리머</span>}
-            {user.playerType === 'intermediate' && <span style={{background:'#00bfff', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>중급자</span>}
-            {user.playerType === 'beginner' && <span style={{background:'#666', color:'#fff', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', marginLeft:'6px', fontWeight:'bold'}}>초심자</span>}
           </div>
         )}
 
         {!user ? (
-          <Link to="/login" style={styles.authButton}>
+          <Link to="/login" style={styles.authButton} className="login-btn">
             로그인
           </Link>
         ) : (
-          <button onClick={handleLogout} style={{marginLeft:'15px', ...styles.logoutButton}}>
+          <button onClick={handleLogout} className="logout-btn" style={{...styles.logoutButton}}>
             로그아웃
           </button>
         )}
@@ -629,42 +705,6 @@ function App() {
   const [region, setRegion] = useState('KR');
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'KRW');
-
-  // [수정] userWishlist를 App 레벨로 끌어올려 페이지 전환 시에도 상태 유지
-  const [userWishlist, setUserWishlist] = useState([]);
-
-  useEffect(() => {
-    if (user && (user.id || user._id)) {
-      apiClient.get('/user/wishlist')
-        .then(res => setUserWishlist(res.data || []))
-        .catch(err => console.error("찜 목록 로드 실패:", err));
-    } else {
-      setUserWishlist([]);
-    }
-  }, [user]);
-
-  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
-    if (isCurrentlyWished) {
-      setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
-    } else {
-      setUserWishlist(prev => [...prev, gameSlug]);
-    }
-    try {
-      if (isCurrentlyWished) {
-        await apiClient.delete(`/user/wishlist/${gameSlug}`);
-      } else {
-        await apiClient.post(`/user/wishlist`, { slug: gameSlug });
-      }
-    } catch (err) {
-      console.error("찜하기 DB 동기화 실패:", err);
-      if (isCurrentlyWished) {
-        setUserWishlist(prev => [...prev, gameSlug]);
-      } else {
-        setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
-      }
-      alert("찜하기 처리 중 서버 오류가 발생했습니다.");
-    }
-  };
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -721,14 +761,14 @@ function App() {
           onCurrencyChange={handleCurrencyChange}
           handleLogout={handleLogout} 
         />
-        <OnboardingPopup />
         <Routes>
-          <Route path="/" element={<MainPage region={region} user={user} currency={currency} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} />} />
+          <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
           <Route path="/game/:id" element={<ShopPage region={region} user={user} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/onboarding" element={<OnboardingPage user={user} setUser={setUser} />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
           <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
           <Route path="/support/faq" element={<FaqPage />} />
@@ -739,6 +779,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/change-password" element={<ChangePasswordPage user={user} />} />
           <Route path="/notifications" element={<NotificationPage user={user} />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </div>
     </Router>

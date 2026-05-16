@@ -302,7 +302,7 @@ router.get('/games/:id/history', async (req, res) => {
         const history = await TrendHistory.find({
             steam_appid: appId,
             recordedAt: { $gte: sevenDaysAgo }
-        }).sort({ recordedAt: -1 }).lean();
+        }).select('steam_appid twitch_viewers chzzk_viewers soop_viewers steam_ccu trend_score recordedAt').sort({ recordedAt: -1 }).lean();
 
         res.json(history.reverse());
     } catch (error) {

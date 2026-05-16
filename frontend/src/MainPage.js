@@ -209,7 +209,7 @@ export default function MainPage({ user, region }) {
   };
 
   return (
-    <div className="net-panel"> <MinSpecChecker />
+    <div className="net-panel"> <OnboardingPopup /><MinSpecChecker />
       <div style={styles.tabContainer}>
         {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
             <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
