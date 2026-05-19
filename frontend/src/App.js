@@ -76,7 +76,7 @@ const styles = {
   tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
   tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
-  heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 },
+  heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', zIndex: 5 },
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
   clearButton: { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#999', fontSize: '18px', cursor: 'pointer' },
@@ -196,7 +196,11 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
             
             {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>보유중</div>}
             
-            <button style={styles.heartBtn} onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
+            <button style={{...styles.heartBtn, color: isWishlisted ? '#E50914' : '#fff'}} onClick={handleHeartClick}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill={isWishlisted ? '#E50914' : 'none'} stroke={isWishlisted ? '#E50914' : '#fff'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
         </div>
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
@@ -251,7 +255,7 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   );
 }
 
-function MainPage({ user, region }) {
+function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
@@ -260,42 +264,6 @@ function MainPage({ user, region }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
-  
-  const [userWishlist, setUserWishlist] = useState([]);
-
-  useEffect(() => {
-    if (user && user._id) {
-        apiClient.get('/user/wishlist')
-            .then(res => setUserWishlist(res.data || []))
-            .catch(err => console.error("찜 목록 로드 실패:", err));
-    } else {
-        setUserWishlist([]); 
-    }
-  }, [user]);
-
-  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
-      if (isCurrentlyWished) {
-          setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
-      } else {
-          setUserWishlist(prev => [...prev, gameSlug]);
-      }
-
-      try {
-          if (isCurrentlyWished) {
-              await apiClient.delete(`/user/wishlist/${gameSlug}`);
-          } else {
-              await apiClient.post(`/user/wishlist`, { slug: gameSlug });
-          }
-      } catch (err) {
-          console.error("찜하기 DB 동기화 실패:", err);
-          if (isCurrentlyWished) {
-              setUserWishlist(prev => [...prev, gameSlug]);
-          } else {
-              setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
-          }
-          alert("찜하기 처리 중 서버 오류가 발생했습니다.");
-      }
-  };
 
   useEffect(() => {
     setGames([]);
@@ -381,7 +349,7 @@ function MainPage({ user, region }) {
                   game={game} 
                   region={region} 
                   userWishlist={userWishlist} 
-                  onToggleWishlist={handleToggleWishlist} 
+                  onToggleWishlist={onToggleWishlist}
                   user={user}
               />
           ))}
@@ -706,6 +674,42 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'KRW');
 
+  // userWishlist를 App 레벨로 끌어올려 페이지 전환 시에도 하트 상태 유지
+  const [userWishlist, setUserWishlist] = useState([]);
+
+  useEffect(() => {
+    if (user && (user.id || user._id)) {
+      apiClient.get('/user/wishlist')
+        .then(res => setUserWishlist(res.data || []))
+        .catch(err => console.error('찜 목록 로드 실패:', err));
+    } else {
+      setUserWishlist([]);
+    }
+  }, [user]);
+
+  const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
+    if (isCurrentlyWished) {
+      setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+    } else {
+      setUserWishlist(prev => [...prev, gameSlug]);
+    }
+    try {
+      if (isCurrentlyWished) {
+        await apiClient.delete(`/user/wishlist/${gameSlug}`);
+      } else {
+        await apiClient.post(`/user/wishlist`, { slug: gameSlug });
+      }
+    } catch (err) {
+      console.error('찜하기 DB 동기화 실패:', err);
+      if (isCurrentlyWished) {
+        setUserWishlist(prev => [...prev, gameSlug]);
+      } else {
+        setUserWishlist(prev => prev.filter(slug => slug !== gameSlug));
+      }
+      alert('찜하기 처리 중 서버 오류가 발생했습니다.');
+    }
+  };
+
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
@@ -762,7 +766,7 @@ function App() {
           handleLogout={handleLogout} 
         />
         <Routes>
-          <Route path="/" element={<MainPage region={region} user={user} currency={currency} />} />
+          <Route path="/" element={<MainPage region={region} user={user} currency={currency} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} />} />
           <Route path="/game/:id" element={<ShopPage region={region} user={user} />} />
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
