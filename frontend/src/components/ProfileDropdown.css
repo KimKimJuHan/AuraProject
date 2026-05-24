@@ -13,3 +13,13 @@
 }
 .profile-dropdown-menu:visited { color: #fff; }
 .profile-dropdown-menu:active { color: #fff; }
+[data-theme="light"] .profile-dropdown-menu {
+  color: #111 !important;
+}
+[data-theme="light"] .profile-dropdown-menu:visited,
+[data-theme="light"] .profile-dropdown-menu:active {
+  color: #111 !important;
+}
+[data-theme="light"] .profile-dropdown-menu:hover {
+  background: #f0f0f0 !important;
+}

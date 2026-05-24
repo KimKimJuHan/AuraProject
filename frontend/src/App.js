@@ -23,6 +23,7 @@ import { checkPcCompatibility } from './utils/pcCompatibility';
 import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
 import OnboardingPage from './pages/OnboardingPage';
+import { useTheme } from './context/ThemeContext';
 
 function NotFoundPage() {
   return (
@@ -68,14 +69,14 @@ const styles = {
   tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
   filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
-  filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
-  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: '#222', borderBottom: '1px solid #333', userSelect: 'none' },
+  filterBox: { backgroundColor: 'var(--bg-card)', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
+  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: 'var(--bg-hover)', borderBottom: '1px solid #333', userSelect: 'none' },
   filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
   filterArrow: { color: '#666', fontSize: '12px' },
-  filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
-  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
+  filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: 'var(--bg-card)', borderTop: '1px solid var(--border)' },
+  tagBtn: { backgroundColor: 'var(--bg-hover)', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
-  tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
+  tagBtnDisabled: { backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-light)', color: 'var(--text-disabled)', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', zIndex: 5 },
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
@@ -117,8 +118,8 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
   const displayTags = (showAll || hiddenSelected) ? tags : tags.slice(0, defaultShow);
 
   return (
-      <div style={styles.filterBox}>
-          <div style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
+      <div className="filter-box-wrap" style={styles.filterBox}>
+          <div className="filter-box-header" style={styles.filterHeader} onClick={() => setIsOpen(!isOpen)}>
               <span style={styles.filterTitle}>
                 {title}
                 {selectedTags.filter(t => tags.includes(t)).length > 0 && (
@@ -130,7 +131,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
               <span style={styles.filterArrow}>{isOpen ? '▲' : '▼'}</span>
           </div>
           {isOpen && (
-              <div style={styles.filterContent}>
+              <div className="filter-box-content" style={styles.filterContent}>
                   {displayTags.map(tag => {
                       const isSelected = selectedTags.includes(tag);
                       const isDisabled = shouldUseRestriction && !isSelected && !validTags.includes(tag);
@@ -264,12 +265,17 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
+  const [priceRange, setPriceRange] = useState('all');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const [minDiscount, setMinDiscount] = useState(0);
+  const [hideOwned, setHideOwned] = useState(false);
 
   useEffect(() => {
     setGames([]);
     setPage(1);
     setHasMore(true);
-  }, [selectedTags, activeTab]);
+  }, [selectedTags, activeTab, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
   useEffect(() => {
     if (page > 1 && !hasMore) return;
@@ -283,12 +289,17 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    userId: user?._id, // ★ 백엔드로 전달하여 보유 게임을 거를 수 있도록 추가
-                    tags: selectedTags, 
-                    sortBy: activeTab, 
+                body: JSON.stringify({
+                    userId: user?._id,
+                    tags: selectedTags,
+                    sortBy: activeTab,
                     page,
-                    playerType: currentPlayerType
+                    playerType: currentPlayerType,
+                    priceRange,
+                    priceMin: priceMin ? Number(priceMin) : undefined,
+                    priceMax: priceMax ? Number(priceMax) : undefined,
+                    minDiscount,
+                    hideOwned,
                 })
             });
             if (!response.ok) throw new Error("서버 연결 실패");
@@ -310,7 +321,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
     };
 
     fetchGames();
-  }, [page, selectedTags, activeTab, user, hasMore]);
+  }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -319,11 +330,68 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   return (
     <div className="net-panel">
       <OnboardingPopup />
-      <div style={styles.tabContainer}>
-        {/* ★ 상단 탭 신규 항목 삭제, 원래 상태로 롤백 완료 */}
-        {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
-            <button key={t.k} onClick={() => setActiveTab(t.k)} className="net-tab-btn" style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
-        ))}
+      {/* 정렬 & 필터 바 */}
+      <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
+        {/* 정렬 탭 */}
+        <div style={{ display:'flex', alignItems:'center', gap:'2px', marginBottom:'12px', overflowX:'auto', scrollbarWidth:'none' }}>
+          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'}].map(t => (
+            <button key={t.k} onClick={() => { setActiveTab(t.k); setPage(1); setGames([]); }}
+              style={{ padding:'8px 18px', border:'none', cursor:'pointer', fontSize:'14px',
+                background:'none', whiteSpace:'nowrap', flexShrink:0, marginBottom:'-2px',
+                color: activeTab===t.k ? 'var(--text-primary)' : 'var(--text-muted)',
+                borderBottom: activeTab===t.k ? '2px solid #E50914' : '2px solid transparent',
+                fontWeight: activeTab===t.k ? '700' : '500', transition:'all 0.15s' }}>{t.n}</button>
+          ))}
+        </div>
+        {/* 필터 행 */}
+        <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'5px', background:'var(--bg-hover)', borderRadius:'8px', padding:'5px 10px', border:'1px solid var(--border)' }}>
+            <span style={{ color:'var(--text-muted)', fontSize:'12px', fontWeight:'600' }}>가격</span>
+            <input type="number" inputMode="numeric" placeholder="최소" value={priceMin}
+              onChange={e => { setPriceMin(e.target.value); setPriceRange('custom'); setPage(1); setGames([]); }}
+              style={{ width:'72px', padding:'3px 6px', borderRadius:'5px', fontSize:'13px',
+                border:'1px solid var(--border)', background:'var(--bg-input)', color:'var(--text-primary)', outline:'none' }} />
+            <span style={{ color:'var(--text-muted)' }}>~</span>
+            <input type="number" inputMode="numeric" placeholder="최대" value={priceMax}
+              onChange={e => { setPriceMax(e.target.value); setPriceRange('custom'); setPage(1); setGames([]); }}
+              style={{ width:'72px', padding:'3px 6px', borderRadius:'5px', fontSize:'13px',
+                border:'1px solid var(--border)', background:'var(--bg-input)', color:'var(--text-primary)', outline:'none' }} />
+            <span style={{ color:'var(--text-muted)', fontSize:'12px' }}>원</span>
+          </div>
+          {[{k:'free',n:'무료'},{k:'~10000',n:'~1만'},{k:'~30000',n:'~3만'},{k:'~50000',n:'~5만'}].map(p => (
+            <button key={p.k} onClick={() => { setPriceRange(p.k); setPriceMin(''); setPriceMax(''); setPage(1); setGames([]); }}
+              style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
+                background: priceRange===p.k ? 'rgba(229,9,20,0.15)' : 'var(--bg-hover)',
+                color: priceRange===p.k ? '#E50914' : 'var(--text-secondary)',
+                border:`1px solid ${priceRange===p.k ? '#E50914':'var(--border)'}`,
+                fontWeight: priceRange===p.k ? '700':'400' }}>{p.n}</button>
+          ))}
+          <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
+          <span style={{ color:'var(--text-muted)', fontSize:'12px', fontWeight:'600' }}>할인</span>
+          {[{k:0,n:'전체'},{k:20,n:'20%↑'},{k:50,n:'50%↑'},{k:75,n:'75%↑'}].map(d => (
+            <button key={d.k} onClick={() => { setMinDiscount(d.k); setPage(1); setGames([]); }}
+              style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
+                background: minDiscount===d.k ? '#E50914' : 'var(--bg-hover)',
+                color: minDiscount===d.k ? '#fff' : 'var(--text-secondary)',
+                border:`1px solid ${minDiscount===d.k ? '#E50914':'var(--border)'}`,
+                fontWeight: minDiscount===d.k ? '700':'400' }}>{d.n}</button>
+          ))}
+          <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
+          {user && (
+            <button onClick={() => { setHideOwned(v=>!v); setPage(1); setGames([]); }}
+              style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
+                background: hideOwned ? '#E50914':'var(--bg-hover)',
+                color: hideOwned ? '#fff':'var(--text-secondary)',
+                border:`1px solid ${hideOwned ? '#E50914':'var(--border)'}` }}>
+              {hideOwned ? '보유 숨김' : '보유 표시'}
+            </button>
+          )}
+          {(priceRange!=='all' || priceMin || priceMax || minDiscount!==0 || hideOwned) && (
+            <button onClick={() => { setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0); setHideOwned(false); setPage(1); setGames([]); }}
+              style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
+                background:'none', border:'1px solid #E50914', color:'#E50914', fontWeight:'600' }}>✕ 초기화</button>
+          )}
+        </div>
       </div>
 
       <div style={styles.filterContainer}>
@@ -585,6 +653,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
       </div>
 
       <div style={styles.rightGroup} className="net-header-right">
+        <ThemeToggleBtn />
   <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
     <option value="KR">🇰🇷 KRW</option>
     <option value="US">🇺🇸 USD</option>
@@ -668,6 +737,15 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   );
 }
 
+function ThemeToggleBtn() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button className="theme-toggle-btn" onClick={toggleTheme} title="테마 변경">
+      {theme === 'dark' ? '라이트 모드' : '다크 모드'}
+    </button>
+  );
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [region, setRegion] = useState('KR');
@@ -748,7 +826,7 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'white', backgroundColor: '#121212' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-primary)', backgroundColor: 'var(--bg-primary)' }}>
         Loading AuraProject...
       </div>
     );
@@ -756,7 +834,7 @@ function App() {
 
   return (
     <Router>
-      <div className="net-app">
+      <div className="net-app" style={{backgroundColor:"var(--bg-primary)",minHeight:"100vh"}}>
         <NavigationBar 
           user={user}
           setUser={setUser}

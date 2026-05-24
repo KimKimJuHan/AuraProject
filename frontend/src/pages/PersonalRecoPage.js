@@ -41,7 +41,7 @@ function GameCard({ game, userWishlist, onToggleWishlist, user }) {
                 <PcCompatibilityBadge game={game} compact /></div>
                 <div className="game-meta-row">
                     {/* ★ 가격 포매터 유틸리티 적용 */}
-                    <span className="game-price" style={{ color: '#fff', fontSize: '13px', fontWeight: 'bold' }}>
+                    <span className="game-price" style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 'bold' }}>
                         {formatPrice(game.price_info, 'KR')}
                     </span>
                 </div>
@@ -56,21 +56,32 @@ function GameCard({ game, userWishlist, onToggleWishlist, user }) {
 }
 
 function RecoSection({ title, games, userWishlist, onToggleWishlist, user }) {
-    const [expanded, setExpanded] = useState(false);
+    const COLS = 5;
+    const [visibleCount, setVisibleCount] = useState(COLS);
     if (!games || games.length === 0) return null;
-    const displayGames = expanded ? games : games.slice(0, 4);
+    const displayGames = games.slice(0, visibleCount);
+    const hasMore = games.length > visibleCount;
 
     return (
         <div style={{ marginBottom: '50px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'15px', borderBottom:'1px solid #333', paddingBottom:'10px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:'15px', borderBottom:'1px solid var(--border)', paddingBottom:'10px' }}>
                 <h3 style={{ margin:0, fontSize:'22px', color:'#e50914' }}>{title}</h3>
-                {games.length > 4 && (
-                    <button onClick={() => setExpanded(!expanded)} style={{ background:'none', border:'none', color:'#ccc', cursor:'pointer', textDecoration:'underline' }}>
-                        {expanded ? '접기' : '더보기 +'}
-                    </button>
-                )}
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                    {hasMore && (
+                        <button onClick={() => setVisibleCount(v => v + COLS)}
+                            style={{ background:'none', border:'1px solid #555', color:'var(--text-secondary)', cursor:'pointer', padding:'4px 12px', borderRadius:'4px', fontSize:'12px' }}>
+                            더보기 +{Math.min(COLS, games.length - visibleCount)}
+                        </button>
+                    )}
+                    {visibleCount > COLS && (
+                        <button onClick={() => setVisibleCount(COLS)}
+                            style={{ background:'none', border:'none', color:'#666', cursor:'pointer', fontSize:'12px', textDecoration:'underline' }}>
+                            접기
+                        </button>
+                    )}
+                </div>
             </div>
-            <div className="game-grid">
+            <div className="net-cards">
                 {displayGames.map((g, i) => (
                     <GameCard
                         key={g.slug || i}
@@ -86,6 +97,7 @@ function RecoSection({ title, games, userWishlist, onToggleWishlist, user }) {
 }
 
 export default function PersonalRecoPage({ user }) {
+  const isLight = document.body.classList.contains('light-mode');
   const term = ""; // 검색어 필드 (추후 검색창 UI 추가 시 useState로 교체)
   const [picked, setPicked] = useState(new Set());
   const [data, setData] = useState({ comprehensive: [], costEffective: [], trend: [], hiddenGem: [], multiplayer: [] });
@@ -180,19 +192,19 @@ export default function PersonalRecoPage({ user }) {
       {/* 비로그인 안내 배너 */}
       {!user && (
         <div style={{
-          background:'linear-gradient(135deg,#1a1a1a,#2a1a1a)',
+          background: isLight ? '#fff' : '#1a1a1a',
           border:'1px solid #E50914', borderRadius:'10px',
           padding:'16px 20px', marginBottom:'20px',
           display:'flex', alignItems:'center',
           justifyContent:'space-between', flexWrap:'wrap', gap:'12px'
         }}>
           <div>
-            <div style={{fontWeight:'bold', color:'#fff', marginBottom:'4px'}}>더 정확한 추천을 받으려면 로그인하세요</div>
-            <div style={{color:'#888', fontSize:'13px'}}>Steam 연동 시 플레이 이력을 분석해 맞춤 추천을 드립니다.</div>
+            <div style={{fontWeight:'bold', color:'var(--text-primary)', marginBottom:'4px'}}>더 정확한 추천을 받으려면 로그인하세요</div>
+            <div style={{color:'var(--text-muted)', fontSize:'13px'}}>Steam 연동 시 플레이 이력을 분석해 맞춤 추천을 드립니다.</div>
           </div>
           <div style={{display:'flex', gap:'8px'}}>
-            <a href="/login" style={{background:'#E50914', color:'#fff', padding:'8px 18px', borderRadius:'6px', textDecoration:'none', fontWeight:'bold', fontSize:'13px'}}>로그인</a>
-            <a href="/signup" style={{background:'transparent', color:'#ccc', padding:'8px 18px', borderRadius:'6px', textDecoration:'none', border:'1px solid #555', fontSize:'13px'}}>회원가입</a>
+            <a href="/login" style={{background:'#E50914', color:'var(--text-primary)', padding:'8px 18px', borderRadius:'6px', textDecoration:'none', fontWeight:'bold', fontSize:'13px'}}>로그인</a>
+            <a href="/signup" style={{background:'transparent', color:'var(--text-secondary)', padding:'8px 18px', borderRadius:'6px', textDecoration:'none', border:'1px solid #555', fontSize:'13px'}}>회원가입</a>
           </div>
         </div>
       )}
@@ -200,11 +212,11 @@ export default function PersonalRecoPage({ user }) {
       {/* Steam 미연동 안내 */}
 {user && !user.steamId && (
   <div style={{
-    background:'#1a1a2a', border:'1px solid #336699', borderRadius:'10px',
+    background: isLight ? '#fff' : '#1a1a1a', border:'1px solid var(--border)', borderRadius:'10px',
     padding:'14px 20px', marginBottom:'20px',
     display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px'
   }}>
-    <div style={{color:'#ccc', fontSize:'13px'}}>
+    <div style={{color:'var(--text-secondary)', fontSize:'13px'}}>
       <span style={{color:'#66c0f4', fontWeight:'bold'}}>Steam 연동</span>하면 플레이 이력 기반 맞춤 추천을 받을 수 있습니다.
     </div>
     <a href="/mypage" style={{color:'#66c0f4', fontSize:'13px', textDecoration:'underline'}}>마이페이지에서 연동하기</a>
@@ -212,7 +224,7 @@ export default function PersonalRecoPage({ user }) {
 )}
 {user && user.steamId && (
   <div style={{
-    background:'#1a1a2a', border:'1px solid #1a3a1a', borderRadius:'10px',
+    background: isLight ? '#fff' : '#1a1a1a', border:'1px solid var(--border)', borderRadius:'10px',
     padding:'14px 20px', marginBottom:'20px'
   }}>
     <span style={{color:'#46d369', fontSize:'13px', fontWeight:'bold'}}>✅ 이미 Steam 연동이 되어 있습니다</span>

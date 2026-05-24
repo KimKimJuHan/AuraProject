@@ -1,14 +1,55 @@
 /* /frontend/src/index.css */
 
-:root {
-  --bg-color: #141414;
-  --panel-bg: #181818;
-  --text-main: #ffffff;
-  --text-sub: #b3b3b3;
-  --accent: #E50914;
-  --accent-hover: #f40612;
-  --border-color: #404040;
-  --card-bg: #2f2f2f;
+:root,
+[data-theme="dark"] {
+  --bg-primary:    #141414;
+  --bg-secondary:  #181818;
+  --bg-card:       #1e1e1e;
+  --bg-panel:      #1a1a1a;
+  --bg-input:      #111111;
+  --bg-hover:      #2a2a2a;
+  --bg-overlay:    rgba(20,20,20,0.95);
+  --text-primary:  #ffffff;
+  --text-secondary:#b3b3b3;
+  --text-muted:    #777777;
+  --text-disabled: #444444;
+  --accent:        #E50914;
+  --accent-hover:  #f40612;
+  --accent-light:  rgba(229,9,20,0.12);
+  --border:        #333333;
+  --border-light:  #222222;
+  --border-hover:  #555555;
+  --shadow:        rgba(0,0,0,0.8);
+  --shadow-card:   0 10px 20px rgba(0,0,0,0.8);
+  /* 레거시 호환 */
+  --bg-color:      #141414;
+  --panel-bg:      #181818;
+  --text-main:     #ffffff;
+  --text-sub:      #b3b3b3;
+  --border-color:  #404040;
+  --card-bg:       #2f2f2f;
+}
+
+[data-theme="light"] {
+  --bg-primary:    #f2f2f2;
+  --bg-secondary:  #ffffff;
+  --bg-card:       #ffffff;
+  --bg-panel:      #f8f8f8;
+  --bg-input:      #ffffff;
+  --bg-hover:      #eeeeee;
+  --bg-overlay:    rgba(255,255,255,0.97);
+  --text-primary:  #111111;
+  --text-secondary:#555555;
+  --text-muted:    #888888;
+  --text-disabled: #bbbbbb;
+  --accent:        #E50914;
+  --accent-hover:  #c00;
+  --accent-light:  rgba(229,9,20,0.08);
+  --border:        #dddddd;
+  --border-light:  #eeeeee;
+  --border-hover:  #aaaaaa;
+  --shadow:        rgba(0,0,0,0.15);
+  --shadow-card:   0 4px 12px rgba(0,0,0,0.12);
 }
 
 /* 기본 초기화 및 배경색 강제 적용 */
@@ -413,8 +454,8 @@ body,
     padding: 4px 6px !important;
   }
   .net-tab-btn {
-    font-size: 14px !important;
-    padding: 8px 20px !important;
+    font-size: 12px;
+    padding: 6px 12px;
   }
   .net-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -498,4 +539,64 @@ body,
   .steam-btn {
     font-size: 14px;
   }
+}
+/* ── 전체 배경 (ThemeContext가 인라인으로도 적용하므로 CSS는 기본값) ───── */
+html, body, #root { min-height: 100vh; }
+.net-app { min-height: 100vh; background-color: var(--bg-primary); }
+.reco-container { min-height: 100vh; background-color: var(--bg-primary); }
+
+/* ── 테마 토글 버튼 ─────────────────────────────────────────────────────── */
+.theme-toggle-btn {
+  background: none; border: 1px solid var(--border);
+  color: var(--text-primary); border-radius: 20px;
+  padding: 5px 12px; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+  white-space: nowrap;
+}
+.theme-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── 스크롤바 ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
+
+/* ── 라이트 모드 오버라이드 (.light-mode body class) ────────────────────── */
+body.light-mode .net-card { background-color: #fff !important; border-color: #ddd !important; }
+body.light-mode .net-card-body { background-color: #fff !important; color: #111 !important; }
+body.light-mode .net-card-title { color: #111 !important; }
+body.light-mode .net-header { background-color: rgba(255,255,255,0.97) !important; border-bottom-color: #ddd !important; }
+body.light-mode .net-logo { color: #E50914 !important; }
+body.light-mode .search-panel { background-color: #fff !important; border-color: #ddd !important; color: #111 !important; }
+body.light-mode .mypage-card { background-color: #fff !important; border-color: #ddd !important; color: #111 !important; }
+body.light-mode .result-panel { background-color: #f8f8f8 !important; border-color: #ddd !important; }
+body.light-mode .profile-dropdown-menu { color: #111 !important; }
+body.light-mode .profile-dropdown-menu:hover { background: #f0f0f0 !important; }
+body.light-mode input:not([type="range"]):not([type="checkbox"]) {
+  background-color: #f5f5f5 !important; color: #111 !important; border-color: #ccc !important;
+}
+body.light-mode .auth-container, body.light-mode .auth-box {
+  background-color: rgba(255,255,255,0.95) !important; color: #111 !important;
+}
+
+/* ── 스피너 제거 ─────────────────────────────────────────────────────────── */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+/* ── filter-box 라이트 모드 ─────────────────────────────────────────────── */
+body.light-mode .filter-box-wrap { background-color: #f0f0f0 !important; border-color: #ddd !important; }
+body.light-mode .filter-box-header { background-color: #e8e8e8 !important; border-color: #ddd !important; color: #111 !important; }
+body.light-mode .filter-box-content { background-color: #f0f0f0 !important; border-color: #ddd !important; }
+body.light-mode .filter-box-title { color: #111 !important; }
+body.light-mode .filter-box-wrap button:not(.active-tag) { background-color: #e0e0e0 !important; color: #333 !important; border-color: #ccc !important; }
+body.light-mode .filter-box-wrap button.active-tag { background-color: #E50914 !important; color: #fff !important; border-color: #E50914 !important; }
+body.light-mode .filter-box-title { color: #111 !important; }
+
+/* ── 정렬/필터 바 모바일 ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sort-filter-bar input[type=number] { width: 60px !important; }
+}
+@media (max-width: 480px) {
+  .filter-box-header { padding: 10px 12px !important; }
+  .filter-box-content { padding: 10px !important; gap: 6px !important; }
 }
