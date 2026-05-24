@@ -3,19 +3,19 @@
 /* 전체 컨테이너 */
 .reco-container {
   padding: 40px 5%;
-  background-color: #141414;
+  background-color: var(--bg-primary);
   min-height: 100vh;
-  color: #fff;
+  color: var(--text-primary);
   font-family: sans-serif;
 }
 
 /* 검색 및 필터 패널 */
 .search-panel {
-  background-color: #181818;
+  background-color: var(--bg-secondary);
   padding: 30px;
   border-radius: 8px;
   margin-bottom: 40px;
-  border: 1px solid #333;
+  border: 1px solid var(--border);
 }
 
 .search-panel h1 {
@@ -36,9 +36,9 @@
 .search-input {
   flex: 1;
   padding: 14px;
-  background: #333;
+  background: var(--bg-hover);
   border: 1px solid #555;
-  color: #fff;
+  color: var(--text-primary);
   border-radius: 4px;
   font-size: 16px;
 }
@@ -57,7 +57,7 @@
 .tag-label {
   width: 80px;
   font-weight: bold;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 8px;
   flex-shrink: 0;
 }
@@ -71,10 +71,10 @@
 
 .tag-chip {
   padding: 8px 16px;
-  background-color: #252525;
-  border: 1px solid #444;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 20px;
-  color: #ccc;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
   font-size: 13px;
@@ -82,40 +82,40 @@
 }
 
 .tag-chip:hover {
-  background-color: #333;
-  border-color: #888;
+  background-color: var(--bg-hover);
+  border-color: var(--text-muted);
   transform: translateY(-2px);
 }
 
 .tag-chip.on {
   background-color: #E50914;
   border-color: #E50914;
-  color: #fff;
+  color: var(--text-primary);
   font-weight: bold;
   box-shadow: 0 2px 8px rgba(229, 9, 20, 0.4);
 }
 
 /* 스팀 대시보드 */
 .steam-dashboard {
-  background-color: #222;
+  background-color: var(--bg-hover);
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 30px;
-  border: 1px solid #444;
+  border: 1px solid var(--border);
 }
 
 .steam-guest-msg, .steam-connect-box {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #ccc;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .search-btn {
   padding: 10px 20px;
   background-color: #E50914;
-  color: #fff;
+  color: var(--text-primary);
   border: none;
   border-radius: 4px;
   font-weight: bold;
@@ -136,10 +136,10 @@
 .steam-card {
   display: flex;
   align-items: flex-start;
-  background-color: #333;
+  background-color: var(--bg-hover);
   padding: 12px;
   border-radius: 6px;
-  border: 1px solid #444;
+  border: 1px solid var(--border);
   transition: background 0.2s;
 }
 
@@ -174,7 +174,7 @@
 .steam-game-name {
   font-weight: bold;
   font-size: 14px;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .steam-playtime {
@@ -206,7 +206,7 @@
 
 .steam-tag {
   font-size: 10px;
-  color: #ccc;
+  color: var(--text-secondary);
   background-color: rgba(255, 255, 255, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
@@ -232,13 +232,13 @@
 }
 
 .game-card { 
-  background-color: #181818; 
+  background-color: var(--bg-secondary); 
   border-radius: 8px; 
   overflow: hidden; 
   display: block; 
   text-decoration: none; 
   color: inherit; 
-  border: 1px solid #333; 
+  border: 1px solid var(--border); 
   transition: transform 0.2s, border-color 0.2s; 
   position: relative;
 }
@@ -283,7 +283,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 16px;
   z-index: 5;
 }
@@ -322,12 +322,12 @@
 
 .game-playtime {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-muted);
 }
 
 .score-bar {
   height: 4px;
-  background: #333;
+  background: var(--bg-hover);
   border-radius: 2px;
   margin-top: 5px;
 }
@@ -342,7 +342,7 @@
   text-align: center;
   padding: 40px;
   font-size: 18px;
-  color: #ccc;
+  color: var(--text-secondary);
 }
 .error-box {
   color: #ff4444;
@@ -475,3 +475,50 @@
     box-sizing: border-box;
   }
 }
+/* ── 라이트 테마 오버라이드 ─────────────────────────────────────── */
+[data-theme="light"] .reco-container {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+[data-theme="light"] .reco-sidebar,
+[data-theme="light"] .filter-box,
+[data-theme="light"] .tag-section {
+  background: #fff !important;
+  border-color: #ddd !important;
+  color: #111 !important;
+}
+[data-theme="light"] .reco-section-title {
+  color: #111 !important;
+}
+[data-theme="light"] .game-card-reco {
+  background: #fff !important;
+  border-color: #ddd !important;
+  color: #111 !important;
+}
+[data-theme="light"] .game-card-reco:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+}
+[data-theme="light"] .reason-badge {
+  background: rgba(229,9,20,0.1) !important;
+  color: #c00 !important;
+}
+
+/* 라이트 모드 태그 칩 */
+body.light-mode .tag-chip {
+  background: #e4e4e4 !important;
+  color: #111 !important;
+  border-color: #bbb !important;
+}
+body.light-mode .tag-chip.on {
+  background: #E50914 !important;
+  color: #fff !important;
+  border-color: #E50914 !important;
+}
+body.light-mode .search-panel {
+  background: #fff !important;
+  border-color: #ddd !important;
+  color: #111 !important;
+}
+body.light-mode .tag-label { color: #333 !important; }
+body.light-mode .result-panel { background: #f8f8f8 !important; border-color: #ddd !important; }
+body.light-mode .reco-container { background: #f2f2f2 !important; }

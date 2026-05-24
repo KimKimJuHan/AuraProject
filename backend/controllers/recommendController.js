@@ -161,7 +161,7 @@ class RecommendController {
     // ── 메인 페이지 ────────────────────────────────────────────────────────
     async getMainPageGames(req, res) {
         try {
-            const { userId, tags, sortBy, page = 1 } = req.body;
+            const { userId, tags, sortBy, page = 1, priceRange = 'all', priceMin, priceMax, minDiscount = 0, hideOwned = false } = req.body;
             const limit = 20;
             const skip = (page - 1) * limit;
 
@@ -177,14 +177,42 @@ class RecommendController {
             const andConditions = buildTagAndQuery(tags);
             if (andConditions) query.$and = andConditions;
 
+            // 가격대 필터
+            if (priceRange === 'free') {
+                query['price_info.isFree'] = true;
+            } else if (priceRange === '~10000') {
+                query['price_info.current_price'] = { $gt: 0, $lte: 10000 };
+            } else if (priceRange === '~30000') {
+                query['price_info.current_price'] = { $gt: 0, $lte: 30000 };
+            } else if (priceRange === '~50000') {
+                query['price_info.current_price'] = { $gt: 0, $lte: 50000 };
+            } else if (priceRange === '50000+') {
+                query['price_info.current_price'] = { $gt: 50000 };
+            }
+
+            // 최소 할인율 필터
+            if (minDiscount > 0) {
+                query['price_info.discount_percent'] = { $gte: Number(minDiscount) };
+            }
+
+            // 보유 게임 숨기기
+            if (hideOwned && userId) {
+                const userDoc = await User.findById(userId).select('steamGames').lean();
+                const ownedAppIds = (userDoc?.steamGames || []).map(g => g.appid);
+                if (ownedAppIds.length > 0) {
+                    query.steam_appid = { $nin: ownedAppIds };
+                }
+            }
+
             let sortOption = {};
             if (sortBy === 'popular') sortOption = { trend_score: -1, steam_ccu: -1 };
             else if (sortBy === 'new') sortOption = { releaseDate: -1 };
             else if (sortBy === 'discount') {
-                query['price_info.discount_percent'] = { $gt: 0 };
+                if (!query['price_info.discount_percent']) query['price_info.discount_percent'] = { $gt: 0 };
                 sortOption = { 'price_info.discount_percent': -1 };
             }
             else if (sortBy === 'price') sortOption = { 'price_info.current_price': 1 };
+            else if (sortBy === 'review') sortOption = { 'steam_reviews.overall.percent': -1 };
             else sortOption = { trend_score: -1 };
 
             const [totalGames, games] = await Promise.all([
@@ -198,6 +226,7 @@ class RecommendController {
                 else if (sortBy === 'popular') reason = '지금 많은 게이머가 즐기는 게임';
                 else if (sortBy === 'new') reason = '최근 출시 신작';
                 else if (sortBy === 'price') reason = '합리적인 가격';
+                else if (sortBy === 'review') reason = '높은 평점';
                 return { ...g, reason };
             });
 

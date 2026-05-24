@@ -47,6 +47,7 @@ function SearchResultsPage() {
   const [sorted, setSorted] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState('relevance');
+  const [priceFilter, setPriceFilter] = useState('all');
 
   useEffect(() => {
     if (!query) return;
@@ -85,7 +86,7 @@ function SearchResultsPage() {
       copy.sort((a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0));
     }
     setSorted(copy);
-  }, [results, sortBy]);
+  }, [results, sortBy, priceFilter]);
 
   return (
     <div style={styles.container}>
@@ -99,6 +100,21 @@ function SearchResultsPage() {
               style={sortBy === opt.key ? styles.sortBtnActive : styles.sortBtn}
               onClick={() => setSortBy(opt.key)}>
               {opt.label}
+            </button>
+          ))}
+          <span style={{ color: '#888', fontSize: '13px', marginLeft: '8px' }}>가격대:</span>
+          {[
+            { k:'all', n:'전체' },
+            { k:'free', n:'무료' },
+            { k:'~10000', n:'~1만원' },
+            { k:'~30000', n:'~3만원' },
+            { k:'~50000', n:'~5만원' },
+            { k:'50000+', n:'5만원+' },
+          ].map(p => (
+            <button key={p.k}
+              style={priceFilter === p.k ? styles.sortBtnActive : styles.sortBtn}
+              onClick={() => setPriceFilter(p.k)}>
+              {p.n}
             </button>
           ))}
         </div>

@@ -277,7 +277,7 @@ async function run() {
                     slug: `steam-${candidate.appid}`,
                     title: data.name,
                     title_ko: data.name,
-                    description: data.short_description || '',
+                    description: data.detailed_description || data.short_description || '',
                     main_image: data.header_image || '',
                     screenshots: (data.screenshots || []).slice(0, 10).map(s => s.path_full),
                     trailers: data._trailers || [],

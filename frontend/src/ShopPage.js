@@ -12,64 +12,68 @@ import MinSpecChecker from "./MinSpecChecker";
 const styles = {
   buyButton: {
     display: 'inline-block',
-    padding: '12px 30px',
+    padding: '10px 20px',
     backgroundColor: '#E50914',
     color: '#FFFFFF',
     textDecoration: 'none',
-    borderRadius: '4px',
-    fontSize: '18px',
+    borderRadius: '6px',
+    fontSize: '14px',
     border: 'none',
     cursor: 'pointer',
-    fontWeight: 'bold',
+    fontWeight: '700',
     textAlign: 'center',
     boxSizing: 'border-box',
-    width: '100%'
+    width: '100%',
+    letterSpacing: '0.3px',
   },
   wishlistButton: {
-    padding: '10px 20px',
-    fontSize: '16px',
+    padding: '8px 16px',
+    fontSize: '13px',
     cursor: 'pointer',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    color: '#fff',
-    border: '1px solid #fff',
-    borderRadius: '4px',
-    fontWeight: 'bold',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    color: '#ccc',
+    border: '1px solid #555',
+    borderRadius: '6px',
+    fontWeight: '600',
     width: '100%',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    transition: 'all 0.15s',
   },
   wishlistButtonActive: {
-    padding: '10px 20px',
-    fontSize: '16px',
+    padding: '8px 16px',
+    fontSize: '13px',
     cursor: 'pointer',
-    backgroundColor: '#fff',
-    color: '#000',
-    border: '1px solid #fff',
-    borderRadius: '4px',
-    fontWeight: 'bold',
+    backgroundColor: 'rgba(229,9,20,0.15)',
+    color: '#E50914',
+    border: '1px solid #E50914',
+    borderRadius: '6px',
+    fontWeight: '700',
     width: '100%',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
   },
   thumbButton: {
-    padding: '10px 15px',
-    fontSize: '16px',
+    padding: '7px 12px',
+    fontSize: '13px',
     cursor: 'pointer',
-    border: '1px solid #555',
-    borderRadius: '4px',
+    border: '1px solid #444',
+    borderRadius: '6px',
     background: 'transparent',
-    color: '#fff',
+    color: '#aaa',
     width: '100%',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    transition: 'all 0.15s',
   },
   thumbButtonActive: {
-    padding: '10px 15px',
-    fontSize: '16px',
+    padding: '7px 12px',
+    fontSize: '13px',
     cursor: 'pointer',
     border: '1px solid #E50914',
-    borderRadius: '4px',
-    background: '#E50914',
-    color: '#fff',
+    borderRadius: '6px',
+    background: 'rgba(229,9,20,0.15)',
+    color: '#E50914',
+    fontWeight: '700',
     width: '100%',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
   },
   galleryContainer: {
     display: 'flex',
@@ -221,11 +225,16 @@ const styles = {
     fontSize: '16px'
   },
   actionRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '24px'
+  },
+  actionButtons: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-    gap: '12px',
-    alignItems: 'stretch',
-    marginBottom: '40px'
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '8px',
+    alignItems: 'start',
   },
   bottomGrid: {
     display: 'grid',
@@ -382,6 +391,8 @@ export default function ShopPage({ region, user }) {
   const [showPriceAlert, setShowPriceAlert] = useState(false);
   const [priceAlertInput, setPriceAlertInput] = useState('');
   const [priceAlertMsg, setPriceAlertMsg] = useState('');
+  const [alertMode, setAlertMode] = useState('price'); // 'price' | 'discount' | 'lowest'
+  const [alertDiscount, setAlertDiscount] = useState('');
   const [likes, setLikes] = useState(0);
   const [dislikes, setDislikes] = useState(0);
   const [myVote, setMyVote] = useState(null);
@@ -567,11 +578,27 @@ export default function ShopPage({ region, user }) {
 
   const handleSavePriceAlert = async () => {
     if (!user) return alert('로그인이 필요합니다.');
-    const price = Number(priceAlertInput);
-    if (!price || price <= 0) return setPriceAlertMsg('올바른 가격을 입력해주세요.');
+    let targetPrice = 0;
+    const currentPrice = gameData?.price_info?.current_price || 0;
+    const regularPrice = gameData?.price_info?.regular_price || currentPrice;
+
+    if (alertMode === 'price') {
+      targetPrice = Number(priceAlertInput);
+      if (!targetPrice || targetPrice <= 0) return setPriceAlertMsg('올바른 가격을 입력해주세요.');
+    } else if (alertMode === 'discount') {
+      const pct = Number(alertDiscount);
+      if (!pct) return setPriceAlertMsg('할인율을 선택해주세요.');
+      targetPrice = Math.round(regularPrice * (1 - pct / 100));
+    } else if (alertMode === 'lowest') {
+      const deals = gameData?.price_info?.deals || [];
+      const lowestDeal = deals.length > 0 ? Math.min(...deals.map(d => d.price)) : currentPrice;
+      targetPrice = Math.round(lowestDeal * 0.95);
+    }
+
+    if (!targetPrice) return setPriceAlertMsg('목표 가격을 설정할 수 없습니다.');
     try {
-      await apiClient.post('/user/price-alert', { slug: gameData.slug, targetPrice: price });
-      setPriceAlert(price);
+      await apiClient.post('/user/price-alert', { slug: gameData.slug, targetPrice });
+      setPriceAlert(targetPrice);
       setPriceAlertMsg('설정되었습니다.');
       setTimeout(() => setPriceAlertMsg(''), 3000);
     } catch { setPriceAlertMsg('저장 실패'); }
@@ -647,15 +674,15 @@ export default function ShopPage({ region, user }) {
 
     if (deals.length === 0 && pi) {
       return (
-        <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
-          <span style={styles.storeName}>{pi.store_name || '스토어'}</span>
+        <a href={pi.store_url || (gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
+          <span style={styles.storeName}>{pi.store_name || 'Steam'}</span>
           <span style={{ color: '#46d369' }}>구매하러 가기 &gt;</span>
         </a>
       );
     }
 
     return deals.map((deal, idx) => (
-      <a key={idx} href={deal.url} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
+      <a key={idx} href={deal.url || (gameData.steam_appid && deal.shopName === 'Steam' ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={styles.storeName}>{deal.shopName}</span>
           {deal.discount > 0 && (
@@ -831,76 +858,124 @@ export default function ShopPage({ region, user }) {
           </div>
         </div>
 
-        <div style={styles.actionRow}>
-          {pi && (
-            <a href={pi.store_url} target="_blank" rel="noreferrer" style={styles.buyButton}>
+        {/* ── 액션 버튼 행 (항상 고정 높이) ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'12px', alignItems:'stretch' }}>
+          {pi ? (
+            <a href={pi.store_url || (gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')}
+              target="_blank" rel="noreferrer" style={styles.buyButton}>
               {getPriceDisplay(pi.current_price, pi.isFree)} 구매하기
             </a>
-          )}
-          <button
-            style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton}
-            onClick={toggleWishlist}
-          >
+          ) : <div />}
+          <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>
             {isWishlisted ? '✔ 찜함' : '+ 찜하기'}
           </button>
-          <div style={{marginTop:'10px'}}>
-            {!showPriceAlert ? (
-              <button onClick={() => setShowPriceAlert(true)}
-                style={{background:'none', border:'1px solid #555',
-                  color: priceAlert ? '#4CAF50' : '#aaa',
-                  padding:'8px 16px', borderRadius:'6px', cursor:'pointer',
-                  fontSize:'13px', width:'100%'}}>
-                {priceAlert ? '목표가: ₩' + priceAlert.toLocaleString() + ' (설정됨)' : '목표 가격 알림 설정'}
-              </button>
-            ) : (
-              <div style={{border:'1px solid #444', borderRadius:'8px', padding:'12px', background:'#1a1a1a'}}>
-                <div style={{color:'#ccc', fontSize:'13px', marginBottom:'8px'}}>이 가격 이하가 되면 알림을 드립니다</div>
-                <div style={{display:'flex', gap:'8px'}}>
-                  <input type="number" placeholder="가격 입력 (원)" value={priceAlertInput}
-                    onChange={e => setPriceAlertInput(e.target.value)}
-                    style={{flex:1, background:'#111', border:'1px solid #444', color:'#fff',
-                      padding:'6px 10px', borderRadius:'6px', fontSize:'13px'}}/>
-                  <button onClick={handleSavePriceAlert}
-                    style={{background:'#4CAF50', border:'none', color:'#fff',
-                      padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontSize:'13px'}}>
-                    저장
-                  </button>
-                </div>
-                {priceAlert && (
-                  <button onClick={handleDeletePriceAlert}
-                    style={{marginTop:'6px', background:'none', border:'none',
-                      color:'#888', cursor:'pointer', fontSize:'12px', textDecoration:'underline'}}>
-                    알림 해제
-                  </button>
-                )}
-                {priceAlertMsg && <div style={{color:'#4CAF50', fontSize:'12px', marginTop:'6px'}}>{priceAlertMsg}</div>}
-                <button onClick={() => setShowPriceAlert(false)}
-                  style={{marginTop:'4px', background:'none', border:'none',
-                    color:'#555', cursor:'pointer', fontSize:'12px', float:'right'}}>
-                  닫기
-                </button>
-              </div>
-            )}
+          <button onClick={() => setShowPriceAlert(v => !v)}
+            style={{ background:'none', border:`1px solid ${priceAlert ? '#4CAF50' : '#555'}`,
+              color: priceAlert ? '#4CAF50' : '#aaa', padding:'8px 10px',
+              borderRadius:'6px', cursor:'pointer', fontSize:'12px', width:'100%' }}>
+            {priceAlert ? '₩' + priceAlert.toLocaleString() + ' ✓' : '목표 가격 알림 설정'}
+          </button>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px' }}>
+            <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton}
+              onClick={() => handleVote('like')}>👍 {likes}</button>
+            <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton}
+              onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
           </div>
-          <button
-            style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton}
-            onClick={() => handleVote('like')}
-          >
-            👍 {likes}
-          </button>
-          <button
-            style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton}
-            onClick={() => handleVote('dislike')}
-          >
-            👎 {dislikes}
-          </button>
         </div>
 
-        {pi?.discount_percent > 0 && countdown && (
+        {/* 가격 알림 패널 - 버튼 행 아래 별도 렌더 */}
+        {showPriceAlert && (
+          <div style={{ border:'1px solid #444', borderRadius:'8px', padding:'12px',
+            background:'#1a1a1a', marginBottom:'16px' }}>
+            <div style={{ color:'#ccc', fontSize:'12px', marginBottom:'10px' }}>알림 방식 선택</div>
+            <div style={{ display:'flex', gap:'5px', marginBottom:'10px' }}>
+              {[{k:'price',label:'가격 입력'},{k:'discount',label:'할인율 선택'},{k:'lowest',label:'최저가 갱신 시'}].map(m => (
+                <button key={m.k} onClick={() => setAlertMode(m.k)}
+                  style={{ flex:1, padding:'5px 2px', fontSize:'11px', borderRadius:'5px',
+                    background: alertMode === m.k ? '#4CAF50' : '#2a2a2a',
+                    color: alertMode === m.k ? '#fff' : '#888',
+                    border: `1px solid ${alertMode === m.k ? '#4CAF50' : '#444'}`, cursor:'pointer' }}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {alertMode === 'price' && (
+              <input type="number" placeholder="목표 가격 (원)" value={priceAlertInput}
+                onChange={e => setPriceAlertInput(e.target.value)}
+                style={{ width:'100%', background:'#111', border:'1px solid #444', color:'#fff',
+                  padding:'6px 10px', borderRadius:'6px', fontSize:'13px', boxSizing:'border-box' }}/>
+            )}
+            {alertMode === 'discount' && (
+              <div>
+                <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
+                  {[10,20,30,40,50,60,75,90].map(pct => (
+                    <button key={pct} onClick={() => setAlertDiscount(String(pct))}
+                      style={{ padding:'4px 8px', fontSize:'11px', borderRadius:'4px',
+                        background: alertDiscount === String(pct) ? '#4CAF50' : '#2a2a2a',
+                        color: alertDiscount === String(pct) ? '#fff' : '#aaa',
+                        border:`1px solid ${alertDiscount === String(pct) ? '#4CAF50' : '#444'}`, cursor:'pointer' }}>
+                      {pct}%↑
+                    </button>
+                  ))}
+                </div>
+                {alertDiscount && gameData?.price_info?.regular_price > 0 && (
+                  <div style={{ color:'#888', fontSize:'11px', marginTop:'5px' }}>
+                    목표가: ₩{Math.round((gameData.price_info.regular_price||0) * (1 - Number(alertDiscount)/100)).toLocaleString()} 이하
+                  </div>
+                )}
+              </div>
+            )}
+            {alertMode === 'lowest' && (
+              <div style={{ color:'#aaa', fontSize:'12px', padding:'4px 0' }}>
+                현재 최저가보다 5% 더 낮아지면 알림을 드립니다.
+                {gameData?.price_info?.deals?.length > 0 && (
+                  <div style={{ color:'#4CAF50', marginTop:'3px' }}>
+                    현재 최저가: ₩{Math.min(...gameData.price_info.deals.map(d=>d.price)).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={handleSavePriceAlert}
+              style={{ width:'100%', marginTop:'10px', background:'#4CAF50', border:'none',
+                color:'#fff', padding:'8px', borderRadius:'6px', cursor:'pointer',
+                fontSize:'13px', fontWeight:'bold' }}>
+              알림 설정
+            </button>
+            {priceAlert && (
+              <button onClick={handleDeletePriceAlert}
+                style={{ marginTop:'6px', background:'none', border:'none',
+                  color:'#888', cursor:'pointer', fontSize:'12px', textDecoration:'underline', width:'100%' }}>
+                알림 해제
+              </button>
+            )}
+            {priceAlertMsg && <div style={{ color:'#4CAF50', fontSize:'12px', marginTop:'6px', textAlign:'center' }}>{priceAlertMsg}</div>}
+            <button onClick={() => setShowPriceAlert(false)}
+              style={{ marginTop:'4px', background:'none', border:'none',
+                color:'#555', cursor:'pointer', fontSize:'12px', float:'right' }}>
+              닫기
+            </button>
+          </div>
+        )}
+
+                {pi?.discount_percent > 0 && countdown && (
           <div style={{ color: '#E50914', fontWeight: 'bold', fontSize: '16px', marginBottom: '40px' }}>
             특가 할인 중! (남은 시간: {countdown})
           </div>
         )}
+
+      {/* 게임 설명 */}
+      {gameData.description && (
+        <div style={{ marginBottom: '30px' }}>
+          <h3 className="net-section-title">게임 소개</h3>
+          <div style={{
+            color: '#ccc', fontSize: '14px', lineHeight: '1.8',
+            background: '#1a1a1a', borderRadius: '8px', padding: '16px 20px',
+            border: '1px solid #2a2a2a'
+          }}
+            dangerouslySetInnerHTML={{ __html: gameData.description }}
+          />
+        </div>
+      )}
 
       {historyData.length > 0 && (
   <div style={styles.chartsGrid}>

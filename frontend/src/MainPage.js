@@ -17,16 +17,16 @@ const styles = {
   tabContainer: { display: 'flex', gap:'20px', marginBottom:'20px', borderBottom:'1px solid #333', paddingBottom:'1px' },
   tabButton: { background: 'none', color: '#b3b3b3', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid transparent', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px', transition: 'color 0.2s' },
   tabButtonActive: { background: 'none', color: '#fff', borderTop:'none', borderLeft:'none', borderRight:'none', borderBottom: '3px solid #E50914', fontSize:'18px', fontWeight:'bold', cursor:'pointer', padding:'10px 15px' },
-  loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
+  loadMoreButton: { display: 'block', margin: '0 auto', padding: '10px 40px', backgroundColor: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer', borderRadius:'20px', fontSize:'14px', transition:'all 0.15s' },
   filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
-  filterBox: { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
-  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: '#222', borderBottom: '1px solid #333', userSelect: 'none' },
-  filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
-  filterArrow: { color: '#666', fontSize: '12px' },
-  filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: '#181818', borderTop: '1px solid #333' },
-  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
+  filterBox: { backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
+  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: 'var(--bg-hover)', borderBottom: '1px solid var(--border)', userSelect: 'none' },
+  filterTitle: { fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold' },
+  filterArrow: { color: 'var(--text-muted)', fontSize: '12px' },
+  filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: 'var(--bg-card)', borderTop: '1px solid #333' },
+  tagBtn: { backgroundColor: '#333', border: '1px solid #444', color: 'var(--text-secondary)', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
-  tagBtnDisabled: { backgroundColor: '#222', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
+  tagBtnDisabled: { backgroundColor: 'var(--bg-hover)', border: '1px solid #2a2a2a', color: '#444', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '16px', zIndex: 5 }
 };
 
@@ -111,6 +111,9 @@ export default function MainPage({ user, region }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
+  const [priceRange, setPriceRange] = useState('all');   // all / free / ~10000 / ~30000 / ~50000 / 50000+
+  const [minDiscount, setMinDiscount] = useState(0);    // 0 / 10 / 30 / 50 / 75
+  const [hideOwned, setHideOwned] = useState(false);    // 보유중인 게임 숨기기
   const [selectedTags, setSelectedTags] = useState([]);
   const [validTags, setValidTags] = useState([]);
   const [page, setPage] = useState(1);
@@ -160,7 +163,7 @@ export default function MainPage({ user, region }) {
     setGames([]);
     setPage(1);
     setHasMore(true);
-  }, [selectedTags, activeTab]);
+  }, [selectedTags, activeTab, priceRange, minDiscount, hideOwned]);
 
   useEffect(() => {
     if (page > 1 && !hasMore) return;
@@ -180,7 +183,10 @@ export default function MainPage({ user, region }) {
                     tags: selectedTags, 
                     sortBy: activeTab, 
                     page,
-                    playerType: currentPlayerType
+                    playerType: currentPlayerType,
+                    priceRange,
+                    minDiscount,
+                    hideOwned
                 })
             });
             if (!response.ok) throw new Error("서버 연결 실패");
@@ -210,10 +216,113 @@ export default function MainPage({ user, region }) {
 
   return (
     <div className="net-panel"> <OnboardingPopup /><MinSpecChecker />
-      <div style={styles.tabContainer}>
-        {[{ k:'popular', n:'인기 추천' }, { k:'new', n:'신규 출시' }, { k:'discount', n:'할인 중' }, { k:'price', n:'낮은 가격' }].map(t => (
-            <button key={t.k} onClick={() => setActiveTab(t.k)} style={activeTab === t.k ? styles.tabButtonActive : styles.tabButton}>{t.n}</button>
-        ))}
+      {/* 정렬 & 필터 바 */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:'12px', marginBottom:'20px', alignItems:'flex-end' }}>
+
+        {/* 정렬 */}
+        <div>
+          <div style={{ color:'#888', fontSize:'11px', marginBottom:'5px' }}>정렬</div>
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {[
+              { k:'popular',  n:'인기순' },
+              { k:'new',      n:'신작순' },
+              { k:'discount', n:'할인율 높은순' },
+              { k:'price',    n:'낮은 가격순' },
+              { k:'review',   n:'평점순' },
+            ].map(t => (
+              <button key={t.k}
+                onClick={() => { setActiveTab(t.k); setPage(1); setGames([]); }}
+                style={{
+                  padding:'6px 14px', borderRadius:'20px', fontSize:'13px', cursor:'pointer',
+                  background: activeTab === t.k ? '#E50914' : 'var(--bg-hover)',
+                  color: activeTab === t.k ? '#fff' : 'var(--text-secondary)',
+                  border: `1px solid ${activeTab === t.k ? '#E50914' : 'var(--border)'}`,
+                  fontWeight: activeTab === t.k ? '700' : '400',
+                  transition: 'all 0.15s',
+                }}>
+                {t.n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 가격대 */}
+        <div>
+          <div style={{ color:'#888', fontSize:'11px', marginBottom:'5px' }}>가격대</div>
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {[
+              { k:'all',    n:'전체' },
+              { k:'free',   n:'무료' },
+              { k:'~10000', n:'~1만원' },
+              { k:'~30000', n:'~3만원' },
+              { k:'~50000', n:'~5만원' },
+              { k:'50000+', n:'5만원+' },
+            ].map(p => (
+              <button key={p.k}
+                onClick={() => { setPriceRange(p.k); setPage(1); setGames([]); }}
+                style={{
+                  padding:'5px 12px', borderRadius:'20px', fontSize:'12px', cursor:'pointer',
+                  background: priceRange === p.k ? '#333' : 'var(--bg-hover)',
+                  color: priceRange === p.k ? '#fff' : 'var(--text-secondary)',
+                  border: `1px solid ${priceRange === p.k ? '#888' : 'var(--border)'}`,
+                  transition: 'all 0.15s',
+                }}>
+                {p.n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 할인율 */}
+        <div>
+          <div style={{ color:'#888', fontSize:'11px', marginBottom:'5px' }}>최소 할인율</div>
+          <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            {[
+              { k:0,  n:'전체' },
+              { k:10, n:'10%↑' },
+              { k:30, n:'30%↑' },
+              { k:50, n:'50%↑' },
+              { k:75, n:'75%↑' },
+            ].map(d => (
+              <button key={d.k}
+                onClick={() => { setMinDiscount(d.k); setPage(1); setGames([]); }}
+                style={{
+                  padding:'5px 12px', borderRadius:'20px', fontSize:'12px', cursor:'pointer',
+                  background: minDiscount === d.k ? '#E50914' : 'var(--bg-hover)',
+                  color: minDiscount === d.k ? '#fff' : 'var(--text-secondary)',
+                  border: `1px solid ${minDiscount === d.k ? '#E50914' : 'var(--border)'}`,
+                  transition: 'all 0.15s',
+                }}>
+                {d.n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 보유중인 게임 */}
+        {user && (
+          <div>
+            <div style={{ color:'#888', fontSize:'11px', marginBottom:'5px' }}>보유 게임</div>
+            <button
+              onClick={() => { setHideOwned(v => !v); setPage(1); setGames([]); }}
+              style={{ padding:'5px 14px', borderRadius:'20px', fontSize:'12px', cursor:'pointer',
+                background: hideOwned ? '#E50914' : 'var(--bg-hover)',
+                color: hideOwned ? '#fff' : 'var(--text-secondary)',
+                border: `1px solid ${hideOwned ? '#E50914' : 'var(--border)'}`,
+                transition: 'all 0.15s' }}>
+              {hideOwned ? '보유 게임 숨김 중' : '보유 게임 표시'}
+            </button>
+          </div>
+        )}
+
+        {/* 초기화 */}
+        {(priceRange !== 'all' || minDiscount !== 0 || hideOwned) && (
+          <button onClick={() => { setPriceRange('all'); setMinDiscount(0); setHideOwned(false); setPage(1); setGames([]); }}
+            style={{ padding:'5px 12px', borderRadius:'20px', fontSize:'12px', cursor:'pointer',
+              background:'none', border:'1px solid #E50914', color:'#E50914' }}>
+            필터 초기화
+          </button>
+        )}
       </div>
 
       <div style={styles.filterContainer}>
@@ -247,7 +356,13 @@ export default function MainPage({ user, region }) {
         </div>
       )}
 
-      {!loading && !error && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
+      {!loading && !error && hasMore && (
+        <div style={{ textAlign:'center', marginTop:'30px' }}>
+          <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>
+            게임 더 보기 ∨
+          </button>
+        </div>
+      )}
       {!loading && !error && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
     </div>
   );

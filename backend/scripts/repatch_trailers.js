@@ -29,8 +29,7 @@ async function getTrailers(appId) {
         });
         const movies = res.data?.[appId]?.data?.movies || [];
         return movies
-            .filter(m => m.mp4)
-            .map(m => m.mp4?.max || m.mp4?.['480'] || '')
+            .map(m => m.webm?.max || m.mp4?.max || m.webm?.['480'] || m.mp4?.['480'] || '')
             .filter(Boolean)
             .slice(0, 3);
     } catch { return []; }
