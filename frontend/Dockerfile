@@ -1,18 +1,14 @@
-# Node.js 18 버전 (LTS) 경량화 이미지 사용
-FROM node:18-alpine
-
-# 컨테이너 내 작업 디렉토리 설정
+# Stage 1: 빌드
+FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
-
-# 패키지 파일 복사 및 의존성 설치
 COPY package*.json ./
-RUN npm install
-
-# 프론트엔드 전체 코드 복사
+RUN npm ci
 COPY . .
+RUN npm run build
 
-# 3000번 포트 노출
+# Stage 2: nginx로 정적 파일 서빙 (개발 서버 제거)
+FROM nginx:alpine
+COPY --from=builder /usr/src/app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 3000
-
-# 리액트 실행 명령어
-CMD ["npm", "start"]
+CMD ["nginx", "-g", "daemon off;"]

@@ -2,36 +2,44 @@ version: '3.8'
 
 services:
   my-backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: my-backend
-    # 외부 노출 포트(8000:8000) 삭제 완료. Nginx만 내부망으로 접근 가능.
     env_file:
       - ./backend/.env
     environment:
       - NODE_ENV=production
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   my-frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: my-frontend
-    # 외부 노출 포트(3000:3000) 삭제 완료. 개구멍 완전 차단.
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - HOST=0.0.0.0
     depends_on:
-      - my-backend
+      my-backend:
+        condition: service_healthy
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   my-nginx:
     image: nginx:latest
     container_name: my-nginx
     ports:
-      - "80:80"   # 인터넷에 허용된 유일한 출입구
-      - "443:443" # 인터넷에 허용된 유일한 출입구 (보안 연결)
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/conf:/etc/nginx/conf.d
       - ./nginx/certbot/conf:/etc/letsencrypt

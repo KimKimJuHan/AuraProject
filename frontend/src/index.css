@@ -84,12 +84,12 @@ body,
   position: sticky;
   top: 0;
   z-index: 1000;
-  background-color: rgba(20, 20, 20, 0.95);
+  background-color: var(--bg-overlay);
   padding: 15px 4%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--border);
 }
 .net-header-right {
   gap: 15px;
@@ -116,7 +116,7 @@ body,
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 20px;
-  color: #fff;
+  color: var(--text-primary);
   border-left: 4px solid var(--accent);
   padding-left: 12px;
 }
@@ -138,17 +138,17 @@ body,
 }
 
 .net-card {
-  background-color: var(--card-bg);
+  background-color: var(--bg-card);
   border-radius: 6px;
   overflow: hidden;
   position: relative;
   transition: transform 0.2s ease;
   text-decoration: none;
-  color: white;
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   height: 100%;
-  border: 1px solid #333;
+  border: 1px solid var(--border);
 }
 
 .net-card:hover {
@@ -179,7 +179,7 @@ body,
   flex-direction: column;
   gap: 8px;
   flex-grow: 1;
-  background-color: #2f2f2f;
+  background-color: var(--bg-card);
 }
 
 .net-card-title {
@@ -188,7 +188,7 @@ body,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .net-card-footer {
@@ -561,11 +561,9 @@ html, body, #root { min-height: 100vh; }
 ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 4px; }
 
 /* ── 라이트 모드 오버라이드 (.light-mode body class) ────────────────────── */
-body.light-mode .net-card { background-color: #fff !important; border-color: #ddd !important; }
-body.light-mode .net-card-body { background-color: #fff !important; color: #111 !important; }
-body.light-mode .net-card-title { color: #111 !important; }
-body.light-mode .net-header { background-color: rgba(255,255,255,0.97) !important; border-bottom-color: #ddd !important; }
+body.light-mode .net-header { background-color: rgba(255,255,255,0.97) !important; }
 body.light-mode .net-logo { color: #E50914 !important; }
+body.light-mode .net-search-input { background: #fff !important; color: #111 !important; border-color: #ccc !important; }
 body.light-mode .search-panel { background-color: #fff !important; border-color: #ddd !important; color: #111 !important; }
 body.light-mode .mypage-card { background-color: #fff !important; border-color: #ddd !important; color: #111 !important; }
 body.light-mode .result-panel { background-color: #f8f8f8 !important; border-color: #ddd !important; }
@@ -574,23 +572,17 @@ body.light-mode .profile-dropdown-menu:hover { background: #f0f0f0 !important; }
 body.light-mode input:not([type="range"]):not([type="checkbox"]) {
   background-color: #f5f5f5 !important; color: #111 !important; border-color: #ccc !important;
 }
+body.light-mode select { background-color: #fff !important; color: #111 !important; border-color: #ccc !important; }
 body.light-mode .auth-container, body.light-mode .auth-box {
   background-color: rgba(255,255,255,0.95) !important; color: #111 !important;
 }
+body.light-mode .reco-container { background-color: #f2f2f2 !important; color: #111 !important; }
+body.light-mode .skeleton { background: #ddd !important; }
 
 /* ── 스피너 제거 ─────────────────────────────────────────────────────────── */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
-
-/* ── filter-box 라이트 모드 ─────────────────────────────────────────────── */
-body.light-mode .filter-box-wrap { background-color: #f0f0f0 !important; border-color: #ddd !important; }
-body.light-mode .filter-box-header { background-color: #e8e8e8 !important; border-color: #ddd !important; color: #111 !important; }
-body.light-mode .filter-box-content { background-color: #f0f0f0 !important; border-color: #ddd !important; }
-body.light-mode .filter-box-title { color: #111 !important; }
-body.light-mode .filter-box-wrap button:not(.active-tag) { background-color: #e0e0e0 !important; color: #333 !important; border-color: #ccc !important; }
-body.light-mode .filter-box-wrap button.active-tag { background-color: #E50914 !important; color: #fff !important; border-color: #E50914 !important; }
-body.light-mode .filter-box-title { color: #111 !important; }
 
 /* ── 정렬/필터 바 모바일 ─────────────────────────────────────────────────── */
 @media (max-width: 768px) {
