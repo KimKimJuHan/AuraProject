@@ -51,12 +51,12 @@ function LoginPage({ user, setUser }) {
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: '100vh',
-    backgroundColor: '#141414',
+    backgroundColor: 'var(--bg-primary)',
     padding: '20px'
   };
 
   const boxStyle = {
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'var(--bg-card)',
     padding: '60px 68px 40px',
     borderRadius: '4px',
     width: '100%',
@@ -67,7 +67,7 @@ function LoginPage({ user, setUser }) {
   };
 
   const inputStyle = {
-    background: '#333',
+    background: 'var(--bg-hover)',
     borderRadius: '4px',
     border: '0',
     color: '#fff',
