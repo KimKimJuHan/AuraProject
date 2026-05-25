@@ -6,6 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const cookieParser = require('cookie-parser');
 const passport = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
@@ -94,6 +95,13 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     proxy: true,
+    store: process.env.MONGODB_URI
+        ? MongoStore.create({
+            mongoUrl: process.env.MONGODB_URI,
+            ttl: 60 * 60 * 24,
+            touchAfter: 60 * 60,
+          })
+        : undefined,
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -236,6 +244,16 @@ if (process.env.MONGODB_URI) {
     .catch(err => { console.error('❌ DB Error:', err); process.exit(1); });
 }
 
+// ── Health check (EC2 로드밸런서 / Docker healthcheck 용) ────────────────────
+app.get('/health', (req, res) => {
+    const dbState = mongoose.connection.readyState;
+    if (dbState === 1) {
+        res.status(200).json({ status: 'ok', db: 'connected' });
+    } else {
+        res.status(503).json({ status: 'error', db: 'disconnected' });
+    }
+});
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
@@ -252,7 +270,23 @@ cron.schedule('0 0 * * *', () => {
     updateExchangeRates();
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
+
+// ── 요청 타임아웃 (30초) ──────────────────────────────────────────────────────
+server.setTimeout(30000);
+
+// ── Graceful shutdown (EC2 배포 시 기존 요청 안전하게 처리) ──────────────────
+const shutdown = () => {
+    console.log('🛑 Shutdown signal received, closing server...');
+    server.close(async () => {
+        await mongoose.connection.close();
+        console.log('✅ Server and DB connection closed.');
+        process.exit(0);
+    });
+    setTimeout(() => { process.exit(1); }, 10000);
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 

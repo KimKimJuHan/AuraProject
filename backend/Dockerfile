@@ -1,18 +1,13 @@
-# Node.js 18 버전 (LTS) 경량화 이미지 사용
 FROM node:18-alpine
-
-# 컨테이너 내 작업 디렉토리 설정
 WORKDIR /usr/src/app
 
-# 패키지 파일 복사 및 의존성 설치
+# 의존성만 먼저 복사 (레이어 캐시 활용)
 COPY package*.json ./
-RUN npm install
+RUN npm ci --only=production
 
-# 백엔드 전체 코드 복사
 COPY . .
 
-# 8000번 포트 노출
 EXPOSE 8000
 
-# 서버 실행 명령어
-CMD ["npm", "start"]
+# 메모리 제한 (EC2 t2/t3.small 기준 512MB)
+CMD ["node", "--max-old-space-size=512", "index.js"]
