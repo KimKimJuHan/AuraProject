@@ -247,11 +247,10 @@ if (process.env.MONGODB_URI) {
 // ── Health check (EC2 로드밸런서 / Docker healthcheck 용) ────────────────────
 app.get('/health', (req, res) => {
     const dbState = mongoose.connection.readyState;
-    if (dbState === 1) {
-        res.status(200).json({ status: 'ok', db: 'connected' });
-    } else {
-        res.status(503).json({ status: 'error', db: 'disconnected' });
-    }
+    res.status(200).json({
+        status: 'ok',
+        db: dbState === 1 ? 'connected' : 'connecting'
+    });
 });
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

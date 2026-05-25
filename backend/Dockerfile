@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /usr/src/app
 
 # 의존성만 먼저 복사 (레이어 캐시 활용)

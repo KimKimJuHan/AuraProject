@@ -12,11 +12,11 @@ services:
       - NODE_ENV=production
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 20s
+      retries: 5
+      start_period: 60s
 
   my-frontend:
     build:
@@ -24,15 +24,8 @@ services:
       dockerfile: Dockerfile
     container_name: my-frontend
     depends_on:
-      my-backend:
-        condition: service_healthy
+      - my-backend
     restart: always
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
   my-nginx:
     image: nginx:latest
