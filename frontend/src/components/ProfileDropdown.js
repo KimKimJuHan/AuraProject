@@ -24,7 +24,7 @@ export default function ProfileDropdown({ user }) {
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: "#fff",
+          color: "var(--text-primary)",
           fontSize: 32,
           padding: "6px 10px",
           lineHeight: 1
@@ -41,8 +41,8 @@ export default function ProfileDropdown({ user }) {
             position: "absolute",
             right: 0,
             top: "110%",
-            background: "#202020",
-            border: "1px solid #444",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
             borderRadius: 8,
             boxShadow: "0 3px 16px rgba(0,0,0,0.28)",
             minWidth: 200,
@@ -66,7 +66,7 @@ export default function ProfileDropdown({ user }) {
             찜 및 가격 비교
           </Link>
 
-          <div style={{ borderTop: '1px solid #333', margin: '4px 0' }} />
+          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
 
           <Link
             to="/mypage"
@@ -84,7 +84,7 @@ export default function ProfileDropdown({ user }) {
             고객센터
           </Link>
 
-          <div style={{ borderTop: '1px solid #333', margin: '8px 0 0 0' }} />
+          <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0 0 0' }} />
           <RecentGames maxCount={4} />
         </div>
       )}
