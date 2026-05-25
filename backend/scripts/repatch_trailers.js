@@ -27,7 +27,7 @@ async function getTrailers(appId) {
             params: { appids: appId, filters: 'movies', cc: 'kr' },
             timeout: 8000
         });
-        const movies = res.data?.[appId]?.data?.movies || [];
+        const movies = res.data?.[String(appId)]?.data?.movies || [];
         return movies
             .map(m => m.webm?.max || m.mp4?.max || m.webm?.['480'] || m.mp4?.['480'] || '')
             .filter(Boolean)
