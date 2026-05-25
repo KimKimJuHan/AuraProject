@@ -199,6 +199,7 @@ router.get('/search/autocomplete', async (req, res) => {
     try {
         const q = String(req.query.q || '').trim();
         if (!q) return res.json([]);
+        if (q.length > 50) return res.json([]);
         const safeQuery = escapeRegex(q);
         const regex = new RegExp(safeQuery, 'i');
 
@@ -230,6 +231,7 @@ router.get('/search/results', async (req, res) => {
     try {
         const q = String(req.query.q || '').trim();
         if (!q) return res.json({ success: true, games: [] });
+        if (q.length > 50) return res.json({ success: true, games: [] });
 
         const safeQuery = escapeRegex(q);
         const regex = new RegExp(safeQuery, 'i');

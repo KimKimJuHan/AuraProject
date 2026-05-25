@@ -972,7 +972,7 @@ export default function ShopPage({ region, user }) {
             background: '#1a1a1a', borderRadius: '8px', padding: '16px 20px',
             border: '1px solid #2a2a2a'
           }}
-            dangerouslySetInnerHTML={{ __html: gameData.description }}
+            dangerouslySetInnerHTML={{ __html: cleanHTML(gameData.description || '') }}
           />
         </div>
       )}

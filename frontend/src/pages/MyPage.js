@@ -29,7 +29,7 @@ function MyPage({ user, setUser }) {
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
-        setCurrentTags(user.likedTags?.length > 0 ? user.likedTags : ['액션', 'RPG', '오픈월드']);
+        setCurrentTags(user.likedTags?.length > 0 ? user.likedTags : []);
         setNewDisplayName(user?.displayName || user?.username || '');
         const savedSpec = getSavedPcSpec();
         setSavedPcSpec(savedSpec);
@@ -99,7 +99,7 @@ function MyPage({ user, setUser }) {
         if (currentTags.includes(tag)) {
             setCurrentTags(currentTags.filter(t => t !== tag));
         } else {
-            // 태그 제한 없음
+            if (currentTags.length >= 5) return alert('선호 태그는 최대 5개까지 선택할 수 있습니다.');
             setCurrentTags([...currentTags, tag]);
         }
     };

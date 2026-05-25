@@ -46,8 +46,12 @@ app.use(helmet({
 
 app.use(compression());
 
+const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? [FRONTEND_URL]
+    : [FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'];
+
 app.use(cors({
-    origin: [FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: allowedOrigins,
     credentials: true
 }));
 
@@ -229,7 +233,7 @@ if (process.env.MONGODB_URI) {
         serverSelectionTimeoutMS: 10000,
     })
     .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ DB Error:', err));
+    .catch(err => { console.error('❌ DB Error:', err); process.exit(1); });
 }
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -252,11 +256,3 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
 
-app.get('/api/debug/tags', async (req, res) => {
-    const Game = require('./models/Game');
-    const games = await Game.find({ isAdult: true })
-        .select('title steam_appid')
-        .sort({ title: 1 })
-        .lean();
-    res.json({ count: games.length, games: games.map(g => `${g.steam_appid}: ${g.title}`) });
-});

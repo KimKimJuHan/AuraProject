@@ -46,6 +46,9 @@ class AuthController {
     signup = async (req, res) => {
         try {
             const { username, password, email } = req.body;
+            if (!password || password.length < 8) {
+                return res.status(400).json({ success: false, message: '비밀번호는 8자 이상이어야 합니다.' });
+            }
             const existingUser = await User.findOne({ username });
             if (existingUser) return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
 
@@ -190,6 +193,9 @@ class AuthController {
             if (!resetToken || !newPassword) {
                 return res.status(400).json({ success: false, message: '필수 값이 누락되었습니다.' });
             }
+            if (newPassword.length < 8) {
+                return res.status(400).json({ success: false, message: '비밀번호는 8자 이상이어야 합니다.' });
+            }
 
             const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
@@ -224,6 +230,9 @@ class AuthController {
             const { currentPassword, newPassword } = req.body;
             if (!currentPassword || !newPassword) {
                 return res.status(400).json({ success: false, message: '필수 값이 누락되었습니다.' });
+            }
+            if (newPassword.length < 8) {
+                return res.status(400).json({ success: false, message: '비밀번호는 8자 이상이어야 합니다.' });
             }
 
             const user = await User.findById(sessionUser.id);
