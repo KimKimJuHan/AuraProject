@@ -6,7 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');
-const MongoStore = require('connect-mongo');
+const MongoStore = require('connect-mongo').default ?? require('connect-mongo');
 const cookieParser = require('cookie-parser');
 const passport = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
@@ -288,4 +288,3 @@ const shutdown = () => {
 };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
-
