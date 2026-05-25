@@ -85,7 +85,7 @@ const TARGET_GAMES = [
 ];
 
 // ── Steam API ─────────────────────────────────────────────────────────────────
-async function getSteamDetails(appId) {
+async function getSteamDetails(appId, expectedName) {
   try {
     const res = await axios.get('https://store.steampowered.com/api/appdetails', {
       params: { appids: appId, cc: 'kr', l: 'korean' }, timeout: 10000
@@ -93,6 +93,20 @@ async function getSteamDetails(appId) {
     const data = res.data?.[appId];
     if (!data?.success || data.data?.type !== 'game') return null;
     const d = data.data;
+
+    // 이름 검증 - 기대한 게임이 맞는지 확인
+    if (expectedName) {
+      const got = (d.name || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+      const exp = expectedName.toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+      const firstWord = exp.split(/\s+/)[0];
+      if (firstWord.length > 2 && !got.includes(firstWord) && !exp.includes(got.split(/\s+/)[0])) {
+        console.log(`  ⚠️  이름 불일치: 기대="${expectedName}" / Steam="${d.name}" → 스킵`);
+        return null;
+      }
+    }
+
+    // KR 가격은 이미 원화 (cc=kr) → /100만 적용, ×1350 하면 안 됨
+    d._isKrPrice = true;
     d._trailers = (d.movies || []).slice(0, 3).map(m => m.webm?.max || m.mp4?.max || '').filter(Boolean);
     return d;
   } catch { return null; }
@@ -200,7 +214,7 @@ async function run() {
     console.log(`\n🎮 [${exists ? 'UPDATE' : 'NEW'}] ${target.name} (AppID: ${target.appid})`);
 
     try {
-      const data = await getSteamDetails(target.appid);
+      const data = await getSteamDetails(target.appid, target.name);
       if (!data) { console.log(`  ❌ Steam 정보 없음`); errors++; await sleep(1000); continue; }
 
       const rawTags = await scrapeAppTags(target.appid);
@@ -219,8 +233,9 @@ async function run() {
         const itad = await getITADPrice(meta.itad.uuid);
         if (itad) priceInfo = { ...priceInfo, ...itad };
       } else {
-        priceInfo.current_price = Math.round((data.price_overview?.final || 0) / 100 * 1350) || 0;
-        priceInfo.regular_price = Math.round((data.price_overview?.initial || 0) / 100 * 1350) || 0;
+        // cc=kr 응답은 이미 원화이므로 /100만 적용 (×1350 하면 안 됨)
+        priceInfo.current_price = Math.round((data.price_overview?.final || 0) / 100) || 0;
+        priceInfo.regular_price = Math.round((data.price_overview?.initial || 0) / 100) || 0;
         priceInfo.discount_percent = data.price_overview?.discount_percent || 0;
         priceInfo.store_url = `https://store.steampowered.com/app/${target.appid}`;
         priceInfo.store_name = 'Steam';
