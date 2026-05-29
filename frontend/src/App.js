@@ -188,7 +188,7 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   return (
     <Link to={`/game/${game.slug}`} className="net-card">
         <div className="net-card-thumb">
-            <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"} />
+            <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
             
@@ -582,10 +582,10 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         <li key={item.slug || idx} style={itemStyle} onMouseDown={() => handleSuggestionClick(item)}>
           <div style={styles.suggestionGameRow}>
             <img
-              src={item.main_image || "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"}
+              src={item.main_image || "data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E"}
               alt={item.title}
               style={styles.suggestionThumb}
-              onError={(e) => { e.target.src = "https://via.placeholder.com/300x169/141414/ffffff?text=No+Image"; }}
+              onError={(e) => { e.target.src = 'data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E'; }}
             />
             <div style={styles.suggestionTextWrap}>
               <span style={styles.suggestionTitle}>{highlightMatch(item.title, searchTerm)}</span>

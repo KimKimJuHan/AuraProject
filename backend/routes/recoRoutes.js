@@ -200,12 +200,13 @@ router.get('/search/autocomplete', async (req, res) => {
         const q = String(req.query.q || '').trim();
         if (!q) return res.json([]);
         if (q.length > 50) return res.json([]);
-        const safeQuery = escapeRegex(q);
-        const regex = new RegExp(safeQuery, 'i');
+        const queries = resolveQuery(q);
+        const orClauses = queries.flatMap(qr => {
+            const r = new RegExp(escapeRegex(qr), 'i');
+            return [{ title: r }, { title_ko: r }, { smart_tags: r }];
+        });
 
-        const games = await Game.find({
-            $or: [{ title: regex }, { title_ko: regex }, { slug: regex }]
-        })
+        const games = await Game.find({ $or: orClauses })
             .select('title title_ko slug main_image steam_ccu trend_score')
             .sort({ trend_score: -1, steam_ccu: -1, title: 1 })
             .limit(8)
@@ -233,16 +234,13 @@ router.get('/search/results', async (req, res) => {
         if (!q) return res.json({ success: true, games: [] });
         if (q.length > 50) return res.json({ success: true, games: [] });
 
-        const safeQuery = escapeRegex(q);
-        const regex = new RegExp(safeQuery, 'i');
+        const queries = resolveQuery(q);
+        const orClauses = queries.flatMap(qr => {
+            const r = new RegExp(escapeRegex(qr), 'i');
+            return [{ title: r }, { title_ko: r }, { smart_tags: r }];
+        });
 
-        const games = await Game.find({
-            $or: [
-                { title: regex },
-                { title_ko: regex },
-                { slug: regex }
-            ]
-        })
+        const games = await Game.find({ $or: orClauses })
             .sort({ steam_ccu: -1, trend_score: -1, 'steam_reviews.overall.percent': -1 })
             .limit(60)
             .lean();
