@@ -23,8 +23,11 @@ function MyPage({ user, setUser }) {
     const [newDisplayName, setNewDisplayName] = useState('');
     const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 16 });
     const [savedPcSpec, setSavedPcSpec] = useState(null);
+    // eslint-disable-next-line no-unused-vars
     const [isEditingPassword, setIsEditingPassword] = useState(false);
+    // eslint-disable-next-line no-unused-vars
     const [pwError, setPwError] = useState('');
+    // eslint-disable-next-line no-unused-vars
     const [notifSaved, setNotifSaved] = useState(false);
 
     useEffect(() => {

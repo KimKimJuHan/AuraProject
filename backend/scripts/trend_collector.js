@@ -283,23 +283,24 @@ async function collectTrends() {
             }
 
             const steamCCU = await getSteamCCU(game.steam_appid);
+            const soopViewers = await getSoopViewers(game);
 
-            // 트렌드 점수: Chzzk에 2배 가중치 (한국 서비스 특성)
-            const trendScore = twitchViewers + (chzzkViewers * 2) + Math.round(steamCCU * 0.1);
+            // 트렌드 점수: Chzzk/SOOP에 2배 가중치 (한국 서비스 특성)
+            const trendScore = twitchViewers + ((chzzkViewers + soopViewers) * 2) + Math.round(steamCCU * 0.1);
 
             await Promise.all([
                 Game.updateOne(
                     { steam_appid: game.steam_appid },
-                    { $set: { trend_score: trendScore, twitch_viewers: twitchViewers, chzzk_viewers: chzzkViewers, steam_ccu: steamCCU, lastUpdated: new Date() } }
+                    { $set: { trend_score: trendScore, twitch_viewers: twitchViewers, chzzk_viewers: chzzkViewers, soop_viewers: soopViewers, steam_ccu: steamCCU, lastUpdated: new Date() } }
                 ),
                 new TrendHistory({
                     steam_appid: game.steam_appid, trend_score: trendScore,
                     twitch_viewers: twitchViewers, chzzk_viewers: chzzkViewers,
-                    steam_ccu: steamCCU, recordedAt: new Date()
+                    soop_viewers: soopViewers, steam_ccu: steamCCU, recordedAt: new Date()
                 }).save()
             ]);
 
-            console.log(`[${i + 1}/${allGames.length}] ${game.title} | Score:${trendScore} (T:${twitchViewers} C:${chzzkViewers} S:${steamCCU})`);
+            console.log(`[${i + 1}/${allGames.length}] ${game.title} | Score:${trendScore} (T:${twitchViewers} C:${chzzkViewers} SOOP:${soopViewers} S:${steamCCU})`);
 
             // Steam CCU API 부하 방지 딜레이 (300ms → 기존 500ms보다 빠름)
             await sleep(300);

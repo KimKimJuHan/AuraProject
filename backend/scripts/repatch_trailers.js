@@ -29,7 +29,12 @@ async function getTrailers(appId) {
         });
         const movies = res.data?.[String(appId)]?.data?.movies || [];
         return movies
-            .map(m => m.webm?.max || m.mp4?.max || m.webm?.['480'] || m.mp4?.['480'] || '')
+            .map(m =>
+                // 신규 API 형식 (2024년 이후)
+                m.hls_h264 || m.dash_h264 || m.dash_av1 ||
+                // 구버전 API 형식
+                m.webm?.max || m.mp4?.max || m.webm?.['480'] || m.mp4?.['480'] || ''
+            )
             .filter(Boolean)
             .slice(0, 3);
     } catch { return []; }

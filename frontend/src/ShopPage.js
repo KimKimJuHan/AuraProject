@@ -4,6 +4,7 @@ import axios from 'axios';
 import DOMPurify from 'dompurify';
 import Skeleton from './Skeleton';
 import { API_BASE_URL, apiClient } from './config';
+// eslint-disable-next-line no-unused-vars
 import { safeLocalStorage } from './utils/storage';
 import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
@@ -31,7 +32,7 @@ const styles = {
     fontSize: '13px',
     cursor: 'pointer',
     backgroundColor: 'rgba(255,255,255,0.08)',
-    color: '#ccc',
+    color: 'var(--text-secondary)',
     border: '1px solid #555',
     borderRadius: '6px',
     fontWeight: '600',
@@ -55,10 +56,10 @@ const styles = {
     padding: '7px 12px',
     fontSize: '13px',
     cursor: 'pointer',
-    border: '1px solid #444',
+    border: '1px solid var(--border)',
     borderRadius: '6px',
     background: 'transparent',
-    color: '#aaa',
+    color: 'var(--text-muted)',
     width: '100%',
     boxSizing: 'border-box',
     transition: 'all 0.15s',
@@ -90,7 +91,7 @@ const styles = {
     alignItems: 'center',
     borderRadius: '4px',
     overflow: 'hidden',
-    border: '1px solid #333',
+    border: '1px solid var(--border)',
     position: 'relative'
   },
   mediaStrip: {
@@ -127,10 +128,10 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '15px',
-    borderBottom: '1px solid #333',
-    backgroundColor: '#181818',
+    borderBottom: '1px solid var(--border)',
+    backgroundColor: 'var(--bg-card)',
     textDecoration: 'none',
-    color: '#fff',
+    color: 'var(--text-primary)',
     gap: '10px',
     flexWrap: 'wrap'
   },
@@ -146,7 +147,7 @@ const styles = {
     marginRight: '10px',
     fontWeight: 'bold',
     backgroundColor: '#333',
-    color: '#fff',
+    color: 'var(--text-primary)',
     fontSize: '14px',
     cursor: 'help'
   },
@@ -154,7 +155,7 @@ const styles = {
     visibility: 'hidden',
     width: 'max-content',
     backgroundColor: 'rgba(0,0,0,0.9)',
-    color: '#fff',
+    color: 'var(--text-primary)',
     textAlign: 'center',
     borderRadius: '4px',
     padding: '5px 10px',
@@ -187,10 +188,10 @@ const styles = {
     marginTop: '40px'
   },
   chartBox: {
-    backgroundColor: '#181818',
+    backgroundColor: 'var(--bg-card)',
     padding: '20px',
     borderRadius: '8px',
-    border: '1px solid #333',
+    border: '1px solid var(--border)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'stretch',
@@ -220,7 +221,7 @@ const styles = {
     background: 'transparent',
     border: 'none',
     borderBottom: '2px solid #E50914',
-    color: '#fff',
+    color: 'var(--text-primary)',
     fontWeight: 'bold',
     fontSize: '16px'
   },
@@ -968,7 +969,7 @@ export default function ShopPage({ region, user }) {
         <div style={{ marginBottom: '30px' }}>
           <h3 className="net-section-title">게임 소개</h3>
           <div style={{
-            color: '#ccc', fontSize: '14px', lineHeight: '1.8',
+            color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.8',
             background: '#1a1a1a', borderRadius: '8px', padding: '16px 20px',
             border: '1px solid #2a2a2a'
           }}
@@ -986,7 +987,7 @@ export default function ShopPage({ region, user }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
           <YAxis stroke="#888" style={{ fontSize: '11px' }} />
-          <Tooltip contentStyle={{ backgroundColor: '#222', borderColor: '#555' }} />
+          <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
           <Legend />
           <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />
           <Line type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />
@@ -1002,7 +1003,7 @@ export default function ShopPage({ region, user }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
           <YAxis stroke="#888" style={{ fontSize: '11px' }} domain={['auto', 'auto']} />
-          <Tooltip contentStyle={{ backgroundColor: '#222', borderColor: '#555' }} />
+          <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
           <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
         </AreaChart>
       </div>
@@ -1013,7 +1014,7 @@ export default function ShopPage({ region, user }) {
         <div style={styles.bottomGrid}>
           <div style={{ minWidth: 0 }}>
             <h3 className="net-section-title">가격 비교</h3>
-            <div style={{ border: '1px solid #333', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
               {renderStoreList()}
             </div>
           </div>
