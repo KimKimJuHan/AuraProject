@@ -522,3 +522,26 @@ body.light-mode .search-panel {
 body.light-mode .tag-label { color: #333 !important; }
 body.light-mode .result-panel { background: #f8f8f8 !important; border-color: #ddd !important; }
 body.light-mode .reco-container { background: #f2f2f2 !important; }
+/* ── 관심없음 버튼 ───────────────────────────────────────────────────────────── */
+.dislike-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.65);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  color: #aaa;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+}
+.dislike-btn:hover {
+  background: rgba(229,9,20,0.85);
+  color: #fff;
+}

@@ -323,11 +323,60 @@ router.put("/liked-tags", authenticateToken, async (req, res) => {
     try {
         const { tags } = req.body;
         if (!Array.isArray(tags)) return res.status(400).json({ message: "tags 배열이 필요합니다." });
-        const filtered = tags.slice(0, 5); // 최대 5개
-        await User.findByIdAndUpdate(req.user._id, { $set: { likedTags: filtered } });
+        // 태그 개수 제한 없음 (피드백 반영)
+        await User.findByIdAndUpdate(req.user._id, { $set: { likedTags: tags } });
         res.json({ success: true, likedTags: filtered });
     } catch (err) {
         res.status(500).json({ message: "서버 오류" });
+    }
+});
+
+
+// ── 관심없음 ──────────────────────────────────────────────────────────────────
+// 관심없음 추가 + 태그 가중치 조정
+router.post('/dislike', authenticateToken, async (req, res) => {
+    try {
+        const { slug, tags } = req.body;
+        if (!slug) return res.status(400).json({ message: 'slug 필요' });
+
+        const update = { $addToSet: { dislikedGames: slug } };
+
+        // 태그 가중치 감소 (-0.3씩, 최소 -1.0)
+        if (tags && tags.length > 0) {
+            const user = await User.findById(req.user._id).lean();
+            const weights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
+            for (const tag of tags) {
+                weights[tag] = Math.max((weights[tag] || 0) - 0.3, -1.0);
+            }
+            update.$set = { tagWeights: weights };
+        }
+
+        await User.findByIdAndUpdate(req.user._id, update);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: '서버 오류' });
+    }
+});
+
+// 관심없음 취소
+router.delete('/dislike/:slug', authenticateToken, async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user._id, {
+            $pull: { dislikedGames: req.params.slug }
+        });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ message: '서버 오류' });
+    }
+});
+
+// 관심없음 목록 조회
+router.get('/disliked', authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('dislikedGames').lean();
+        res.json(user?.dislikedGames || []);
+    } catch (err) {
+        res.status(500).json({ message: '서버 오류' });
     }
 });
 

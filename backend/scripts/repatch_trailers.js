@@ -24,7 +24,7 @@ const LIMIT = limitArg ? parseInt(process.argv[process.argv.indexOf(limitArg) + 
 async function getTrailers(appId) {
     try {
         const res = await axios.get('https://store.steampowered.com/api/appdetails', {
-            params: { appids: appId, filters: 'movies', cc: 'kr' },
+            params: { appids: appId },  // filters 제거 - 전체 받아서 movies 추출
             timeout: 8000
         });
         const movies = res.data?.[String(appId)]?.data?.movies || [];
@@ -46,11 +46,7 @@ async function run() {
 
     const games = await Game.find({
         steam_appid: { $exists: true, $ne: null },
-        $or: [
-            { trailers: { $exists: false } },
-            { trailers: { $size: 0 } }
-        ]
-    }).select('_id title steam_appid').lean();
+    })  // 전체 재수집 - 기존 트레일러도 갱신.select('_id title steam_appid').lean();
 
     const targets = LIMIT > 0 ? games.slice(0, LIMIT) : games;
     console.log(`📋 트레일러 없는 게임: ${games.length}개 → 처리: ${targets.length}개`);

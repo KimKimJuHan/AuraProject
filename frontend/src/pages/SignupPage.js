@@ -54,8 +54,16 @@ function SignupPage() {
       // 백엔드 라우터(signup) 호출 추가
       await apiClient.post('/auth/signup', formData);
       
-      alert("가입이 완료되었습니다! 로그인해주세요.");
-      navigate('/login?redirect=onboarding');
+      // 가입 후 자동 로그인 시도
+      try {
+        await apiClient.post('/auth/login', {
+          username: formData.username,
+          password: formData.password,
+        });
+        navigate('/onboarding');
+      } catch {
+        navigate('/login?redirect=onboarding');
+      }
     } catch (err) {
       alert("가입 실패: " + (err.response?.data?.message || err.message));
     } finally {

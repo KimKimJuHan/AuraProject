@@ -30,7 +30,18 @@ export const GPU_OPTIONS = [
   { name: 'AMD Radeon RX 6700 XT', score: 22000 },
   { name: 'AMD Radeon RX 7600', score: 18000 },
   { name: 'AMD Radeon RX 7700 XT', score: 26000 },
-  { name: 'AMD Radeon RX 7800 XT', score: 30000 }
+  { name: 'AMD Radeon RX 7800 XT', score: 30000 },
+  { name: 'AMD Radeon RX 7900 XT', score: 36000 },
+  { name: 'AMD Radeon RX 7900 XTX', score: 42000 },
+  { name: 'AMD Radeon RX 9070', score: 36000 },
+  { name: 'AMD Radeon RX 9070 XT', score: 42000 },
+  { name: 'NVIDIA GeForce RTX 4090', score: 55000 },
+  { name: 'NVIDIA GeForce RTX 5060', score: 26000 },
+  { name: 'NVIDIA GeForce RTX 5060 Ti', score: 31000 },
+  { name: 'NVIDIA GeForce RTX 5070', score: 38000 },
+  { name: 'NVIDIA GeForce RTX 5070 Ti', score: 46000 },
+  { name: 'NVIDIA GeForce RTX 5080', score: 55000 },
+  { name: 'NVIDIA GeForce RTX 5090', score: 70000 }
 ];
 
 export const GPU_SCORE_MAP = GPU_OPTIONS.reduce((acc, item) => {

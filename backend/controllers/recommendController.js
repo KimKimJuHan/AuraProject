@@ -313,12 +313,16 @@ class RecommendController {
             }
 
             // ── 벡터 준비 ─────────────────────────────────────────────────
-            const maxTrend = Math.max(...candidates.map(g => g.trend_score || 0), 1);
+            // 관심없음 게임 제거
+            const filteredCandidates = candidates.filter(g =>
+                !userDislikedGames.includes(g.slug)
+            );
+            const maxTrend = Math.max(...filteredCandidates.map(g => g.trend_score || 0), 1);
             const userTagVec = hasTags ? userToVector(combinedTags, []) : {};
             const userSteamVec = hasSteam ? userToVector([], userSteamGames) : {};
 
             // ── 점수 계산 ─────────────────────────────────────────────────
-            const scored = candidates.map(game => {
+            const scored = filteredCandidates.map(game => {
                 const gTags = game.smart_tags?.length > 0 ? game.smart_tags : [];
                 const gameVec = gameToVector(gTags);
 
@@ -335,7 +339,18 @@ class RecommendController {
                 let reviewW = weights.review + (hasTags ? 0 : weights.tag * 0.5) + (hasSteam ? 0 : weights.steam * 0.5);
                 let trendW = weights.trend + (hasTags ? 0 : weights.tag * 0.5) + (hasSteam ? 0 : weights.steam * 0.5);
 
-                let score = (reviewNorm * reviewW) + (trendNorm * trendW) + (tagSim * tagW) + (steamSim * steamW);
+                // tagWeights 반영 - 관심없는 태그 패널티
+                let tagWeightBonus = 0;
+                if (Object.keys(userTagWeights).length > 0) {
+                    const gameTags = game.smart_tags || [];
+                    for (const tag of gameTags) {
+                        const w = userTagWeights[tag];
+                        if (w !== undefined) tagWeightBonus += w * 0.05;
+                    }
+                    tagWeightBonus = Math.max(-0.3, Math.min(0.3, tagWeightBonus));
+                }
+
+                let score = (reviewNorm * reviewW) + (trendNorm * trendW) + (tagSim * tagW) + (steamSim * steamW) + tagWeightBonus;
 
                 // ── playerType 보정 ───────────────────────────────────────
                 const isHard = gTags.some(t => ['소울라이크', '고난이도'].includes(t));
