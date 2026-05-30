@@ -21,7 +21,7 @@ function MyPage({ user, setUser }) {
     const navigate = useNavigate();
     const [isEditingNickname, setIsEditingNickname] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
-    const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 16 });
+    const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 0 });
     const [savedPcSpec, setSavedPcSpec] = useState(null);
     // eslint-disable-next-line no-unused-vars
     const [isEditingPassword, setIsEditingPassword] = useState(false);
@@ -165,7 +165,7 @@ function MyPage({ user, setUser }) {
         if (!window.confirm('저장된 PC 사양을 삭제하시겠습니까?')) return;
         removePcSpec();
         setSavedPcSpec(null);
-        setPcSpecForm({ cpuName: '', gpuName: '', ram: 16 });
+        setPcSpecForm({ cpuName: '', gpuName: '', ram: 0 });
         alert('PC 사양이 삭제되었습니다.');
     };
 
@@ -178,19 +178,19 @@ function MyPage({ user, setUser }) {
                 </button>
             </div>
 
-            <div className="mypage-grid" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px'}}>
-                <div className="search-panel mypage-card">
+            <div className="mypage-grid" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px', minWidth:0}}>
+                <div className="search-panel mypage-card" style={{minWidth:0, overflow:'hidden'}}>
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
                     <div style={{ marginBottom: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minHeight: '38px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '38px', width: '100%' }}>
                         {isEditingNickname ? (
                           <>
                             <input
                               value={newDisplayName}
                               onChange={(e) => setNewDisplayName(e.target.value)}
                               placeholder="새 닉네임 (2~20자)"
-                              style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #444', background: '#111', color: '#fff', fontSize: '14px' }}
+                              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '6px', border: '1px solid #444', background: '#111', color: '#fff', fontSize: '14px' }}
                             />
                             <button onClick={handleSaveNickname} className="search-btn" style={{ whiteSpace: 'nowrap', padding: '7px 12px' }}>저장</button>
                             <button onClick={() => { setIsEditingNickname(false); setNewDisplayName(user?.displayName || user?.username || ''); }} className="search-btn" style={{ backgroundColor: '#666', whiteSpace: 'nowrap', padding: '7px 12px' }}>취소</button>
@@ -281,6 +281,7 @@ function MyPage({ user, setUser }) {
                             onChange={(e) => setPcSpecForm(prev => ({ ...prev, ram: Number(e.target.value) }))}
                             style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
                         >
+                            <option value={0}>선택</option>
                             {[4, 8, 12, 16, 24, 32, 64].map(ram => (
                                 <option key={ram} value={ram}>{ram}GB</option>
                             ))}

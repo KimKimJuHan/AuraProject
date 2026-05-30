@@ -115,8 +115,8 @@ function ComparisonPage({ region, user }) {
     <div
       style={{
         padding: isMobile ? '20px 12px' : '40px',
-        color: '#fff',
-        backgroundColor: '#141414',
+        color: 'var(--text-primary)',
+        backgroundColor: 'var(--bg-primary)',
         minHeight: '100vh',
         boxSizing: 'border-box'
       }}
@@ -147,7 +147,7 @@ function ComparisonPage({ region, user }) {
           <span
             style={{
               backgroundColor: '#E50914',
-              color: '#fff',
+              color: 'var(--text-primary)',
               borderRadius: '999px',
               padding: isMobile ? '5px 10px' : '6px 12px',
               fontSize: isMobile ? '13px' : '14px',
@@ -160,14 +160,14 @@ function ComparisonPage({ region, user }) {
 
         {games.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: '#bbb', fontSize: '14px' }}>정렬:</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>정렬:</span>
             <select
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value)}
               style={{
-                backgroundColor: '#181818',
-                color: '#fff',
-                border: '1px solid #333',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border)',
                 borderRadius: '6px',
                 padding: '8px 12px',
                 fontSize: '14px',
@@ -186,7 +186,7 @@ function ComparisonPage({ region, user }) {
       {sortedGames.length === 0 ? (
         <p
           style={{
-            color: '#bbb',
+            color: 'var(--text-muted)',
             textAlign: 'center',
             marginTop: '50px',
             fontSize: '18px'
@@ -208,10 +208,10 @@ function ComparisonPage({ region, user }) {
             <div
               key={game.slug}
               style={{
-                backgroundColor: '#181818',
+                backgroundColor: 'var(--bg-card)',
                 borderRadius: '8px',
                 padding: isMobile ? '10px' : '15px',
-                border: '1px solid #333',
+                border: '1px solid var(--border)',
                 position: 'relative',
                 width: '100%',
                 boxSizing: 'border-box',
@@ -225,7 +225,7 @@ function ComparisonPage({ region, user }) {
                   top: '10px',
                   right: '10px',
                   background: '#E50914',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
@@ -279,7 +279,7 @@ function ComparisonPage({ region, user }) {
               <p
                 style={{
                   fontSize: isMobile ? '12px' : '14px',
-                  color: '#bbb',
+                  color: 'var(--text-muted)',
                   margin: '5px 0'
                 }}
               >
@@ -289,7 +289,7 @@ function ComparisonPage({ region, user }) {
               <p
                 style={{
                   fontSize: isMobile ? '12px' : '14px',
-                  color: '#bbb',
+                  color: 'var(--text-muted)',
                   margin: '5px 0'
                 }}
               >
@@ -301,8 +301,8 @@ function ComparisonPage({ region, user }) {
                 style={{
                   display: 'block',
                   textAlign: 'center',
-                  backgroundColor: '#333',
-                  color: '#fff',
+                  backgroundColor: 'var(--bg-hover)',
+                  color: 'var(--text-primary)',
                   textDecoration: 'none',
                   padding: isMobile ? '9px' : '10px',
                   borderRadius: '4px',

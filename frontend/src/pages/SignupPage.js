@@ -12,6 +12,8 @@ function SignupPage() {
     code: ''
   });
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -22,7 +24,7 @@ function SignupPage() {
   const handleSendCode = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      return alert("비밀번호가 일치하지 않습니다.");
+      return setErrorMsg("비밀번호가 일치하지 않습니다.");
     }
     
     setLoading(true);
@@ -31,10 +33,10 @@ function SignupPage() {
         email: formData.email,
         username: formData.username
       });
-      alert("인증코드가 발송되었습니다. (백엔드 터미널 또는 구글 메일함을 확인하세요)");
+      setSuccessMsg("인증코드가 발송되었습니다. 이메일을 확인하세요.");
       setStep(2);
     } catch (err) {
-      alert("발송 실패: " + (err.response?.data?.message || err.message));
+      setErrorMsg("발송 실패: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -60,12 +62,17 @@ function SignupPage() {
           username: formData.username,
           password: formData.password,
         });
+        // 로그인 후 user 상태 업데이트
+        try {
+          const statusRes = await apiClient.get('/auth/status');
+          if (statusRes.data?.user && setUser) setUser(statusRes.data.user);
+        } catch {}
         navigate('/onboarding');
       } catch {
         navigate('/login?redirect=onboarding');
       }
     } catch (err) {
-      alert("가입 실패: " + (err.response?.data?.message || err.message));
+      setErrorMsg(err.response?.data?.message || "가입에 실패했습니다.");
     } finally {
       setLoading(false);
     }

@@ -103,4 +103,17 @@ router.get(
   }
 );
 
+// 아이디 중복 확인
+router.get('/check-username', async (req, res) => {
+    try {
+        const { username } = req.query;
+        if (!username) return res.status(400).json({ message: 'username 필요' });
+        const exists = await require('../models/User').exists({ username });
+        res.json({ exists: !!exists });
+    } catch (e) {
+        res.status(500).json({ message: '서버 오류' });
+    }
+});
+
+
 module.exports = router;

@@ -246,6 +246,8 @@ class RecommendController {
             let userLikedTags = [];
             let userSteamGames = [];
             let userType = 'beginner';
+            let userDislikedGames = [];
+            let userTagWeights = {};
 
             if (userId) {
                 const user = await User.findById(userId).lean();
@@ -253,6 +255,8 @@ class RecommendController {
                     userLikedTags = user.likedTags || [];
                     userSteamGames = user.steamGames || [];
                     userType = user.playerType || 'beginner';
+                    userDislikedGames = user.dislikedGames || [];
+                    userTagWeights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
                 }
             }
 
@@ -283,11 +287,31 @@ class RecommendController {
                 if (andConditions) candidateQuery.$and = andConditions;
             }
 
-            // 후보 1000개 (기존 500에서 확대 → 다양성 확보)
-            let candidates = await Game.find(candidateQuery)
-                .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score')
-                .limit(1000)
-                .lean();
+            // 후보 선정: 매칭 게임 + 랜덤 샘플로 다양성 확보
+            let candidates;
+            if (hasTags || hasSteam) {
+                // 태그/Steam 있으면: 매칭 우선 500 + 전체 랜덤 300
+                const matched = await Game.find(candidateQuery)
+                    .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score')
+                    .sort({ trend_score: -1 })
+                    .limit(500).lean();
+                const matchedSlugs = new Set(matched.map(g => g.slug));
+                const randomMatch = { isAdult: { $ne: true } };
+                if (hasSteam) randomMatch.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
+                const randomExtra = await Game.aggregate([
+                    { $match: randomMatch },
+                    { $sample: { size: 300 } }
+                ]);
+                candidates = [...matched, ...randomExtra.filter(g => !matchedSlugs.has(g.slug))];
+            } else {
+                // 선호 정보 없음(콜드스타트): 전체 랜덤 샘플 (Steam 보유 제외)
+                const coldStartMatch = { isAdult: { $ne: true } };
+                if (hasSteam) coldStartMatch.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
+                candidates = await Game.aggregate([
+                    { $match: coldStartMatch },
+                    { $sample: { size: 800 } }
+                ]);
+            }
 
             // 태그 AND 필터 결과가 너무 적으면 ($and 제거하고 OR 방식으로 확장)
             if (candidates.length < 20 && userSelectedTags.length > 0) {
@@ -351,6 +375,8 @@ class RecommendController {
                 }
 
                 let score = (reviewNorm * reviewW) + (trendNorm * trendW) + (tagSim * tagW) + (steamSim * steamW) + tagWeightBonus;
+                // 약간의 랜덤성 (±5%) → 매번 다른 순서
+                score *= (0.95 + Math.random() * 0.10);
 
                 // ── playerType 보정 ───────────────────────────────────────
                 const isHard = gTags.some(t => ['소울라이크', '고난이도'].includes(t));
@@ -391,7 +417,10 @@ class RecommendController {
             const baseSectionQuery = { isAdult: { $ne: true } };
             if (hasSteam) baseSectionQuery.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
 
-            const [costEffective, trend, hiddenGem, multiplayer] = await Promise.all([
+            // 종합추천에 사용된 slug set (섹션 간 중복 방지)
+            const usedSlugs = new Set(comprehensive.map(g => g.slug));
+
+            const [costEffectiveRaw, trendRaw, hiddenGemRaw, multiplayerRaw] = await Promise.all([
                 // 가성비: 50% 이상 할인 or 5000원 이하
                 Game.find({
                     ...baseSectionQuery,
@@ -399,25 +428,53 @@ class RecommendController {
                         { 'price_info.discount_percent': { $gte: 50 } },
                         { 'price_info.current_price': { $lte: 5000, $gt: 0 } }
                     ]
-                }).sort({ 'price_info.discount_percent': -1 }).limit(10).lean(),
+                }).sort({ 'price_info.discount_percent': -1 }).limit(20).lean(),
 
-                // 트렌드: trend_score 기반 (치지직+SOOP+Twitch+CCU 합산)
+                // 트렌드: trend_score 기반
                 Game.find({ ...baseSectionQuery, trend_score: { $gt: 0 } })
-                    .sort({ trend_score: -1 }).limit(10).lean(),
+                    .sort({ trend_score: -1 }).limit(20).lean(),
 
-                // 숨겨진 명작: 평점 90%+ AND 리뷰 100~10000개 사이 (소규모 인디)
+                // 숨겨진 명작: 평점 90%+ AND 리뷰 100~10000개
                 Game.find({
                     ...baseSectionQuery,
                     'steam_reviews.overall.percent': { $gte: 90 },
                     'steam_reviews.overall.total': { $gte: 100, $lte: 10000 }
-                }).sort({ 'steam_reviews.overall.percent': -1 }).limit(10).lean(),
+                }).sort({ 'steam_reviews.overall.percent': -1 }).limit(20).lean(),
 
                 // 멀티플레이
                 Game.find({
                     ...baseSectionQuery,
                     smart_tags: { $in: [/멀티플레이/i, /협동/i, /PvP/i] }
-                }).sort({ trend_score: -1 }).limit(10).lean()
+                }).sort({ trend_score: -1 }).limit(20).lean()
             ]);
+
+            // 섹션 중복 제거 함수
+            const dedup = (arr, limit = 10) => {
+                const result = [];
+                for (const g of arr) {
+                    if (!usedSlugs.has(g.slug)) {
+                        usedSlugs.add(g.slug);
+                        result.push(g);
+                        if (result.length >= limit) break;
+                    }
+                }
+                return result;
+            };
+
+            // 사용자 태그 기반 섹션 내 정렬 보정
+            const sortByUserTags = (arr) => {
+                if (!hasTags) return arr;
+                return [...arr].sort((a, b) => {
+                    const aScore = (a.smart_tags || []).filter(t => combinedTags.includes(t)).length;
+                    const bScore = (b.smart_tags || []).filter(t => combinedTags.includes(t)).length;
+                    return bScore - aScore;
+                });
+            };
+
+            const costEffective = dedup(sortByUserTags(costEffectiveRaw));
+            const trend = dedup(sortByUserTags(trendRaw));
+            const hiddenGem = dedup(sortByUserTags(hiddenGemRaw));
+            const multiplayer = dedup(multiplayerRaw);
 
             res.status(200).json({
                 success: true,

@@ -36,8 +36,6 @@ export const CPU_OPTIONS = [
   { name: 'AMD Ryzen 9 9900X', score: 60000 },
   { name: 'AMD Ryzen 9 9950X', score: 70000 },
   { name: 'Intel Core i5-13600K', score: 38000 },
-  { name: 'Intel Core i7-13700K', score: 48000 },
-  { name: 'Intel Core i9-13900K', score: 60000 },
   { name: 'Intel Core i5-14600K', score: 40000 },
   { name: 'Intel Core i7-14700K', score: 50000 },
   { name: 'Intel Core i9-14900K', score: 62000 },
