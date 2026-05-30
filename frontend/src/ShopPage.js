@@ -745,9 +745,9 @@ export default function ShopPage({ region, user }) {
               👥 Steam {gameData.steam_ccu.toLocaleString()}명
             </span>
           )}
-          {(gameData.twitch_viewers + gameData.chzzk_viewers) > 0 && (
+          {(gameData.twitch_viewers + gameData.chzzk_viewers + (gameData.soop_viewers||0)) > 0 && (
             <span style={{ ...styles.trendBadge, backgroundColor: '#9146FF' }}>
-              📺 Live {(gameData.twitch_viewers + gameData.chzzk_viewers).toLocaleString()}명
+              📺 Live {(gameData.twitch_viewers + gameData.chzzk_viewers + (gameData.soop_viewers||0)).toLocaleString()}명
             </span>
           )}
         </div>

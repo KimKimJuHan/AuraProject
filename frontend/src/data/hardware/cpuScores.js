@@ -29,7 +29,21 @@ export const CPU_OPTIONS = [
   { name: 'AMD Ryzen 7 5800X', score: 28000 },
   { name: 'AMD Ryzen 7 7700X', score: 36500 },
   { name: 'AMD Ryzen 9 5900X', score: 39000 },
-  { name: 'AMD Ryzen 9 7900X', score: 52000 }
+  { name: 'AMD Ryzen 9 7900X', score: 52000 },
+  { name: 'AMD Ryzen 7 7800X3D', score: 48000 },
+  { name: 'AMD Ryzen 9 7950X3D', score: 65000 },
+  { name: 'AMD Ryzen 7 9700X', score: 50000 },
+  { name: 'AMD Ryzen 9 9900X', score: 60000 },
+  { name: 'AMD Ryzen 9 9950X', score: 70000 },
+  { name: 'Intel Core i5-13600K', score: 38000 },
+  { name: 'Intel Core i7-13700K', score: 48000 },
+  { name: 'Intel Core i9-13900K', score: 60000 },
+  { name: 'Intel Core i5-14600K', score: 40000 },
+  { name: 'Intel Core i7-14700K', score: 50000 },
+  { name: 'Intel Core i9-14900K', score: 62000 },
+  { name: 'Intel Core Ultra 5 245K', score: 42000 },
+  { name: 'Intel Core Ultra 7 265K', score: 52000 },
+  { name: 'Intel Core Ultra 9 285K', score: 64000 }
 ];
 
 export const CPU_SCORE_MAP = CPU_OPTIONS.reduce((acc, item) => {

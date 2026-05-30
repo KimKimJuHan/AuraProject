@@ -11,6 +11,47 @@ function escapeRegex(text = '') {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ── 한글 게임 약칭 매핑 ────────────────────────────────────────────────────────
+const KO_ALIAS = {
+    '배그': 'PUBG', '배틀그라운드': 'PUBG',
+    '롤': 'League of Legends', '리그오브레전드': 'League of Legends',
+    '오버워치': 'Overwatch', '옵치': 'Overwatch',
+    '발로란트': 'Valorant', '발로': 'Valorant',
+    '마인크래프트': 'Minecraft', '마크': 'Minecraft',
+    '스타크래프트': 'StarCraft', '스타': 'StarCraft',
+    '에이펙스': 'Apex Legends', '에펙': 'Apex Legends',
+    '엘든링': 'Elden Ring',
+    '사이버펑크': 'Cyberpunk 2077',
+    '위쳐': 'The Witcher',
+    '하데스': 'Hades',
+    '발라트로': 'Balatro',
+    '팔월드': 'Palworld',
+    '스타듀밸리': 'Stardew Valley', '스타듀': 'Stardew Valley',
+    '테라리아': 'Terraria',
+    '로스트아크': 'Lost Ark',
+    '와우': 'World of Warcraft',
+    '디아블로': 'Diablo',
+    '피파': 'EA Sports FC',
+    '철권': 'Tekken',
+    '다크소울': 'Dark Souls',
+    '몬스터헌터': 'Monster Hunter',
+    '몬헌': 'Monster Hunter',
+    '블랙신화': 'Black Myth',
+    '호그와트': 'Hogwarts Legacy',
+};
+
+function resolveQuery(q) {
+    const lower = q.replace(/\s/g, '').toLowerCase();
+    for (const [ko, en] of Object.entries(KO_ALIAS)) {
+        if (lower.includes(ko.toLowerCase())) {
+            const firstWord = en.split(' ')[0];
+            return [...new Set([q, en, firstWord])];
+        }
+    }
+    return [q];
+}
+
+
 function normalizeTag(value = '') {
     return String(value)
         .trim()
@@ -340,5 +381,108 @@ router.post('/recommend/wishlist', async (req, res) => {
         res.status(500).json({ success: false, message: '서버 에러' });
     }
 });
+
+// ── 기간 한정 무료 게임 (GamerPower + Epic Games) ────────────────────────────
+router.get('/games/giveaway', async (req, res) => {
+    try {
+        const axios = require('axios');
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+        };
+
+        const results = [];
+
+        // 1. GamerPower API (Epic, Steam, GOG 등 다양한 플랫폼 무료 배포)
+        try {
+            const gpRes = await axios.get(
+                'https://www.gamerpower.com/api/giveaways?platform=pc&type=game&sort-by=popularity',
+                { headers, timeout: 10000 }
+            );
+            const gpGames = gpRes.data || [];
+            for (const g of gpGames) {
+                results.push({
+                    title: g.title || '',
+                    title_ko: g.title || '',
+                    main_image: g.image || '',
+                    slug: null,
+                    giveaway_url: g.open_giveaway_url || g.giveaway_url || '',
+                    shop_name: g.platforms || 'PC',
+                    expiry: g.end_date && g.end_date !== 'N/A' ? g.end_date : null,
+                    description: g.description || '',
+                    is_giveaway: true,
+                    source: 'gamerpower',
+                });
+            }
+        } catch (e) {
+            console.error('GamerPower 오류:', e.message);
+        }
+
+        // 2. Epic Games Store 공식 무료 게임
+        try {
+            const epicRes = await axios.get(
+                'https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=ko&country=KR&allowCountries=KR',
+                { headers, timeout: 10000 }
+            );
+            const games = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
+            const freeGames = games.filter(g => g?.price?.totalPrice?.discountPrice === 0);
+
+            for (const g of freeGames) {
+                // GamerPower에 이미 있으면 스킵
+                if (results.some(r => r.title.toLowerCase().includes(g.title?.toLowerCase()))) continue;
+
+                const promos = g.promotions?.promotionalOffers?.[0]?.promotionalOffers;
+                const expiry = promos?.[0]?.endDate || null;
+                const slug = g.productSlug || g.urlSlug || '';
+
+                results.push({
+                    title: g.title || '',
+                    title_ko: g.title || '',
+                    main_image: g.keyImages?.find(img => img.type === 'Thumbnail')?.url ||
+                                g.keyImages?.[0]?.url || '',
+                    slug: null,
+                    giveaway_url: slug ? `https://store.epicgames.com/ko/p/${slug}` : 'https://store.epicgames.com/ko/free-games',
+                    shop_name: 'Epic Games Store',
+                    expiry,
+                    description: g.description || '',
+                    is_giveaway: true,
+                    source: 'epic',
+                });
+            }
+        } catch (e) {
+            console.error('Epic 오류:', e.message);
+        }
+
+        // DB에서 매칭되는 게임 정보 보강 (이미지, slug 등)
+        for (const item of results) {
+            if (!item.slug) {
+                const dbGame = await Game.findOne({
+                    $or: [
+                        { title: new RegExp(escapeRegex(item.title), 'i') },
+                        { title_ko: new RegExp(escapeRegex(item.title), 'i') },
+                    ]
+                }).select('slug main_image smart_tags steam_appid').lean();
+                if (dbGame) {
+                    item.slug = dbGame.slug;
+                    if (!item.main_image) item.main_image = dbGame.main_image;
+                    item.smart_tags = dbGame.smart_tags;
+                }
+            }
+        }
+
+        // 만료일 임박 순 정렬
+        results.sort((a, b) => {
+            if (!a.expiry) return 1;
+            if (!b.expiry) return -1;
+            return new Date(a.expiry) - new Date(b.expiry);
+        });
+
+        res.json({ success: true, games: results });
+    } catch (err) {
+        console.error('Giveaway API Error:', err.message);
+        res.json({ success: true, games: [] });
+    }
+});
+
 
 module.exports = router;

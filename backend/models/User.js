@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema({
     
     likedTags: { type: [String], default: [] },
     wishlist: { type: [String], default: [] },
+    dislikedGames: { type: [String], default: [] },  // 관심없음 게임 slug 목록
+    tagWeights: { type: Map, of: Number, default: {} }, // 태그별 가중치 (-1.0 ~ 2.0)
     priceAlerts: [{
         slug: String,
         targetPrice: Number,

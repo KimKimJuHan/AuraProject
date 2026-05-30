@@ -166,77 +166,71 @@ async function getChzzkViewers(game) {
     return 0;
 }
 
-// ── SOOP (구 아프리카TV) ─────────────────────────────────────────────────────
-const SOOP_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8',
-    'Origin': 'https://www.sooplive.co.kr',
-    'Referer': 'https://www.sooplive.co.kr/',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-site',
-};
-
+// ── SOOP ─────────────────────────────────────────────────────────────────────
 async function getSoopViewers(game) {
-    const koCore = getCoreKeyword(game.title_ko);
-    const enCore = getCoreKeyword(game.title);
-    const searchQuery = koCore || enCore;
-    if (!searchQuery) return 0;
-
-    const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
-    const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
-
-    const ENDPOINTS = [
-        `https://live.sooplive.co.kr/api/search/searchLive?szKeyword=${encodeURIComponent(searchQuery)}&nPageNo=1&nListCnt=50&szSearchType=game`,
-        `https://live.afreecatv.com/api/search/searchLive?szKeyword=${encodeURIComponent(searchQuery)}&nPageNo=1&nListCnt=50&szSearchType=game`,
-    ];
-
-    for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
+    // 공식 API 키가 있으면 우선 사용
+    const clientId = process.env.SOOP_CLIENT_ID;
+    if (clientId) {
         try {
-            const res = await axios.get(ENDPOINTS[attempt], {
-                headers: SOOP_HEADERS,
-                timeout: 10000
+            const res = await axios.get('https://openapi.sooplive.com/broad/list', {
+                params: { client_id: clientId, select_key: 'title',
+                          select_value: getCoreKeyword(game.title), order_type: 'view_cnt', page_no: 1 },
+                timeout: 10000,
             });
+            const broads = res.data?.broad || [];
+            return broads.reduce((sum, b) => sum + Number(b.total_view_cnt || 0), 0);
+        } catch { /* 아래 비공식으로 폴백 */ }
+    }
 
-            // SOOP 응답 구조: data.list 또는 RESULT 배열
-            const lives = res.data?.data?.list || res.data?.RESULT || res.data?.list || [];
-            let viewers = 0;
+    // 비공식 API (sch.afreecatv.com) - 공식 키 없을 때 사용
+    try {
+        const searchQuery = getCoreKeyword(game.title_ko) || getCoreKeyword(game.title);
+        if (!searchQuery) return 0;
 
-            for (const item of lives) {
-                const gameName = item.game_name || item.GAME_NM || item.categoryName || '';
-                const normGame = normalize(gameName);
+        const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
+        const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
 
-                let isMatch = false;
-                if (targetKor && targetKor.length > 1 && normGame.includes(targetKor)) isMatch = true;
-                else if (targetEng && targetEng.length > 2 && normGame.includes(targetEng)) isMatch = true;
+        const res = await axios.get('https://sch.afreecatv.com/api.php', {
+            params: {
+                szWork: 'schLive',
+                szKeyword: searchQuery,
+                nPageNo: 1,
+                nListCnt: 50,
+            },
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.sooplive.co.kr/',
+            },
+            timeout: 10000,
+        });
 
-                if (!isMatch && normGame.length > 0) {
-                    const simKor = targetKor ? getSimilarity(targetKor, normGame) : 0;
-                    const simEng = targetEng ? getSimilarity(targetEng, normGame) : 0;
-                    if (simKor >= 0.75 || simEng >= 0.75) isMatch = true;
-                }
+        const broads = res.data?.REAL_BROAD || [];
+        let viewers = 0;
 
-                if (isMatch) {
-                    const viewerCount = item.current_sum_viewer || item.VIEWER_CNT || item.view_cnt || 0;
-                    viewers += Number(viewerCount) || 0;
-                }
+        for (const item of broads) {
+            const catName = normalize(item.broad_cate_name || '');
+            const titleNorm = normalize(item.broad_title || '');
+
+            let isMatch = false;
+            if (targetKor && (catName.includes(targetKor) || titleNorm.includes(targetKor))) isMatch = true;
+            else if (targetEng && (catName.includes(targetEng) || titleNorm.includes(targetEng))) isMatch = true;
+
+            if (!isMatch) {
+                const sim = Math.max(
+                    targetKor ? getSimilarity(targetKor, catName) : 0,
+                    targetEng ? getSimilarity(targetEng, catName) : 0
+                );
+                if (sim >= 0.75) isMatch = true;
             }
 
-            return viewers;
-
-        } catch (err) {
-            const status = err.response?.status;
-            if (status === 403 || status === 429) {
-                console.log(`  [SOOP ${status}] ${game.title} — ${attempt < ENDPOINTS.length - 1 ? '엔드포인트 전환' : '포기'}`);
-                if (attempt < ENDPOINTS.length - 1) await sleep(2000);
+            if (isMatch) {
+                viewers += Number(item.total_view_cnt || item.m_current_view_cnt || 0);
             }
         }
-    }
-    return 0;
-}
 
-// ── Twitch viewers ───────────────────────────────────────────────────────────
+        return viewers;
+    } catch { return 0; }
+}// ── Twitch viewers ───────────────────────────────────────────────────────────
 async function getTwitchViewers(steamId) {
     if (!twitchToken || !TWITCH_CLIENT_ID) return 0;
     try {
