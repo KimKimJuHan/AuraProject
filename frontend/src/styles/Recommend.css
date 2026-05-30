@@ -545,3 +545,9 @@ body.light-mode .reco-container { background: #f2f2f2 !important; }
   background: rgba(229,9,20,0.85);
   color: #fff;
 }
+/* Link visited 색상 초기화 */
+.game-card a, .game-card a:visited, .game-card a:hover, .game-card a:active {
+  color: inherit;
+  text-decoration: none;
+}
+.game-title { color: var(--text-primary) !important; }

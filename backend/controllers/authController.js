@@ -46,11 +46,22 @@ class AuthController {
     signup = async (req, res) => {
         try {
             const { username, password, email } = req.body;
-            if (!password || password.length < 8) {
+
+            // 입력값 검증
+            if (!username || username.length < 3)
+                return res.status(400).json({ success: false, message: '아이디는 3자 이상이어야 합니다.' });
+            if (!password || password.length < 8)
                 return res.status(400).json({ success: false, message: '비밀번호는 8자 이상이어야 합니다.' });
-            }
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+                return res.status(400).json({ success: false, message: '올바른 이메일 형식이 아닙니다.' });
+
+            // 아이디 중복 확인
             const existingUser = await User.findOne({ username });
-            if (existingUser) return res.status(400).json({ success: false, message: '이미 존재하는 아이디입니다.' });
+            if (existingUser) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
+
+            // 이메일 중복 확인
+            const existingEmail = await User.findOne({ email });
+            if (existingEmail) return res.status(400).json({ success: false, message: '이미 가입된 이메일입니다.' });
 
             const hashedPassword = await bcrypt.hash(password, 10);
             const newUser = new User({ username, password: hashedPassword, email });

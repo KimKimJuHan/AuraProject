@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 import AdminInquiryPage from './pages/Support/AdminInquiryPage';
@@ -68,8 +68,8 @@ const styles = {
   filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
   filterBox: { backgroundColor: 'var(--bg-card)', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
   filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: 'var(--bg-hover)', borderBottom: '1px solid #333', userSelect: 'none' },
-  filterTitle: { fontSize: '14px', color: '#ddd', fontWeight: 'bold' },
-  filterArrow: { color: '#666', fontSize: '12px' },
+  filterTitle: { fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold' },
+  filterArrow: { color: 'var(--text-secondary)', fontSize: '12px' },
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: 'var(--bg-card)', borderTop: '1px solid var(--border)' },
   tagBtn: { backgroundColor: 'var(--bg-hover)', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
@@ -185,12 +185,21 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
   const compatibility = checkPcCompatibility(game);
 
+  // 무료배포 게임(slug 없음)은 외부 링크로
+  const CardWrapper = game.is_giveaway && !game.slug ? 'a' : Link;
+
   return (
-    <Link to={`/game/${game.slug}`} className="net-card">
+    <CardWrapper
+      {...(game.is_giveaway && !game.slug
+        ? { href: game.giveaway_url, target: '_blank', rel: 'noopener noreferrer' }
+        : { to: `/game/${game.slug}` })}
+      className="net-card"
+    >
         <div className="net-card-thumb">
             <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
+            {game.is_giveaway && <div style={{position:'absolute', top:5, left:5, background:'#46d369', color:'#000', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold'}}>무료배포</div>}
             
             {isOwned && <div style={{position:'absolute', top:10, right:45, background:'rgba(27,40,56,0.9)', color:'#66c0f4', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold', border:'1px solid #66c0f4', zIndex: 4}}>보유중</div>}
             
@@ -242,13 +251,20 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
 
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
-                    <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
+                    {game.is_giveaway ? (
+                      <>
+                        <span style={{color:'#46d369', fontWeight:'bold', fontSize:'13px'}}>{game.shop_name || '무료 배포 중'}</span>
+                        {game.expiry && <span style={{color:'#ff9900', fontSize:'11px', marginTop:'2px'}}>⏰ {new Date(game.expiry).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'})} 종료</span>}
+                      </>
+                    ) : (
+                      <span style={{color: currentPriceText === "무료" ? '#46d369' : '#fff', fontWeight:'bold', fontSize:'14px'}}>
                         {currentPriceText}
-                    </span>
+                      </span>
+                    )}
                 </div>
             </div>
         </div>
-    </Link>
+    </CardWrapper>
   );
 }
 
@@ -282,6 +298,18 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
         const currentPlayerType = user?.playerType || 'beginner';
         
         try {
+            // 무료배포 탭 - 별도 API
+            if (activeTab === 'giveaway') {
+                const gwRes = await fetch(`${API_BASE_URL}/api/games/giveaway`);
+                const gwData = await gwRes.json();
+                if (gwData.success) {
+                    setGames(gwData.games || []);
+                    setHasMore(false);
+                }
+                setLoading(false);
+                return;
+            }
+
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -328,7 +356,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
       <OnboardingPopup />
       <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'2px', marginBottom:'12px', overflowX:'auto', scrollbarWidth:'none' }}>
-          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'},{k:'giveaway',n:'🎁 무료배포'}].map(t => (
+          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'},{k:'giveaway',n:'무료배포'}].map(t => (
             <button key={t.k} onClick={() => { setActiveTab(t.k); setPage(1); setGames([]); }}
               style={{ padding:'8px 18px', border:'none', cursor:'pointer', fontSize:'14px',
                 background:'none', whiteSpace:'nowrap', flexShrink:0, marginBottom:'-2px',
@@ -361,7 +389,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
           ))}
           <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
           <span style={{ color:'var(--text-muted)', fontSize:'12px', fontWeight:'600' }}>할인</span>
-          {[{k:0,n:'전체'},{k:20,n:'20%↑'},{k:50,n:'50%↑'},{k:75,n:'75%↑'}].map(d => (
+          {[{k:0,n:'전체'},{k:25,n:'25%↑'},{k:50,n:'50%↑'},{k:75,n:'75%↑'}].map(d => (
             <button key={d.k} onClick={() => { setMinDiscount(d.k); setPage(1); setGames([]); }}
               style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
                 background: minDiscount===d.k ? '#E50914' : 'var(--bg-hover)',
@@ -842,8 +870,8 @@ function App() {
           <Route path="/comparison" element={<ComparisonPage region={region} user={user} />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/login" element={<LoginPage user={user} setUser={setUser} />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/onboarding" element={<OnboardingPage user={user} setUser={setUser} />} />
+          <Route path="/signup" element={<SignupPage setUser={setUser} />} />
+          <Route path="/onboarding" element={user ? <OnboardingPage user={user} setUser={setUser} /> : <Navigate to="/login?redirect=onboarding" replace />} />
           <Route path="/recommend/personal" element={<PersonalRecoPage user={user} />} />
           <Route path="/mypage" element={<MyPage user={user} setUser={setUser} />} />
           <Route path="/support/faq" element={<FaqPage />} />

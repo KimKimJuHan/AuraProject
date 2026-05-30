@@ -16,46 +16,69 @@ const TAG_CATEGORIES = {
   '특징':   ['오픈월드', '샌드박스', '스토리', '선택지', '멀티엔딩', '고난이도', '협동', '로컬협동', 'PvP', '경쟁', '멀티플레이', '싱글플레이', '캐릭터커스텀', '자원관리', '기지건설'],
 };
 
-function GameCard({ game, userWishlist, onToggleWishlist, user }) {
+function GameCard({ game, userWishlist, onToggleWishlist, user, onDislike }) {
+    const [removing, setRemoving] = useState(false);
     const isWishlisted = userWishlist.includes(game.slug);
 
     const handleHeartClick = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!user) {
-            alert("로그인이 필요한 기능입니다.");
-            return;
-        }
+        if (!user) { alert("로그인이 필요한 기능입니다."); return; }
         onToggleWishlist(game.slug, isWishlisted);
     };
 
+    const handleDislikeClick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user || !onDislike) return;
+        setRemoving(true);
+        setTimeout(() => onDislike(game.slug, game.smart_tags || []), 220);
+    };
+
     return (
-        <Link to={`/game/${game.slug || `steam-${game.appid}`}`} className="game-card">
-            <div className="thumb-wrapper">
-                <img src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
-                <div className="net-card-gradient"></div>
-                <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
-            </div>
-            <div className="card-info">
-                <div className="game-title">{game.title_ko || game.title || game.name}
-                <PcCompatibilityBadge game={game} compact /></div>
-                <div className="game-meta-row">
-                    {/* ★ 가격 포매터 유틸리티 적용 */}
-                    <span className="game-price" style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 'bold' }}>
-                        {formatPrice(game.price_info, 'KR')}
-                    </span>
+        <div className="game-card" style={{ position: 'relative', opacity: removing ? 0 : 1, transform: removing ? 'scale(0.92)' : 'scale(1)', transition: 'opacity 0.2s, transform 0.2s' }}>
+            {/* 관심없음 버튼 - Link 바깥 */}
+            {user && onDislike && (
+                <button
+                    onClick={handleDislikeClick}
+                    title="관심없음"
+                    style={{
+                        position: 'absolute', top: '8px', left: '8px', zIndex: 20,
+                        background: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '50%',
+                        width: '28px', height: '28px', color: '#ccc', fontSize: '14px',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.15s, color 0.15s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background='rgba(229,9,20,0.9)'; e.currentTarget.style.color='#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background='rgba(0,0,0,0.7)'; e.currentTarget.style.color='#ccc'; }}
+                >✕</button>
+            )}
+            <Link to={`/game/${game.slug || `steam-${game.appid}`}`} style={{ textDecoration: 'none', display: 'block' }}>
+                <div className="thumb-wrapper">
+                    <img src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
+                    <div className="net-card-gradient"></div>
+                    <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
                 </div>
-                {game.reason && (
-                    <div style={{ fontSize: '11px', color: '#E50914', marginTop: '6px', fontWeight: 'bold', lineHeight: '1.3', wordBreak: 'keep-all' }}>
-                        {game.reason}
+                <div className="card-info">
+                    <div className="game-title">{game.title_ko || game.title || game.name}
+                    <PcCompatibilityBadge game={game} compact /></div>
+                    <div className="game-meta-row">
+                        <span className="game-price" style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: 'bold' }}>
+                            {formatPrice(game.price_info, 'KR')}
+                        </span>
                     </div>
-                )}
-            </div>
-        </Link>
+                    {game.reason && (
+                        <div style={{ fontSize: '11px', color: '#E50914', marginTop: '6px', fontWeight: 'bold', lineHeight: '1.3', wordBreak: 'keep-all' }}>
+                            {game.reason}
+                        </div>
+                    )}
+                </div>
+            </Link>
+        </div>
     );
 }
 
-function RecoSection({ title, games, userWishlist, onToggleWishlist, user }) {
+function RecoSection({ title, games, userWishlist, onToggleWishlist, user, onDislike }) {
     const COLS = 5;
     const [visibleCount, setVisibleCount] = useState(COLS);
     if (!games || games.length === 0) return null;
@@ -89,6 +112,7 @@ function RecoSection({ title, games, userWishlist, onToggleWishlist, user }) {
                         userWishlist={userWishlist}
                         onToggleWishlist={onToggleWishlist}
                         user={user}
+                        onDislike={onDislike}
                     />
                 ))}
             </div>
@@ -118,6 +142,18 @@ export default function PersonalRecoPage({ user }) {
   }, [user]);
 
   // DB 위시리스트 토글
+  const handleDislike = async (gameSlug, tags) => {
+    setData(prev => ({
+        comprehensive: prev.comprehensive.filter(g => g.slug !== gameSlug),
+        costEffective: prev.costEffective.filter(g => g.slug !== gameSlug),
+        trend: prev.trend.filter(g => g.slug !== gameSlug),
+        hiddenGem: prev.hiddenGem.filter(g => g.slug !== gameSlug),
+        multiplayer: prev.multiplayer.filter(g => g.slug !== gameSlug),
+    }));
+    setTagSpecificData(prev => prev.filter(g => g.slug !== gameSlug));
+    try { await apiClient.post('/user/dislike', { slug: gameSlug, tags }); } catch {}
+  };
+
   const handleToggleWishlist = async (gameSlug, isCurrentlyWished) => {
     if (isCurrentlyWished) {
         setUserWishlist(prev => prev.filter(s => s !== gameSlug));
@@ -260,14 +296,15 @@ export default function PersonalRecoPage({ user }) {
                     userWishlist={userWishlist}
                     onToggleWishlist={handleToggleWishlist}
                     user={user}
+                    onDislike={handleDislike}
                 />
             )}
             
-            <RecoSection title="종합 추천" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="가성비 추천" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
-            <RecoSection title="멀티플레이 추천" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} />
+            <RecoSection title="종합 추천" games={data.comprehensive} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} onDislike={handleDislike} />
+            <RecoSection title="지금 뜨는 트렌드" games={data.trend} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} onDislike={handleDislike} />
+            <RecoSection title="가성비 추천" games={data.costEffective} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} onDislike={handleDislike} />
+            <RecoSection title="숨겨진 명작" games={data.hiddenGem} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} onDislike={handleDislike} />
+            <RecoSection title="멀티플레이 추천" games={data.multiplayer} userWishlist={userWishlist} onToggleWishlist={handleToggleWishlist} user={user} onDislike={handleDislike} />
         </div>
       )}
       {!loading && err && <div className="error-box">{err}</div>}
