@@ -4,8 +4,9 @@ const router = express.Router();
 const User = require("../models/User");
 const Game = require("../models/Game");
 const axios = require("axios");
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 const { authenticateToken } = require("../middleware/auth");
+const cache = require("../utils/simpleCache");
 
 // 1. 유저 IP 조회
 router.get("/ip", (req, res) => {
@@ -70,6 +71,7 @@ router.get("/games", authenticateToken, async (req, res) => {
         img_icon_url: g.img_icon_url,
       }));
       await user.save();
+      cache.deleteByPrefix(`reco:${req.user._id}`); // Steam 게임 동기화 → 추천 캐시 무효화
     }
 
     // 상위 50개만 내려주고, 로컬게임 태그 붙이기
@@ -105,6 +107,7 @@ router.delete("/steam", authenticateToken, async (req, res) => {
     user.steamId = null;
     user.steamGames = [];
     await user.save();
+    cache.deleteByPrefix(`reco:${req.user._id}`); // Steam 해제 → 추천 캐시 무효화
     res.json({ message: "해제됨", user });
   } catch (error) {
     res.status(500).json({ message: "오류" });
@@ -117,6 +120,7 @@ router.post("/tags", authenticateToken, async (req, res) => {
     const user = await User.findById(req.user._id);
     user.likedTags = req.body.tags || [];
     await user.save();
+    cache.deleteByPrefix(`reco:${req.user._id}`); // 선호태그 변경 → 추천 캐시 무효화
     res.json({ message: "저장됨" });
   } catch (error) {
     res.status(500).json({ message: "오류" });
@@ -217,6 +221,7 @@ router.put("/playerType", authenticateToken, async (req, res) => {
             playerType,
             playerTypeSetByUser: true
         });
+        cache.deleteByPrefix(`reco:${req.user._id}`); // 플레이어타입 변경 → 추천 캐시 무효화
         res.json({ success: true, playerType });
     } catch (err) {
         res.status(500).json({ message: "서버 오류" });
@@ -352,6 +357,7 @@ router.post('/dislike', authenticateToken, async (req, res) => {
         }
 
         await User.findByIdAndUpdate(req.user._id, update);
+        cache.deleteByPrefix(`reco:${req.user._id}`); // 추천 캐시 무효화
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ message: '서버 오류' });
