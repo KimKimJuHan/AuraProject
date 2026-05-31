@@ -59,10 +59,10 @@ async function getSteamDetails(appId) {
         });
         const data = res.data?.[appId]?.data;
         if (!data || data.type !== 'game') return null;
-        // trailers(movies) 필드 가공
+        // trailers(movies) 필드 가공 - 신규/구버전 API 모두 대응
         data._trailers = (data.movies || [])
-            .filter(m => m.mp4)
-            .map(m => m.mp4?.max || m.mp4?.['480'] || '')
+            .map(m => m.hls_h264 || m.dash_h264 || m.mp4?.max || m.mp4?.['480'] || m.webm?.max || '')
+            .filter(Boolean)
             .filter(Boolean)
             .slice(0, 3);
         return data;
@@ -203,6 +203,19 @@ async function getNewGameCandidates() {
         } catch {}
     }
 
+    // 3. Steam 신규 출시작 (최신 게임 보강)
+    try {
+        const res = await axios.get('https://store.steampowered.com/api/featuredcategories', {
+            params: { cc: 'kr', l: 'korean' }, timeout: 10000
+        });
+        const newReleases = res.data?.new_releases?.items || [];
+        const topSellers = res.data?.top_sellers?.items || [];
+        [...newReleases, ...topSellers].forEach(g => {
+            if (g.id) candidates.set(g.id, { appid: g.id, name: g.name });
+        });
+        console.log(`  Steam 신작/인기: +${newReleases.length + topSellers.length}개`);
+    } catch (e) { console.warn('  Steam featured 실패:', e.message); }
+
     return Array.from(candidates.values());
 }
 
@@ -265,8 +278,8 @@ async function run() {
                     await sleep(500);
                 } else {
                     // ITAD 없으면 Steam 가격
-                    priceInfo.current_price = Math.round((data.price_overview?.final || 0) / 100 * 1350) || 0;
-                    priceInfo.regular_price = Math.round((data.price_overview?.initial || 0) / 100 * 1350) || 0;
+                    priceInfo.current_price = Math.round((data.price_overview?.final || 0) / 100) || 0;
+                    priceInfo.regular_price = Math.round((data.price_overview?.initial || 0) / 100) || 0;
                     priceInfo.discount_percent = data.price_overview?.discount_percent || 0;
                     priceInfo.store_url = `https://store.steampowered.com/app/${candidate.appid}`;
                     priceInfo.store_name = 'Steam';
@@ -334,8 +347,8 @@ async function run() {
                     if (steamData?.price_overview) {
                         const po = steamData.price_overview;
                         priceInfo = {
-                            current_price: Math.round((po.final || 0) / 100 * 1350),
-                            regular_price: Math.round((po.initial || 0) / 100 * 1350),
+                            current_price: Math.round((po.final || 0) / 100),
+                            regular_price: Math.round((po.initial || 0) / 100),
                             discount_percent: po.discount_percent || 0,
                             store_url: `https://store.steampowered.com/app/${game.steam_appid}`,
                             store_name: 'Steam',
@@ -383,7 +396,7 @@ async function run() {
         }
         console.log(`  ✅ 태그 보완: ${metaFilled}개`);
 
-        await browser.close();
+        if (browser) await browser.close().catch(() => {});
 
         const elapsed = Math.round((Date.now() - startTime) / 1000 / 60);
         const summary = `신규:${newCollected} / 가격갱신:${priceUpdated} / 태그보완:${metaFilled} / 오류:${errors} / 소요:${elapsed}분`;

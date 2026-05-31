@@ -70,16 +70,16 @@ const TARGET_GAMES = [
   { appid: 2246340, name: 'Monster Hunter Wilds' },
 
   // 2025~2026 신작
-  { appid: 1962700, name: 'Subnautica 2' },
+  
   { appid: 2379780, name: 'Manor Lords' },
   { appid: 2671170, name: 'Schedule I' },
   { appid: 3078800, name: 'Blue Prince' },
-  { appid: 2669540, name: 'Avowed' },
-  { appid: 2842400, name: 'Clair Obscur: Expedition 33' },
+  { appid: 2457220, name: 'Avowed' },
+  { appid: 1903340, name: 'Clair Obscur: Expedition 33' },
   { appid: 2767030, name: 'Marvel Rivals' },
   { appid: 2933620, name: 'Monster Hunter Wilds' },
   { appid: 2369390, name: 'Once Human' },
-  { appid: 2475550, name: 'Last Epoch' },
+  { appid: 899770, name: 'Last Epoch' },
   { appid: 2835570, name: 'Deadlock' },
 
   // 유명 클래식/멀티
@@ -108,6 +108,7 @@ const TARGET_GAMES = [
 // ── Steam API ─────────────────────────────────────────────────────────────────
 async function getSteamDetails(appId, expectedName) {
   try {
+    // 한글 정보 (저장용)
     const res = await axios.get('https://store.steampowered.com/api/appdetails', {
       params: { appids: appId, cc: 'kr', l: 'korean' }, timeout: 10000
     });
@@ -115,13 +116,29 @@ async function getSteamDetails(appId, expectedName) {
     if (!data?.success || data.data?.type !== 'game') return null;
     const d = data.data;
 
-    // 이름 검증 - 기대한 게임이 맞는지 확인
+    // 이름 검증 - 영문 이름 별도 조회해서 비교 (한글 응답 vs 영문 기대값 오판 방지)
     if (expectedName) {
-      const got = (d.name || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
-      const exp = expectedName.toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
-      const firstWord = exp.split(/\s+/)[0];
-      if (firstWord.length > 2 && !got.includes(firstWord) && !exp.includes(got.split(/\s+/)[0])) {
-        console.log(`  ⚠️  이름 불일치: 기대="${expectedName}" / Steam="${d.name}" → 스킵`);
+      let englishName = d.name || '';
+      try {
+        const enRes = await axios.get('https://store.steampowered.com/api/appdetails', {
+          params: { appids: appId, l: 'english' }, timeout: 8000
+        });
+        englishName = enRes.data?.[appId]?.data?.name || englishName;
+      } catch {}
+
+      const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+      const gotEn = norm(englishName);
+      const gotKo = norm(d.name);
+      const exp = norm(expectedName);
+      const firstWord = exp.split(/\s+/)[0] || exp;
+
+      // 영문/한글 어느 쪽이든 핵심 단어가 매칭되면 통과
+      const match = firstWord.length > 2 &&
+        (gotEn.includes(firstWord) || gotKo.includes(firstWord) ||
+         exp.includes(gotEn.slice(0, 5)) || gotEn.includes(exp.slice(0, 5)));
+
+      if (!match) {
+        console.log(`  ⚠️  이름 불일치: 기대="${expectedName}" / Steam(en)="${englishName}" → 스킵`);
         return null;
       }
     }
