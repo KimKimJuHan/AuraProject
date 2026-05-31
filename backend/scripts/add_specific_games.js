@@ -10,7 +10,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const mongoose = require('mongoose');
 const axios = require('axios');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const Game = require('../models/Game');
 const GameMetadata = require('../models/GameMetadata');
@@ -128,7 +128,7 @@ async function getSteamDetails(appId, expectedName) {
 
     // KR 가격은 이미 원화 (cc=kr) → /100만 적용, ×1350 하면 안 됨
     d._isKrPrice = true;
-    d._trailers = (d.movies || []).slice(0, 3).map(m => m.webm?.max || m.mp4?.max || '').filter(Boolean);
+    d._trailers = (d.movies || []).slice(0, 3).map(m => m.hls_h264 || m.dash_h264 || m.webm?.max || m.mp4?.max || '').filter(Boolean);
     return d;
   } catch { return null; }
 }

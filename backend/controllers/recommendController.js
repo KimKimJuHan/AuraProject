@@ -1,4 +1,5 @@
 const Game = require('../models/Game');
+const cache = require('../utils/simpleCache');
 const User = require('../models/User');
 const { calculateSimilarity, gameToVector, userToVector } = require('../utils/vector');
 const { getQueryTags } = require('../utils/tagMapper');
@@ -240,7 +241,11 @@ class RecommendController {
     // ── 개인화 추천 ────────────────────────────────────────────────────────
     async getPersonalRecommendations(req, res) {
         try {
-            const { userId, tags, term } = req.body;
+            // 유저별 추천 5분 캐시 (page/tags 조합 키)
+            const { userId, tags = [], term } = req.body;
+            const cacheKey = `reco:${userId || 'guest'}:${JSON.stringify(tags)}`;
+            const cached = cache.get(cacheKey);
+            if (cached) return res.json({ ...cached, cached: true });
             const userSelectedTags = Array.isArray(tags) ? tags : [];
 
             let userLikedTags = [];

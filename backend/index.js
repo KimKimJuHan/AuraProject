@@ -33,6 +33,15 @@ const updateExchangeRates = require('./scripts/exchange_updater');
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// ── 필수 환경변수 검증 (없으면 시작 거부) ───────────────────────────────────
+const REQUIRED_ENV = ['MONGODB_URI', 'SESSION_SECRET', 'JWT_SECRET'];
+const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingEnv.length > 0) {
+    console.error('❌ 필수 환경변수 누락:', missingEnv.join(', '));
+    console.error('   .env 파일을 확인하세요. 보안상 서버를 시작하지 않습니다.');
+    process.exit(1);
+}
+
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 
@@ -91,7 +100,7 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'secret_key_aura',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     proxy: true,

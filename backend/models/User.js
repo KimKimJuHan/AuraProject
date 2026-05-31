@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
     displayName: { type: String }, // 유저 화면 표시용 (실명 또는 닉네임)
     avatar: { type: String },      // 프로필 사진 연동
     password: { type: String }, 
-    email: { type: String, required: true },
+    email: { type: String, required: true, unique: true, index: true },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     
     // ★ 수정: 유저 플레이 성향 기반 맞춤 추천을 위한 핵심 필드 확장
