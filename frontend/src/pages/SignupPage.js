@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient, API_BASE_URL } from '../config';
 
-function SignupPage() {
+function SignupPage({ setUser }) {
   const [step, setStep] = useState(1); // 1: 정보입력, 2: 인증코드확인
   const [formData, setFormData] = useState({
     email: '',
