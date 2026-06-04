@@ -42,6 +42,16 @@ if (missingEnv.length > 0) {
     process.exit(1);
 }
 
+// ── 전역 예외 처리 (처리 안 된 에러로 서버가 통째로 죽는 것 방지) ────────────
+const logger = require('./utils/logger');
+process.on('uncaughtException', (err) => {
+    logger.error('uncaughtException', { message: err.message, stack: err.stack?.split('\n').slice(0, 3).join(' | ') });
+    // 치명적이지 않으면 계속 동작 (로깅만)
+});
+process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection', { reason: String(reason).slice(0, 200) });
+});
+
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://playforyou.net';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://playforyou.net';
 
@@ -270,6 +280,11 @@ app.use('/api/recommend', advancedRecoRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/notifications', notificationsRoutes);
 
+// 404 핸들러 (정의되지 않은 API 경로)
+app.use('/api', (req, res) => {
+    res.status(404).json({ success: false, error: { code: 404, message: '존재하지 않는 API 경로입니다.' } });
+});
+
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
@@ -277,6 +292,27 @@ cron.schedule('0 0 * * *', () => {
     console.log('[Cron] 자정 환율 업데이트');
     updateExchangeRates();
 });
+
+// ── 게임 수집기 자동 실행 (child_process로 메모리 격리) ──────────────────────
+const { exec } = require('child_process');
+const path = require('path');
+function runScript(scriptName) {
+    const scriptPath = path.join(__dirname, 'scripts', scriptName);
+    console.log(`[Cron] 실행: ${scriptName}`);
+    exec(`node ${scriptPath}`, { timeout: 30 * 60 * 1000 }, (err, stdout, stderr) => {
+        if (err) console.error(`[Cron] ${scriptName} 실패:`, err.message);
+        else console.log(`[Cron] ${scriptName} 완료`);
+    });
+}
+
+// 매일 새벽 2시: DB 백업
+cron.schedule('0 2 * * *', () => runScript('backup_db.js'));
+// 매일 새벽 3시: 트렌드(시청자/동접) 수집
+cron.schedule('0 3 * * *', () => runScript('trend_collector.js'));
+// 매일 새벽 4시: 신규 게임 + 가격 + 메타데이터 보완
+cron.schedule('0 4 * * *', () => runScript('daily_game_collector.js'));
+// 매주 일요일 새벽 5시: 가격 알림 발송
+cron.schedule('0 5 * * 0', () => runScript('notify_sales.js'));
 
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);

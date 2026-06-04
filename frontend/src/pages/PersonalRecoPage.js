@@ -55,7 +55,7 @@ function GameCard({ game, userWishlist, onToggleWishlist, user, onDislike }) {
             )}
             <Link to={`/game/${game.slug || `steam-${game.appid}`}`} style={{ textDecoration: 'none', display: 'block' }}>
                 <div className="thumb-wrapper">
-                    <img src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
+                    <img loading="lazy" src={game.main_image || game.thumb || FALLBACK_IMAGE} className="thumb" alt={game.title_ko || game.name} onError={(e) => { e.target.src = FALLBACK_IMAGE; }} />
                     <div className="net-card-gradient"></div>
                     <button className="heart-btn" onClick={handleHeartClick}>{isWishlisted ? '♥' : '♡'}</button>
                 </div>

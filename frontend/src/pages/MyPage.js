@@ -22,7 +22,14 @@ function MyPage({ user, setUser }) {
     const [isEditingNickname, setIsEditingNickname] = useState(false);
     const [newDisplayName, setNewDisplayName] = useState('');
     const [pcSpecForm, setPcSpecForm] = useState({ cpuName: '', gpuName: '', ram: 0 });
+    const [currency, setCurrency] = useState(localStorage.getItem('currency') || 'KRW');
     const [savedPcSpec, setSavedPcSpec] = useState(null);
+
+    const handleCurrencyChange = (newCurrency) => {
+        setCurrency(newCurrency);
+        localStorage.setItem('currency', newCurrency);
+        window.dispatchEvent(new Event('currencyChanged'));
+    };
     // eslint-disable-next-line no-unused-vars
     const [isEditingPassword, setIsEditingPassword] = useState(false);
     // eslint-disable-next-line no-unused-vars
@@ -331,6 +338,33 @@ function MyPage({ user, setUser }) {
                         <div style={{fontSize:'13px', fontWeight: theme === 'light' ? '700' : '400'}}>라이트 모드</div>
                         <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>밝은 화면</div>
                     </div>
+                </div>
+            </div>
+
+            {/* 통화 설정 */}
+            <div className="search-panel" style={{marginTop:'20px'}}>
+                <h3 style={{margin:'0 0 12px 0'}}>💱 통화 설정</h3>
+                <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
+                    게임 가격을 표시할 통화를 선택하세요.
+                </p>
+                <div style={{display:'flex', gap:'10px'}}>
+                    {[
+                        { code:'KRW', label:'🇰🇷 원화', sub:'KRW' },
+                        { code:'USD', label:'🇺🇸 달러', sub:'USD' },
+                        { code:'JPY', label:'🇯🇵 엔화', sub:'JPY' },
+                    ].map(c => (
+                        <div key={c.code} onClick={() => handleCurrencyChange(c.code)}
+                            style={{
+                                flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
+                                border: currency === c.code ? '2px solid #e50914' : '1px solid var(--border)',
+                                background: currency === c.code ? 'rgba(229,9,20,0.08)' : 'transparent',
+                                textAlign:'center', transition:'all 0.15s'
+                            }}>
+                            <div style={{fontSize:'20px', marginBottom:'4px'}}>{c.label.split(' ')[0]}</div>
+                            <div style={{fontSize:'13px', fontWeight: currency === c.code ? '700' : '400'}}>{c.label.split(' ')[1]}</div>
+                            <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>{c.sub}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
 

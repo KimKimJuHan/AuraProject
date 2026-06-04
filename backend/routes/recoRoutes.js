@@ -302,87 +302,6 @@ router.get('/search/results', async (req, res) => {
     }
 });
 
-router.get('/games/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        let game = null;
-
-        if (id.startsWith('steam-')) {
-            const appId = parseInt(id.replace('steam-', ''), 10);
-            if (!isNaN(appId)) {
-                game = await Game.findOne({ steam_appid: appId }).lean();
-            }
-        }
-        if (!game) game = await Game.findOne({ slug: id }).lean();
-        
-        if (!game) return res.status(404).json({ success: false, message: '게임을 찾을 수 없습니다.' });
-
-        res.json(game);
-    } catch (error) {
-        console.error('Game Detail API Error:', error);
-        res.status(500).json({ success: false, message: '서버 에러' });
-    }
-});
-
-router.get('/games/:id/history', async (req, res) => {
-    try {
-        const { id } = req.params;
-        let appId = null;
-
-        if (id.startsWith('steam-')) {
-            appId = parseInt(id.replace('steam-', ''), 10);
-        } else {
-            const game = await Game.findOne({ slug: id }).select('steam_appid').lean();
-            if (game) appId = game.steam_appid;
-        }
-
-        if (!appId) return res.json([]);
-
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const history = await TrendHistory.find({
-            steam_appid: appId,
-            recordedAt: { $gte: sevenDaysAgo }
-        }).select('steam_appid twitch_viewers chzzk_viewers soop_viewers steam_ccu trend_score recordedAt').sort({ recordedAt: -1 }).lean();
-
-        res.json(history.reverse());
-    } catch (error) {
-        console.error('Trend History API Error:', error);
-        res.json([]);
-    }
-});
-
-router.get('/games/:id/myvote', recoController.getMyVote);
-router.post('/games/:id/vote', recoController.voteGame);
-
-// /recommend POST는 advancedRecoRoutes(recommendController)에서 처리
-// 이 파일에서는 /games/*, /search/*, /recommend/wishlist 만 담당
-
-router.post('/recommend/wishlist', async (req, res) => {
-    try {
-        const { slugs = [] } = req.body;
-        if (!slugs || slugs.length === 0) return res.json({ success: true, games: [] });
-
-        const games = await Game.find({
-            $or: [
-                { slug: { $in: slugs } },
-                { _id: { $in: slugs.filter(id => mongoose.Types.ObjectId.isValid(id)) } }
-            ]
-        }).lean();
-
-        const gamesWithReason = games.map(game => ({
-            ...game,
-            reason: getWishlistReason(game)
-        }));
-
-        res.json({ success: true, games: gamesWithReason });
-    } catch (error) {
-        console.error('Wishlist API Error:', error);
-        res.status(500).json({ success: false, message: '서버 에러' });
-    }
-});
-
 // ── 기간 한정 무료 게임 (GamerPower + Epic Games) ────────────────────────────
 router.get('/games/giveaway', async (req, res) => {
     try {
@@ -498,6 +417,88 @@ router.get('/games/giveaway', async (req, res) => {
         res.json({ success: true, games: [] });
     }
 });
+
+router.get('/games/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        let game = null;
+
+        if (id.startsWith('steam-')) {
+            const appId = parseInt(id.replace('steam-', ''), 10);
+            if (!isNaN(appId)) {
+                game = await Game.findOne({ steam_appid: appId }).lean();
+            }
+        }
+        if (!game) game = await Game.findOne({ slug: id }).lean();
+        
+        if (!game) return res.status(404).json({ success: false, message: '게임을 찾을 수 없습니다.' });
+
+        res.json(game);
+    } catch (error) {
+        console.error('Game Detail API Error:', error);
+        res.status(500).json({ success: false, message: '서버 에러' });
+    }
+});
+
+router.get('/games/:id/history', async (req, res) => {
+    try {
+        const { id } = req.params;
+        let appId = null;
+
+        if (id.startsWith('steam-')) {
+            appId = parseInt(id.replace('steam-', ''), 10);
+        } else {
+            const game = await Game.findOne({ slug: id }).select('steam_appid').lean();
+            if (game) appId = game.steam_appid;
+        }
+
+        if (!appId) return res.json([]);
+
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const history = await TrendHistory.find({
+            steam_appid: appId,
+            recordedAt: { $gte: sevenDaysAgo }
+        }).select('steam_appid twitch_viewers chzzk_viewers soop_viewers steam_ccu trend_score recordedAt').sort({ recordedAt: -1 }).lean();
+
+        res.json(history.reverse());
+    } catch (error) {
+        console.error('Trend History API Error:', error);
+        res.json([]);
+    }
+});
+
+router.get('/games/:id/myvote', recoController.getMyVote);
+router.post('/games/:id/vote', recoController.voteGame);
+
+// /recommend POST는 advancedRecoRoutes(recommendController)에서 처리
+// 이 파일에서는 /games/*, /search/*, /recommend/wishlist 만 담당
+
+router.post('/recommend/wishlist', async (req, res) => {
+    try {
+        const { slugs = [] } = req.body;
+        if (!slugs || slugs.length === 0) return res.json({ success: true, games: [] });
+
+        const games = await Game.find({
+            $or: [
+                { slug: { $in: slugs } },
+                { _id: { $in: slugs.filter(id => mongoose.Types.ObjectId.isValid(id)) } }
+            ]
+        }).lean();
+
+        const gamesWithReason = games.map(game => ({
+            ...game,
+            reason: getWishlistReason(game)
+        }));
+
+        res.json({ success: true, games: gamesWithReason });
+    } catch (error) {
+        console.error('Wishlist API Error:', error);
+        res.status(500).json({ success: false, message: '서버 에러' });
+    }
+});
+
 
 
 module.exports = router;

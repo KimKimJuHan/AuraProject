@@ -1,6 +1,8 @@
 // backend/middleware/errorHandler.js
+const logger = require('../utils/logger');
+
 const errorHandler = (err, req, res, next) => {
-    console.error(`[Error] ${req.method} ${req.url} :`, err.message);
+    logger.error(`${req.method} ${req.url}`, { message: err.message, stack: err.stack?.split('\n')[0] });
 
     const statusCode = err.statusCode || 500;
     const message = err.message || '서버 내부 에러가 발생했습니다.';

@@ -108,7 +108,6 @@ const TARGET_GAMES = [
 // ── Steam API ─────────────────────────────────────────────────────────────────
 async function getSteamDetails(appId, expectedName) {
   try {
-    // 한글 정보 (저장용)
     const res = await axios.get('https://store.steampowered.com/api/appdetails', {
       params: { appids: appId, cc: 'kr', l: 'korean' }, timeout: 10000
     });
@@ -116,7 +115,7 @@ async function getSteamDetails(appId, expectedName) {
     if (!data?.success || data.data?.type !== 'game') return null;
     const d = data.data;
 
-    // 이름 검증 - 영문 이름 별도 조회해서 비교 (한글 응답 vs 영문 기대값 오판 방지)
+    // 이름 검증 - 영문 이름 별도 조회 (한글 응답 vs 영문 기대값 오판 방지)
     if (expectedName) {
       let englishName = d.name || '';
       try {
@@ -132,7 +131,6 @@ async function getSteamDetails(appId, expectedName) {
       const exp = norm(expectedName);
       const firstWord = exp.split(/\s+/)[0] || exp;
 
-      // 영문/한글 어느 쪽이든 핵심 단어가 매칭되면 통과
       const match = firstWord.length > 2 &&
         (gotEn.includes(firstWord) || gotKo.includes(firstWord) ||
          exp.includes(gotEn.slice(0, 5)) || gotEn.includes(exp.slice(0, 5)));
