@@ -212,7 +212,11 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
         <div className="net-card-body">
             <div className="net-card-title">{game.title_ko || game.title}</div>
             <div style={{ color:'#888', fontSize:'11px', marginTop:'6px', marginBottom:'6px', lineHeight:'1.4', minHeight:'28px' }}>
-              {game.reason || '맞춤 추천'}
+              {game.is_giveaway
+                ? (game.original_worth && game.original_worth !== 'N/A'
+                    ? <span>원가 <span style={{textDecoration:'line-through'}}>{game.original_worth}</span> → <span style={{color:'#46d369', fontWeight:'bold'}}>무료</span></span>
+                    : '기간 한정 무료 배포')
+                : (game.reason || '맞춤 추천')}
             </div>
 
             {game.steam_reviews?.overall?.percent > 0 && game.steam_reviews?.overall?.total >= 10 && (
@@ -233,21 +237,23 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
               </div>
             )}
 
-            <div
-              style={{
-                color: compatibility.color,
-                background: compatibility.background,
-                border: `1px solid ${compatibility.border}`,
-                borderRadius: '999px',
-                padding: '4px 8px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                width: 'fit-content',
-                marginBottom: '8px'
-              }}
-            >
-              {compatibility.icon} {compatibility.label}
-            </div>
+            {!game.is_giveaway && (
+              <div
+                style={{
+                  color: compatibility.color,
+                  background: compatibility.background,
+                  border: `1px solid ${compatibility.border}`,
+                  borderRadius: '999px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  width: 'fit-content',
+                  marginBottom: '8px'
+                }}
+              >
+                {compatibility.icon} {compatibility.label}
+              </div>
+            )}
 
             <div className="net-card-footer">
                 <div style={{display:'flex', flexDirection:'column'}}>
@@ -269,20 +275,32 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
 }
 
 function MainPage({ user, region, userWishlist, onToggleWishlist }) {
+  // 뒤로가기 시 필터/탭 유지 - sessionStorage에서 복원
+  const saved = (() => {
+    try { return JSON.parse(sessionStorage.getItem('mainPageState') || '{}'); }
+    catch { return {}; }
+  })();
+
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('popular');
-  const [activePreset, setActivePreset] = useState(null);
-  const [selectedTags, setSelectedTags] = useState([]);
+  const [activeTab, setActiveTab] = useState(saved.activeTab || 'popular');
+  const [selectedTags, setSelectedTags] = useState(saved.selectedTags || []);
   const [validTags, setValidTags] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
-  const [priceRange, setPriceRange] = useState('all');
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
-  const [minDiscount, setMinDiscount] = useState(0);
-  const [hideOwned, setHideOwned] = useState(false);
+  const [priceRange, setPriceRange] = useState(saved.priceRange || 'all');
+  const [priceMin, setPriceMin] = useState(saved.priceMin || '');
+  const [priceMax, setPriceMax] = useState(saved.priceMax || '');
+  const [minDiscount, setMinDiscount] = useState(saved.minDiscount || 0);
+  const [hideOwned, setHideOwned] = useState(saved.hideOwned || false);
+
+  // 필터/탭 변경 시 sessionStorage에 저장
+  useEffect(() => {
+    sessionStorage.setItem('mainPageState', JSON.stringify({
+      activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned
+    }));
+  }, [activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
   useEffect(() => {
     setGames([]);
@@ -348,61 +366,17 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
     fetchGames();
   }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
-  // 빠른 필터 프리셋 - 의도 기반 원터치 조합
-  const applyPreset = (preset) => {
-      if (activePreset === preset.k) {
-          // 같은 프리셋 다시 누르면 해제
-          setActivePreset(null);
-          setSelectedTags([]);
-          setActiveTab('popular');
-          setMinDiscount(0);
-          setPriceRange('all'); setPriceMin(''); setPriceMax('');
-      } else {
-          setActivePreset(preset.k);
-          setSelectedTags(preset.tags || []);
-          setActiveTab(preset.tab || 'popular');
-          setMinDiscount(preset.discount || 0);
-          if (preset.priceRange) setPriceRange(preset.priceRange);
-          else { setPriceRange('all'); setPriceMin(''); setPriceMax(''); }
-      }
-      setPage(1); setGames([]);
-  };
-
   const toggleTag = (tag) => {
-      setActivePreset(null);
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
 
   return (
     <div className="net-panel">
       <OnboardingPopup />
-      {/* 빠른 필터 프리셋 - 의도 기반 원터치 */}
-      <div style={{ display:'flex', gap:'8px', marginBottom:'18px', overflowX:'auto', scrollbarWidth:'none', paddingBottom:'4px' }}>
-        {[
-          { k:'hot',     n:'🔥 지금 인기',    tab:'popular' },
-          { k:'sale',    n:'💰 할인 중',      tab:'discount', discount:25 },
-          { k:'coop',    n:'🤝 친구랑 코옵',  tags:['협동','멀티플레이'], tab:'popular' },
-          { k:'cheap',   n:'💸 가성비',       tab:'review', priceRange:'~10000' },
-          { k:'gem',     n:'💎 숨은 명작',    tab:'review' },
-          { k:'newbie',  n:'🌱 입문용',       tags:['캐주얼','힐링'], tab:'popular' },
-          { k:'free',    n:'🆓 무료배포',     tab:'giveaway' },
-        ].map(preset => (
-          <button key={preset.k} onClick={() => applyPreset(preset)}
-            style={{
-              padding:'10px 16px', borderRadius:'24px', fontSize:'14px', cursor:'pointer',
-              whiteSpace:'nowrap', flexShrink:0, fontWeight: activePreset===preset.k ? '700' : '500',
-              background: activePreset===preset.k ? '#E50914' : 'var(--bg-card)',
-              color: activePreset===preset.k ? '#fff' : 'var(--text-primary)',
-              border:`1px solid ${activePreset===preset.k ? '#E50914' : 'var(--border)'}`,
-              transition:'all 0.15s'
-            }}>{preset.n}</button>
-        ))}
-      </div>
-      {activePreset !== 'free' && <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'2px', marginBottom:'12px', overflowX:'auto', scrollbarWidth:'none' }}>
-          <span style={{ color:'var(--text-muted)', fontSize:'12px', fontWeight:'700', marginRight:'8px', flexShrink:0, alignSelf:'center' }}>정렬</span>
-          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'}].map(t => (
-            <button key={t.k} onClick={() => { setActiveTab(t.k); setActivePreset(null); setPage(1); setGames([]); }}
+      <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'2px', marginBottom: activeTab==='giveaway' ? '0' : '12px', overflowX:'auto', scrollbarWidth:'none' }}>
+          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'},{k:'giveaway',n:'무료배포'}].map(t => (
+            <button key={t.k} onClick={() => { setActiveTab(t.k); setPage(1); setGames([]); }}
               style={{ padding:'8px 18px', border:'none', cursor:'pointer', fontSize:'14px',
                 background:'none', whiteSpace:'nowrap', flexShrink:0, marginBottom:'-2px',
                 color: activeTab===t.k ? 'var(--text-primary)' : 'var(--text-muted)',
@@ -410,7 +384,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 fontWeight: activeTab===t.k ? '700' : '500', transition:'all 0.15s' }}>{t.n}</button>
           ))}
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
+        {activeTab !== 'giveaway' && <div style={{ display:'flex', alignItems:'center', gap:'6px', flexWrap:'wrap' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'5px', background:'var(--bg-hover)', borderRadius:'8px', padding:'5px 10px', border:'1px solid var(--border)' }}>
             <span style={{ color:'var(--text-muted)', fontSize:'12px', fontWeight:'600' }}>가격</span>
             <input type="number" inputMode="numeric" placeholder="최소" value={priceMin}
@@ -443,6 +417,23 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 fontWeight: minDiscount===d.k ? '700':'400' }}>{d.n}</button>
           ))}
           <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
+          {/* 코옵/멀티 빠른 토글 - 정렬/가격/할인과 동시 적용 가능 */}
+          {(() => {
+            const coopOn = selectedTags.includes('협동') || selectedTags.includes('멀티플레이');
+            return (
+              <button onClick={() => {
+                  if (coopOn) setSelectedTags(prev => prev.filter(t => t!=='협동' && t!=='멀티플레이'));
+                  else setSelectedTags(prev => [...new Set([...prev, '협동', '멀티플레이'])]);
+                  setPage(1); setGames([]);
+                }}
+                style={{ padding:'6px 14px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
+                  background: coopOn ? '#E50914' : 'var(--bg-hover)',
+                  color: coopOn ? '#fff' : 'var(--text-secondary)',
+                  border:`1px solid ${coopOn ? '#E50914':'var(--border)'}`,
+                  fontWeight: coopOn ? '700':'500' }}>코옵·멀티</button>
+            );
+          })()}
+          <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
           {user && (
             <button onClick={() => { setHideOwned(v=>!v); setPage(1); setGames([]); }}
               style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
@@ -457,15 +448,15 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
               style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
                 background:'none', border:'1px solid #E50914', color:'#E50914', fontWeight:'600' }}>✕ 초기화</button>
           )}
-        </div>
-      </div>}
+        </div>}
+      </div>
 
-      {activePreset === 'free' && (
+      {activeTab === 'giveaway' && (
         <div style={{ marginBottom:'20px', padding:'14px 18px', background:'rgba(70,211,105,0.08)', border:'1px solid rgba(70,211,105,0.3)', borderRadius:'10px', color:'var(--text-secondary)', fontSize:'14px' }}>
-          🎁 <strong style={{color:'var(--text-primary)'}}>지금 무료로 받을 수 있는 게임</strong> — 원래 유료지만 기간 한정 무료 배포 중이에요. 인기순으로 정렬됩니다.
+          지금 무료로 받을 수 있는 게임이에요. 원래 유료지만 기간 한정 무료 배포 중이며, 인기순으로 정렬됩니다.
         </div>
       )}
-      {activePreset !== 'free' && (
+      {activeTab !== 'giveaway' && (
         <div style={styles.filterContainer}>
             {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
                 <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
@@ -509,9 +500,9 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
           <div style={{fontSize:'40px', marginBottom:'12px'}}>🔍</div>
           <div style={{fontSize:'17px', fontWeight:'600', color:'var(--text-primary)', marginBottom:'6px'}}>조건에 맞는 게임이 없어요</div>
           <div style={{fontSize:'14px', marginBottom:'20px'}}>필터를 조정하거나 초기화해 보세요.</div>
-          {(selectedTags.length > 0 || activePreset || priceRange!=='all' || priceMin || priceMax || minDiscount!==0) && (
+          {(selectedTags.length > 0 || activeTab!=='popular' || priceRange!=='all' || priceMin || priceMax || minDiscount!==0) && (
             <button onClick={() => {
-              setSelectedTags([]); setActivePreset(null); setActiveTab('popular');
+              setSelectedTags([]); setActiveTab('popular');
               setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0);
               setHideOwned(false); setPage(1); setGames([]);
             }} style={{ padding:'10px 24px', borderRadius:'8px', cursor:'pointer',

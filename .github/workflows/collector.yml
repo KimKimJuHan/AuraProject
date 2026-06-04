@@ -38,6 +38,8 @@ jobs:
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
       TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+      SOOP_CLIENT_ID: ${{ secrets.SOOP_CLIENT_ID }}
+      SOOP_CLIENT_SECRET: ${{ secrets.SOOP_CLIENT_SECRET }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
     steps:
