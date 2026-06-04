@@ -375,7 +375,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
       <OnboardingPopup />
       <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'2px', marginBottom: activeTab==='giveaway' ? '0' : '12px', overflowX:'auto', scrollbarWidth:'none' }}>
-          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'},{k:'giveaway',n:'무료배포'}].map(t => (
+          {[{k:'popular',n:'인기순'},{k:'rising',n:'급상승'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'},{k:'giveaway',n:'무료배포'}].map(t => (
             <button key={t.k} onClick={() => { setActiveTab(t.k); setPage(1); setGames([]); }}
               style={{ padding:'8px 18px', border:'none', cursor:'pointer', fontSize:'14px',
                 background:'none', whiteSpace:'nowrap', flexShrink:0, marginBottom:'-2px',

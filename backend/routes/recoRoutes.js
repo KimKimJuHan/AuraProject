@@ -326,6 +326,22 @@ router.get('/games/giveaway', async (req, res) => {
             return junkPatterns.some(p => p.test(title));
         };
 
+        // 원가($) 추출 헬퍼
+        const parseWorth = (worth = '') => {
+            const m = String(worth).replace(/[^0-9.]/g, '');
+            return m ? parseFloat(m) : 0;
+        };
+
+        // 품질 필터: 메이저 플랫폼은 통과, 마이너 플랫폼은 원가 $10 이상만
+        const isQualityGiveaway = (platforms = '', worth = '') => {
+            const p = String(platforms).toLowerCase();
+            const isMajor = /epic|steam|gog|ubisoft|origin|ea/.test(p);
+            const price = parseWorth(worth);
+            if (price < 3) return false;          // $3 미만 듣보 제외
+            if (isMajor) return true;             // 메이저 플랫폼은 통과
+            return price >= 10;                   // 마이너(itch/indiegala/stove)는 $10 이상만
+        };
+
         const results = [];
         const seen = new Set();
 
@@ -341,6 +357,7 @@ router.get('/games/giveaway', async (req, res) => {
                 if (!isPaidGame) continue;                       // 원래 유료였던 게임만
                 if (g.status && g.status !== 'Active') continue; // 진행 중만
                 if (isJunkTitle(g.title)) continue;              // 미스터리/placeholder 제외
+                if (!isQualityGiveaway(g.platforms, worth)) continue;  // 품질 필터
 
                 const key = (g.title || '').toLowerCase().trim();
                 if (seen.has(key)) continue;
@@ -420,6 +437,7 @@ router.get('/games/giveaway', async (req, res) => {
                 if (!isPaidGame) continue;
                 if (g.status && g.status !== 'Active') continue;
                 if (isJunkTitle(g.title)) continue;
+                if (!isQualityGiveaway(g.platforms, worth)) continue;  // 품질 필터
 
                 const key = (g.title || '').toLowerCase().trim();
                 if (seen.has(key)) continue;
@@ -461,9 +479,13 @@ router.get('/games/giveaway', async (req, res) => {
 
         // ── 4. 인기순 정렬 (DB에 있는 검증된 게임 우선 + 인기도순) ──
         results.sort((a, b) => {
-            // DB에 있는(slug 있는) 게임을 앞으로
+            // 1순위: DB에 있는(검증된) 게임을 앞으로
             if (!!a.slug !== !!b.slug) return a.slug ? -1 : 1;
-            return (b.popularity || 0) - (a.popularity || 0);
+            // 2순위: 인기도
+            const popDiff = (b.popularity || 0) - (a.popularity || 0);
+            if (popDiff !== 0) return popDiff;
+            // 3순위: 원가 높은 순 (비싼 게임이 더 가치 있음)
+            return parseWorth(b.original_worth) - parseWorth(a.original_worth);
         });
 
         cache.set('giveaway:list', results, results.length > 0 ? 60 * 60 * 1000 : 60 * 1000);
