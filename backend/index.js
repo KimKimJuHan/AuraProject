@@ -90,7 +90,7 @@ const generalLimiter = rateLimit({
 
 const recommendLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 30,
+    max: 100,
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: '추천 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },

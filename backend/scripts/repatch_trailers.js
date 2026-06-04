@@ -44,9 +44,13 @@ async function run() {
     await mongoose.connect(MONGODB_URI);
     console.log('✅ DB 연결 완료');
 
-    const games = await Game.find({
-        steam_appid: { $exists: true, $ne: null },
-    })  // 전체 재수집 - 기존 트레일러도 갱신.select('_id title steam_appid').lean();
+    const missingOnly = process.argv.includes('--missing-only');
+    const query = { steam_appid: { $exists: true, $ne: null } };
+    if (missingOnly) {
+        // 트레일러 없는 게임만 (enrich_all용 - 빠름)
+        query.$or = [{ trailers: { $exists: false } }, { trailers: { $size: 0 } }];
+    }
+    const games = await Game.find(query).select('_id title steam_appid').lean();
 
     const targets = LIMIT > 0 ? games.slice(0, LIMIT) : games;
     console.log(`📋 트레일러 없는 게임: ${games.length}개 → 처리: ${targets.length}개`);

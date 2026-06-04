@@ -305,7 +305,6 @@ router.get('/search/results', async (req, res) => {
 // ── 기간 한정 무료 게임 (GamerPower + Epic Games) ────────────────────────────
 router.get('/games/giveaway', async (req, res) => {
     try {
-        // 1시간 캐시 (외부 API 부하 감소 + 응답 속도)
         const cached = cache.get('giveaway:list');
         if (cached) return res.json({ success: true, games: cached, cached: true });
 
@@ -315,21 +314,37 @@ router.get('/games/giveaway', async (req, res) => {
             'Accept': 'application/json',
         };
 
-        const results = [];
+        // 미스터리/placeholder 게임 판별 (Epic이 이름 안 밝힌 것들)
+        const isJunkTitle = (title = '') => {
+            const t = title.toLowerCase().trim();
+            if (!t) return true;
+            const junkPatterns = [
+                /mystery game/i, /unknown game/i, /^mystery/i,
+                /week \d+ game/i, /coming soon/i, /^tbd$/i, /placeholder/i,
+                /to be announced/i, /\bunannounced\b/i,
+            ];
+            return junkPatterns.some(p => p.test(title));
+        };
 
-        // 1. GamerPower API - 인기순(users) 정렬, 게임 타입만
+        const results = [];
+        const seen = new Set();
+
+        // ── 1. GamerPower (Epic/Steam/GOG/Ubisoft 등 전 플랫폼 통합) ──
         try {
             const gpRes = await axios.get(
-                'https://www.gamerpower.com/api/giveaways?platform=pc&type=game&sort-by=popularity',
+                'https://www.gamerpower.com/api/giveaways?platform=epic-games-store.steam.gog.ubisoft.itchio&type=game&sort-by=popularity',
                 { headers, timeout: 10000 }
             );
-            const gpGames = gpRes.data || [];
-            for (const g of gpGames) {
-                // ★ 핵심: worth(원가)가 "N/A"가 아닌 것만 = 원래 유료 게임의 일시적 무료배포
+            for (const g of (gpRes.data || [])) {
                 const worth = g.worth || 'N/A';
                 const isPaidGame = worth !== 'N/A' && worth !== '$0.00' && worth !== '0';
-                if (!isPaidGame) continue;        // 원래 무료 게임 제외
-                if (g.status && g.status !== 'Active') continue;  // 진행 중인 것만
+                if (!isPaidGame) continue;                       // 원래 유료였던 게임만
+                if (g.status && g.status !== 'Active') continue; // 진행 중만
+                if (isJunkTitle(g.title)) continue;              // 미스터리/placeholder 제외
+
+                const key = (g.title || '').toLowerCase().trim();
+                if (seen.has(key)) continue;
+                seen.add(key);
 
                 results.push({
                     title: g.title || '',
@@ -340,76 +355,117 @@ router.get('/games/giveaway', async (req, res) => {
                     shop_name: (g.platforms || 'PC').split(',')[0].trim(),
                     expiry: g.end_date && g.end_date !== 'N/A' ? g.end_date : null,
                     description: g.description || '',
-                    original_worth: worth,           // 원가 표시용
-                    popularity: Number(g.users || 0), // 받은 사람 수 = 인기 지표
+                    original_worth: worth,
+                    popularity: Number(g.users || 0),
                     is_giveaway: true,
                     source: 'gamerpower',
                 });
             }
-        } catch (e) {
-            console.error('GamerPower 오류:', e.message);
-        }
+        } catch (e) { console.error('GamerPower 오류:', e.message); }
 
-        // 2. Epic Games Store 공식 무료 게임
+        // ── 2. Epic Games 공식 (이름 공개된 것만) ──
         try {
             const epicRes = await axios.get(
                 'https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=ko&country=KR&allowCountries=KR',
                 { headers, timeout: 10000 }
             );
             const games = epicRes.data?.data?.Catalog?.searchStore?.elements || [];
-            const freeGames = games.filter(g => g?.price?.totalPrice?.discountPrice === 0);
+            for (const g of games) {
+                // 현재 무료 프로모션 진행 중인 것만
+                const offers = g.promotions?.promotionalOffers?.[0]?.promotionalOffers;
+                if (!offers || offers.length === 0) continue;
+                const isFreeNow = g?.price?.totalPrice?.discountPrice === 0;
+                if (!isFreeNow) continue;
+                if (isJunkTitle(g.title)) continue;              // 미스터리 게임 제외
 
-            for (const g of freeGames) {
-                // GamerPower에 이미 있으면 스킵
-                if (results.some(r => r.title.toLowerCase().includes(g.title?.toLowerCase()))) continue;
+                const key = (g.title || '').toLowerCase().trim();
+                if (seen.has(key)) continue;
+                seen.add(key);
 
-                const promos = g.promotions?.promotionalOffers?.[0]?.promotionalOffers;
-                const expiry = promos?.[0]?.endDate || null;
+                // slug 검증 - 유효한 slug 없으면 무료게임 목록으로 (404 방지)
                 const slug = g.productSlug || g.urlSlug || '';
+                const validSlug = slug && slug !== '[]' && !slug.includes('[');
+                const expiry = offers?.[0]?.endDate || null;
 
                 results.push({
                     title: g.title || '',
                     title_ko: g.title || '',
-                    main_image: g.keyImages?.find(img => img.type === 'Thumbnail')?.url ||
+                    main_image: g.keyImages?.find(i => i.type === 'OfferImageWide')?.url ||
+                                g.keyImages?.find(i => i.type === 'Thumbnail')?.url ||
                                 g.keyImages?.[0]?.url || '',
                     slug: null,
-                    giveaway_url: slug ? `https://store.epicgames.com/ko/p/${slug}` : 'https://store.epicgames.com/ko/free-games',
+                    giveaway_url: validSlug
+                        ? `https://store.epicgames.com/ko/p/${slug}`
+                        : 'https://store.epicgames.com/ko/free-games',
                     shop_name: 'Epic Games Store',
                     expiry,
                     description: g.description || '',
                     original_worth: g.price?.totalPrice?.fmtPrice?.originalPrice || '',
-                    popularity: 0, // 아래에서 DB CCU로 보강
+                    popularity: 0,
                     is_giveaway: true,
                     source: 'epic',
                 });
             }
-        } catch (e) {
-            console.error('Epic 오류:', e.message);
-        }
+        } catch (e) { console.error('Epic 오류:', e.message); }
 
-        // DB에서 매칭되는 게임 정보 보강 (이미지, slug 등)
+        // ── 3. GamerPower 추가 쿼리 (최신순 - popularity에서 놓친 신규 배포) ──
+        try {
+            const gpRes2 = await axios.get(
+                'https://www.gamerpower.com/api/giveaways?platform=pc&type=game&sort-by=date',
+                { headers, timeout: 10000 }
+            );
+            for (const g of (gpRes2.data || [])) {
+                const worth = g.worth || 'N/A';
+                const isPaidGame = worth !== 'N/A' && worth !== '$0.00' && worth !== '0';
+                if (!isPaidGame) continue;
+                if (g.status && g.status !== 'Active') continue;
+                if (isJunkTitle(g.title)) continue;
+
+                const key = (g.title || '').toLowerCase().trim();
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                results.push({
+                    title: g.title || '',
+                    title_ko: g.title || '',
+                    main_image: g.image || '',
+                    slug: null,
+                    giveaway_url: g.open_giveaway_url || g.giveaway_url || '',
+                    shop_name: (g.platforms || 'PC').split(',')[0].trim(),
+                    expiry: g.end_date && g.end_date !== 'N/A' ? g.end_date : null,
+                    description: g.description || '',
+                    original_worth: worth,
+                    popularity: Number(g.users || 0),
+                    is_giveaway: true,
+                    source: 'gamerpower',
+                });
+            }
+        } catch (e) { console.error('GamerPower2 오류:', e.message); }
+
+        // ── 4. DB 매칭으로 정보 보강 (slug, 이미지, 인기도) ──
         for (const item of results) {
-            if (!item.slug) {
-                const dbGame = await Game.findOne({
-                    $or: [
-                        { title: new RegExp(escapeRegex(item.title), 'i') },
-                        { title_ko: new RegExp(escapeRegex(item.title), 'i') },
-                    ]
-                }).select('slug main_image smart_tags steam_appid steam_ccu trend_score').lean();
-                if (dbGame) {
-                    item.slug = dbGame.slug;
-                    if (!item.main_image) item.main_image = dbGame.main_image;
-                    item.smart_tags = dbGame.smart_tags;
-                    // GamerPower 인기도가 없으면 DB의 trend_score로 보강
-                    if (!item.popularity) item.popularity = dbGame.trend_score || dbGame.steam_ccu || 0;
-                }
+            const dbGame = await Game.findOne({
+                $or: [
+                    { title: new RegExp('^' + escapeRegex(item.title) + '$', 'i') },
+                    { title_ko: new RegExp('^' + escapeRegex(item.title) + '$', 'i') },
+                ]
+            }).select('slug main_image smart_tags steam_appid steam_ccu trend_score steam_reviews').lean();
+            if (dbGame) {
+                item.slug = dbGame.slug;                          // 내부 상세페이지로 연결 (404 방지)
+                if (!item.main_image) item.main_image = dbGame.main_image;
+                item.smart_tags = dbGame.smart_tags;
+                item.review_percent = dbGame.steam_reviews?.overall?.percent || 0;
+                if (!item.popularity) item.popularity = dbGame.trend_score || dbGame.steam_ccu || 0;
             }
         }
 
-        // 인기순 정렬 (받은 사람 수 / trend_score 기준)
-        results.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        // ── 4. 인기순 정렬 (DB에 있는 검증된 게임 우선 + 인기도순) ──
+        results.sort((a, b) => {
+            // DB에 있는(slug 있는) 게임을 앞으로
+            if (!!a.slug !== !!b.slug) return a.slug ? -1 : 1;
+            return (b.popularity || 0) - (a.popularity || 0);
+        });
 
-        // 결과 있으면 1시간, 비어있으면(API 실패 가능성) 1분만 캐싱
         cache.set('giveaway:list', results, results.length > 0 ? 60 * 60 * 1000 : 60 * 1000);
         res.json({ success: true, games: results });
     } catch (err) {
