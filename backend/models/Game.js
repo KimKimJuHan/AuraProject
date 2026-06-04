@@ -91,6 +91,7 @@ module.exports = mongoose.model('Game', gameSchema, 'games');
 // ── 복합 인덱스 (추천 API 쿼리 최적화) ───────────────────────────────────────
 // 메인 추천 API가 항상 isAdult 필터 + 정렬 조합으로 쿼리함
 gameSchema.index({ isAdult: 1, steam_ccu: -1 });
+gameSchema.index({ isAdult: 1, trend_score: -1 });
 gameSchema.index({ isAdult: 1, 'price_info.discount_percent': -1 });
 gameSchema.index({ isAdult: 1, releaseDate: -1 });
 gameSchema.index({ isAdult: 1, 'steam_reviews.overall.percent': -1 });

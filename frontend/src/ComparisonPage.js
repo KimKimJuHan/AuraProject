@@ -237,7 +237,7 @@ function ComparisonPage({ region, user }) {
                 삭제 ✕
               </button>
 
-              <img
+              <img loading="lazy"
                 src={game.main_image || game.header_image}
                 alt={game.title}
                 style={{

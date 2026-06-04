@@ -196,7 +196,7 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
       className="net-card"
     >
         <div className="net-card-thumb">
-            <img src={game.main_image} alt={game.title} onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E"} />
+            <img loading="lazy" src={game.main_image} alt={game.title} onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E"} />
             <div className="net-card-gradient"></div>
             {discount && <div style={{position:'absolute', top:5, left:5, background:'#E50914', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>{discount}</div>}
             {game.is_giveaway && <div style={{position:'absolute', top:5, left:5, background:'#46d369', color:'#000', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold'}}>무료배포</div>}
@@ -272,6 +272,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('popular');
+  const [activePreset, setActivePreset] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
   const [validTags, setValidTags] = useState([]);
   const [page, setPage] = useState(1);
@@ -347,17 +348,61 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
     fetchGames();
   }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
+  // 빠른 필터 프리셋 - 의도 기반 원터치 조합
+  const applyPreset = (preset) => {
+      if (activePreset === preset.k) {
+          // 같은 프리셋 다시 누르면 해제
+          setActivePreset(null);
+          setSelectedTags([]);
+          setActiveTab('popular');
+          setMinDiscount(0);
+          setPriceRange('all'); setPriceMin(''); setPriceMax('');
+      } else {
+          setActivePreset(preset.k);
+          setSelectedTags(preset.tags || []);
+          setActiveTab(preset.tab || 'popular');
+          setMinDiscount(preset.discount || 0);
+          if (preset.priceRange) setPriceRange(preset.priceRange);
+          else { setPriceRange('all'); setPriceMin(''); setPriceMax(''); }
+      }
+      setPage(1); setGames([]);
+  };
+
   const toggleTag = (tag) => {
+      setActivePreset(null);
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
 
   return (
     <div className="net-panel">
       <OnboardingPopup />
-      <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
+      {/* 빠른 필터 프리셋 - 의도 기반 원터치 */}
+      <div style={{ display:'flex', gap:'8px', marginBottom:'18px', overflowX:'auto', scrollbarWidth:'none', paddingBottom:'4px' }}>
+        {[
+          { k:'hot',     n:'🔥 지금 인기',    tab:'popular' },
+          { k:'sale',    n:'💰 할인 중',      tab:'discount', discount:25 },
+          { k:'coop',    n:'🤝 친구랑 코옵',  tags:['협동','멀티플레이'], tab:'popular' },
+          { k:'cheap',   n:'💸 가성비',       tab:'review', priceRange:'~10000' },
+          { k:'gem',     n:'💎 숨은 명작',    tab:'review' },
+          { k:'newbie',  n:'🌱 입문용',       tags:['캐주얼','힐링'], tab:'popular' },
+          { k:'free',    n:'🆓 무료배포',     tab:'giveaway' },
+        ].map(preset => (
+          <button key={preset.k} onClick={() => applyPreset(preset)}
+            style={{
+              padding:'10px 16px', borderRadius:'24px', fontSize:'14px', cursor:'pointer',
+              whiteSpace:'nowrap', flexShrink:0, fontWeight: activePreset===preset.k ? '700' : '500',
+              background: activePreset===preset.k ? '#E50914' : 'var(--bg-card)',
+              color: activePreset===preset.k ? '#fff' : 'var(--text-primary)',
+              border:`1px solid ${activePreset===preset.k ? '#E50914' : 'var(--border)'}`,
+              transition:'all 0.15s'
+            }}>{preset.n}</button>
+        ))}
+      </div>
+      {activePreset !== 'free' && <div className="sort-filter-bar" style={{ marginBottom:'24px', borderBottom:'2px solid var(--border)', paddingBottom:'14px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'2px', marginBottom:'12px', overflowX:'auto', scrollbarWidth:'none' }}>
-          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'},{k:'giveaway',n:'무료배포'}].map(t => (
-            <button key={t.k} onClick={() => { setActiveTab(t.k); setPage(1); setGames([]); }}
+          <span style={{ color:'var(--text-muted)', fontSize:'12px', fontWeight:'700', marginRight:'8px', flexShrink:0, alignSelf:'center' }}>정렬</span>
+          {[{k:'popular',n:'인기순'},{k:'new',n:'신작순'},{k:'discount',n:'할인율순'},{k:'price',n:'낮은가격순'},{k:'review',n:'평점순'}].map(t => (
+            <button key={t.k} onClick={() => { setActiveTab(t.k); setActivePreset(null); setPage(1); setGames([]); }}
               style={{ padding:'8px 18px', border:'none', cursor:'pointer', fontSize:'14px',
                 background:'none', whiteSpace:'nowrap', flexShrink:0, marginBottom:'-2px',
                 color: activeTab===t.k ? 'var(--text-primary)' : 'var(--text-muted)',
@@ -413,13 +458,20 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 background:'none', border:'1px solid #E50914', color:'#E50914', fontWeight:'600' }}>✕ 초기화</button>
           )}
         </div>
-      </div>
+      </div>}
 
-      <div style={styles.filterContainer}>
-          {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
-              <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
-          ))}
-      </div>
+      {activePreset === 'free' && (
+        <div style={{ marginBottom:'20px', padding:'14px 18px', background:'rgba(70,211,105,0.08)', border:'1px solid rgba(70,211,105,0.3)', borderRadius:'10px', color:'var(--text-secondary)', fontSize:'14px' }}>
+          🎁 <strong style={{color:'var(--text-primary)'}}>지금 무료로 받을 수 있는 게임</strong> — 원래 유료지만 기간 한정 무료 배포 중이에요. 인기순으로 정렬됩니다.
+        </div>
+      )}
+      {activePreset !== 'free' && (
+        <div style={styles.filterContainer}>
+            {Object.entries(TAG_CATEGORIES).map(([category, tags]) => (
+                <FilterCategoryBox key={category} title={category} tags={tags} selectedTags={selectedTags} onToggleTag={toggleTag} validTags={validTags} />
+            ))}
+        </div>
+      )}
 
       {selectedTags.length > 0 && (
         <div style={{marginBottom:'20px', color:'#b3b3b3', fontSize:'14px', textAlign:'right'}}>
@@ -432,9 +484,9 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
         <div style={{textAlign:'center', marginTop:'50px', color:'#ff4444', fontSize:'18px'}}>{error}</div>
       ) : (
         <div className="net-cards">
-          {games.map(game => (
+          {games.map((game, idx) => (
               <GameListItem 
-                  key={game.slug} 
+                  key={`${game.slug || game.giveaway_url || game.title || 'game'}-${idx}`} 
                   game={game} 
                   region={region} 
                   userWishlist={userWishlist} 
@@ -447,7 +499,28 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
       )}
 
       {!loading && !error && hasMore && <button style={styles.loadMoreButton} onClick={() => setPage(p => p+1)}>더 보기 ∨</button>}
-      {!loading && !error && games.length === 0 && <div style={{textAlign:'center', marginTop:'50px', color:'#666'}}>조건에 맞는 게임이 없습니다.</div>}
+      {!loading && !error && !hasMore && games.length > 0 && (
+        <div style={{textAlign:'center', marginTop:'30px', marginBottom:'20px', color:'var(--text-muted)', fontSize:'13px'}}>
+          — 모든 게임을 불러왔어요 —
+        </div>
+      )}
+      {!loading && !error && games.length === 0 && (
+        <div style={{textAlign:'center', marginTop:'60px', color:'var(--text-muted)'}}>
+          <div style={{fontSize:'40px', marginBottom:'12px'}}>🔍</div>
+          <div style={{fontSize:'17px', fontWeight:'600', color:'var(--text-primary)', marginBottom:'6px'}}>조건에 맞는 게임이 없어요</div>
+          <div style={{fontSize:'14px', marginBottom:'20px'}}>필터를 조정하거나 초기화해 보세요.</div>
+          {(selectedTags.length > 0 || activePreset || priceRange!=='all' || priceMin || priceMax || minDiscount!==0) && (
+            <button onClick={() => {
+              setSelectedTags([]); setActivePreset(null); setActiveTab('popular');
+              setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0);
+              setHideOwned(false); setPage(1); setGames([]);
+            }} style={{ padding:'10px 24px', borderRadius:'8px', cursor:'pointer',
+              background:'#E50914', color:'#fff', border:'none', fontSize:'14px', fontWeight:'600' }}>
+              필터 모두 초기화
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -609,7 +682,7 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
       return (
         <li key={item.slug || idx} style={itemStyle} onMouseDown={() => handleSuggestionClick(item)}>
           <div style={styles.suggestionGameRow}>
-            <img
+            <img loading="lazy"
               src={item.main_image || "data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3Ctext x%3D%22150%22 y%3D%2290%22 font-family%3D%22sans-serif%22 font-size%3D%2214%22 fill%3D%22%23555%22 text-anchor%3D%22middle%22%3ENo Image%3C%2Ftext%3E%3C%2Fsvg%3E"}
               alt={item.title}
               style={styles.suggestionThumb}
@@ -674,8 +747,8 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
       </div>
 
       <div style={styles.rightGroup} className="net-header-right">
-        <ThemeToggleBtn />
-  <select style={styles.regionSelect} value={region} onChange={handleRegionChange}>
+        <span className="net-theme-toggle"><ThemeToggleBtn /></span>
+  <select style={styles.regionSelect} className="net-region-select" value={region} onChange={handleRegionChange}>
     <option value="KR">🇰🇷 KRW</option>
     <option value="US">🇺🇸 USD</option>
     <option value="JP">🇯🇵 JPY</option>

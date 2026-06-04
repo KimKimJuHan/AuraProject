@@ -203,7 +203,7 @@ async function getNewGameCandidates() {
         } catch {}
     }
 
-    // 3. Steam 신규 출시작 (최신 게임 보강)
+    // 3. Steam 신규 출시작 + 베스트셀러 (최신 인기 게임 보강)
     try {
         const res = await axios.get('https://store.steampowered.com/api/featuredcategories', {
             params: { cc: 'kr', l: 'korean' }, timeout: 10000
@@ -213,7 +213,7 @@ async function getNewGameCandidates() {
         [...newReleases, ...topSellers].forEach(g => {
             if (g.id) candidates.set(g.id, { appid: g.id, name: g.name });
         });
-        console.log(`  Steam 신작/인기: +${newReleases.length + topSellers.length}개`);
+        console.log(`  Steam 신작/베스트셀러: +${newReleases.length + topSellers.length}개`);
     } catch (e) { console.warn('  Steam featured 실패:', e.message); }
 
     return Array.from(candidates.values());

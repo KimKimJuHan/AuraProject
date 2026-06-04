@@ -212,7 +212,14 @@ class RecommendController {
                 if (!query['price_info.discount_percent']) query['price_info.discount_percent'] = { $gt: 0 };
                 sortOption = { 'price_info.discount_percent': -1 };
             }
-            else if (sortBy === 'price') sortOption = { 'price_info.current_price': 1 };
+            else if (sortBy === 'price') {
+                // 가격 미등록(0원)/무료 게임은 제외하고 실제 가격 있는 것만 오름차순
+                // (무료는 '무료배포' 탭에서 별도 제공)
+                if (!query['price_info.current_price']) {
+                    query['price_info.current_price'] = { $gt: 0 };
+                }
+                sortOption = { 'price_info.current_price': 1 };
+            }
             else if (sortBy === 'review') sortOption = { 'steam_reviews.overall.percent': -1 };
             else sortOption = { trend_score: -1 };
 

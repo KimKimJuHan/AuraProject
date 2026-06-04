@@ -424,9 +424,19 @@ body,
   }
   .net-header-right {
     gap: 4px;
+    flex-shrink: 0;
+    min-width: 0;
   }
   .net-header-nickname {
     display: none;
+  }
+  /* 모바일에서 환율 선택 숨김 (마이페이지에서 변경) */
+  .net-region-select {
+    display: none !important;
+  }
+  /* 테마토글도 숨겨서 프로필 메뉴 공간 확보 */
+  .net-theme-toggle {
+    display: none !important;
   }
   .net-logo {
     font-size: 11px;
@@ -594,4 +604,10 @@ input[type=number] { -moz-appearance: textfield; }
 @media (max-width: 480px) {
   .filter-box-header { padding: 10px 12px !important; }
   .filter-box-content { padding: 10px !important; gap: 6px !important; }
+}
+/* 마이페이지 모바일/태블릿 - 2열 → 1열 */
+@media (max-width: 768px) {
+  .mypage-grid {
+    grid-template-columns: 1fr !important;
+  }
 }

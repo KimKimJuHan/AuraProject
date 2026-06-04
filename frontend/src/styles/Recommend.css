@@ -2,7 +2,9 @@
 
 /* 전체 컨테이너 */
 .reco-container {
-  padding: 40px 5%;
+  padding: 40px 4%;
+  max-width: 1600px;
+  margin: 0 auto;
   background-color: var(--bg-primary);
   min-height: 100vh;
   color: var(--text-primary);
