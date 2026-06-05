@@ -7,27 +7,27 @@ const containerStyle = {
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  backgroundColor: '#121212',
+  backgroundColor: 'var(--bg-primary)',
   padding: '40px 16px',
 };
 
 const cardStyle = {
   width: '420px',
-  backgroundColor: '#0b0b0b',
-  border: '1px solid #333',
+  backgroundColor: 'var(--bg-card)',
+  border: '1px solid var(--border)',
   borderRadius: '8px',
   padding: '28px',
-  color: '#fff',
+  color: 'var(--text-primary)',
 };
 
 const inputStyle = {
   width: '100%',
   padding: '12px',
   marginTop: '10px',
-  backgroundColor: '#2b2b2b',
-  border: '1px solid #444',
+  backgroundColor: 'var(--bg-hover)',
+  border: '1px solid var(--border)',
   borderRadius: '6px',
-  color: '#fff',
+  color: 'var(--text-primary)',
   boxSizing: 'border-box',
 };
 
@@ -225,7 +225,7 @@ export default function ForgotPasswordPage() {
         {message && <p style={{ marginTop: 12, color: message.includes('실패') || message.includes('불일치') || message.includes('만료') ? '#E50914' : '#bbb' }}>{message}</p>}
 
         <div style={{ marginTop: 18, fontSize: 13, color: '#aaa' }}>
-          <Link to="/login" style={{ color: '#fff', textDecoration: 'underline' }}>로그인으로 돌아가기</Link>
+          <Link to="/login" style={{ color: '#E50914', fontWeight:'600', textDecoration: 'underline' }}>로그인으로 돌아가기</Link>
         </div>
       </div>
     </div>

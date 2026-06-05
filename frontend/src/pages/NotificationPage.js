@@ -3,15 +3,15 @@ import { Link, Navigate } from 'react-router-dom';
 import { apiClient } from '../config';
 
 const styles = {
-    container: { maxWidth: '800px', margin: '40px auto', padding: '20px', backgroundColor: '#141414', minHeight: '80vh', color: '#fff', borderRadius: '8px' },
+    container: { maxWidth: '800px', margin: '40px auto', padding: '20px', backgroundColor: 'var(--bg-primary)', minHeight: '80vh', color: 'var(--text-primary)', borderRadius: '8px' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '15px', marginBottom: '20px' },
     title: { fontSize: '24px', fontWeight: 'bold', margin: 0 },
     clearBtn: { backgroundColor: 'transparent', color: '#E50914', border: '1px solid #E50914', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', transition: '0.2s' },
     list: { display: 'flex', flexDirection: 'column', gap: '15px' },
-    item: { backgroundColor: '#222', borderRadius: '8px', padding: '20px', borderLeft: '4px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s ease' },
-    itemUnread: { backgroundColor: '#2a2a2a', borderLeft: '4px solid #E50914' },
+    item: { backgroundColor: 'var(--bg-card)', borderRadius: '8px', padding: '20px', borderLeft: '4px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s ease' },
+    itemUnread: { backgroundColor: 'var(--bg-hover)', borderLeft: '4px solid #E50914' },
     contentArea: { display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, textDecoration: 'none' },
-    itemTitle: { fontSize: '16px', fontWeight: 'bold', color: '#fff', margin: 0 },
+    itemTitle: { fontSize: '16px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 },
     itemMessage: { fontSize: '14px', color: '#bbb', margin: 0, lineHeight: '1.4' },
     itemDate: { fontSize: '12px', color: '#777', marginTop: '5px' },
     deleteBtn: { backgroundColor: 'transparent', border: 'none', color: '#666', fontSize: '18px', cursor: 'pointer', padding: '10px', marginLeft: '15px' },
@@ -72,7 +72,7 @@ export default function NotificationPage({ user }) {
     };
 
     if (!user) return <Navigate to="/login" />;
-    if (loading) return <div style={{ textAlign: 'center', marginTop: '50px', color: '#fff' }}>로딩 중...</div>;
+    if (loading) return <div style={{ textAlign: 'center', marginTop: '50px', color: 'var(--text-primary)' }}>로딩 중...</div>;
 
     return (
         <div style={styles.container}>

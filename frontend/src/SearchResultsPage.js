@@ -16,13 +16,13 @@ const REVIEW_KO = {
 };
 
 const styles = {
-  container: { padding: '40px 5%', color: '#fff', minHeight: '100vh', backgroundColor: '#141414' },
+  container: { padding: '40px 5%', color: 'var(--text-primary)', minHeight: '100vh', backgroundColor: 'var(--bg-primary)' },
   header: { fontSize: '24px', marginBottom: '16px', borderLeft: '5px solid #E50914', paddingLeft: '15px' },
   toolbar: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' },
-  sortBtn: { background: '#2a2a2a', border: '1px solid #444', color: '#ccc', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
+  sortBtn: { background: 'var(--bg-hover)', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' },
   sortBtnActive: { background: '#E50914', border: '1px solid #E50914', color: '#fff', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' },
-  card: { backgroundColor: '#181818', borderRadius: '4px', overflow: 'hidden', textDecoration: 'none', color: '#fff', transition: 'transform 0.2s', display: 'block' },
+  card: { backgroundColor: 'var(--bg-card)', borderRadius: '4px', overflow: 'hidden', textDecoration: 'none', color: 'var(--text-primary)', transition: 'transform 0.2s', display: 'block' },
   thumbWrapper: { position: 'relative', width: '100%', paddingTop: '56.25%' },
   thumb: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' },
   cardBody: { padding: '10px' },

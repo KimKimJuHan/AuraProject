@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { apiClient } from '../config';
 
-const containerStyle = { minHeight: '100vh', backgroundColor: '#141414', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' };
-const cardStyle = { backgroundColor: '#181818', border: '1px solid #333', borderRadius: '8px', padding: '30px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column' };
-const inputStyle = { padding: '12px', marginTop: '8px', borderRadius: '4px', border: '1px solid #333', backgroundColor: '#222', color: '#fff', fontSize: '14px', outline: 'none' };
+const containerStyle = { minHeight: '100vh', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' };
+const cardStyle = { backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '30px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column' };
+const inputStyle = { padding: '12px', marginTop: '8px', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--bg-hover)', color: 'var(--text-primary)', fontSize: '14px', outline: 'none' };
 const btnStyle = { marginTop: '20px', padding: '12px', backgroundColor: '#E50914', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' };
 
 export default function ChangePasswordPage({ user }) {
@@ -22,7 +22,7 @@ export default function ChangePasswordPage({ user }) {
         <div style={containerStyle}>
           <div style={cardStyle}>
             <h2 style={{ margin: 0, marginBottom: 16 }}>비밀번호 변경 불가</h2>
-            <div style={{ backgroundColor: '#222', padding: '20px', borderRadius: '8px', textAlign: 'center', margin: '20px 0' }}>
+            <div style={{ backgroundColor: 'var(--bg-hover)', padding: '20px', borderRadius: '8px', textAlign: 'center', margin: '20px 0' }}>
                 <p style={{ color: '#bbb', lineHeight: '1.5' }}>
                     회원님은 <b>소셜 로그인(네이버/구글/스팀)</b>으로 가입된 계정입니다.<br/><br/>
                     해당 계정은 비밀번호가 존재하지 않으므로 변경할 수 없습니다. 
@@ -33,7 +33,7 @@ export default function ChangePasswordPage({ user }) {
                 <button style={{...btnStyle, width: '100%'}}>비밀번호 찾기로 이동</button>
             </Link>
             <div style={{ marginTop: 18, fontSize: 13, color: '#aaa', textAlign: 'center' }}>
-              <Link to="/mypage" style={{ color: '#fff', textDecoration: 'underline' }}>마이페이지로 돌아가기</Link>
+              <Link to="/mypage" style={{ color: '#E50914', fontWeight:'600', textDecoration: 'underline' }}>마이페이지로 돌아가기</Link>
             </div>
           </div>
         </div>
@@ -72,7 +72,7 @@ export default function ChangePasswordPage({ user }) {
         <button style={btnStyle} onClick={submit} disabled={!currentPassword || !newPassword || !newPassword2}>변경하기</button>
         {message && <p style={{ marginTop: 12, color: message.includes('성공') ? '#46d369' : '#E50914' }}>{message}</p>}
         <div style={{ marginTop: 18, fontSize: 13, color: '#aaa', textAlign: 'center' }}>
-          <Link to="/mypage" style={{ color: '#fff', textDecoration: 'underline' }}>마이페이지로 돌아가기</Link>
+          <Link to="/mypage" style={{ color: '#E50914', fontWeight:'600', textDecoration: 'underline' }}>마이페이지로 돌아가기</Link>
         </div>
       </div>
     </div>
