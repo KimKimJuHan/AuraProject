@@ -63,14 +63,14 @@ function LoginPage({ user, setUser }) {
     maxWidth: '450px',
     display: 'flex',
     flexDirection: 'column',
-    color: '#fff'
+    color: 'var(--text-primary)'
   };
 
   const inputStyle = {
     background: 'var(--bg-hover)',
     borderRadius: '4px',
-    border: '0',
-    color: '#fff',
+    border: '1px solid var(--border)',
+    color: 'var(--text-primary)',
     height: '50px',
     lineHeight: '50px',
     padding: '0 20px',

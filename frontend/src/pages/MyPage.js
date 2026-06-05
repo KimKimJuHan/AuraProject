@@ -197,7 +197,7 @@ function MyPage({ user, setUser }) {
                               value={newDisplayName}
                               onChange={(e) => setNewDisplayName(e.target.value)}
                               placeholder="새 닉네임 (2~20자)"
-                              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '6px', border: '1px solid #444', background: '#111', color: '#fff', fontSize: '14px' }}
+                              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-primary)', fontSize: '14px' }}
                             />
                             <button onClick={handleSaveNickname} className="search-btn" style={{ whiteSpace: 'nowrap', padding: '7px 12px' }}>저장</button>
                             <button onClick={() => { setIsEditingNickname(false); setNewDisplayName(user?.displayName || user?.username || ''); }} className="search-btn" style={{ backgroundColor: '#666', whiteSpace: 'nowrap', padding: '7px 12px' }}>취소</button>
@@ -265,7 +265,7 @@ function MyPage({ user, setUser }) {
                         <select
                             value={pcSpecForm.cpuName}
                             onChange={(e) => setPcSpecForm(prev => ({ ...prev, cpuName: e.target.value }))}
-                            style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
+                            style={{padding:'10px', borderRadius:'6px', border:'1px solid var(--border)', background:'var(--bg-hover)', color:'var(--text-primary)'}}
                         >
                             <option value="">CPU 선택</option>
                             {CPU_OPTIONS.map(cpu => (
@@ -279,7 +279,7 @@ function MyPage({ user, setUser }) {
                         <select
                             value={pcSpecForm.gpuName}
                             onChange={(e) => setPcSpecForm(prev => ({ ...prev, gpuName: e.target.value }))}
-                            style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
+                            style={{padding:'10px', borderRadius:'6px', border:'1px solid var(--border)', background:'var(--bg-hover)', color:'var(--text-primary)'}}
                         >
                             <option value="">그래픽카드 선택</option>
                             {GPU_OPTIONS.map(gpu => (
@@ -293,7 +293,7 @@ function MyPage({ user, setUser }) {
                         <select
                             value={pcSpecForm.ram}
                             onChange={(e) => setPcSpecForm(prev => ({ ...prev, ram: Number(e.target.value) }))}
-                            style={{padding:'10px', borderRadius:'6px', border:'1px solid #444', background:'#111', color:'#fff'}}
+                            style={{padding:'10px', borderRadius:'6px', border:'1px solid var(--border)', background:'var(--bg-hover)', color:'var(--text-primary)'}}
                         >
                             <option value={0}>선택</option>
                             {[4, 8, 12, 16, 24, 32, 64].map(ram => (
@@ -407,7 +407,7 @@ function MyPage({ user, setUser }) {
                                     {sel && <div style={{width:'5px', height:'5px', borderRadius:'50%', background:'#fff'}}/>}
                                 </div>
                                 <div>
-                                    <div style={{color:'#fff', fontSize:'13px', fontWeight: sel ? '700' : '400'}}>{label}</div>
+                                    <div style={{color:'var(--text-primary)', fontSize:'13px', fontWeight: sel ? '700' : '400'}}>{label}</div>
                                     <div style={{color:'#666', fontSize:'11px', marginTop:'2px'}}>{desc}</div>
                                 </div>
                             </div>
@@ -454,7 +454,7 @@ function MyPage({ user, setUser }) {
                 ) : (
                     <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
                         {currentTags.map(tag => (
-                            <span key={tag} style={{background:'#333', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'#fff'}}>#{tag}</span>
+                            <span key={tag} style={{background:'var(--bg-hover)', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'var(--text-primary)'}}>#{tag}</span>
                         ))}
                     </div>
                 )}
@@ -464,27 +464,21 @@ function MyPage({ user, setUser }) {
                 <h3>❤️ 나의 찜 목록 ({wishlistGames.length})</h3>
                 <div className="game-grid" style={{gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'15px'}}>
                     {wishlistGames.map(game => (
-                        <div key={game._id} className="game-card" onClick={() => navigate(`/game/${game.slug}`)}>
-                            <img src={game.main_image} alt={game.title} style={{width:'100%', borderRadius:'4px'}} />
-                            <div style={{padding:'10px'}}>
-                                <div style={{fontSize:'14px', fontWeight:'bold'}} className="text-truncate">{game.title_ko || game.title}</div>
+                        <div key={game._id} className="game-card" onClick={() => navigate(`/game/${game.slug}`)}
+                          style={{
+                            display:'flex', flexDirection:'column',
+                            backgroundColor:'var(--bg-card)', border:'1px solid var(--border)',
+                            borderRadius:'8px', overflow:'hidden', cursor:'pointer', height:'100%'
+                          }}>
+                            <img src={game.main_image} alt={game.title}
+                              style={{width:'100%', aspectRatio:'16/9', objectFit:'cover', display:'block'}}
+                              onError={(e)=>{e.target.src='data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3C%2Fsvg%3E';}} />
+                            <div style={{padding:'10px', display:'flex', flexDirection:'column', flex:1}}>
+                                <div style={{fontSize:'14px', fontWeight:'bold', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{game.title_ko || game.title}</div>
                                 <PcCompatibilityBadge game={game} compact hideUnknown />
 
-                                {game.reason && (
-                                  <div style={{
-                                    fontSize:'11px',
-                                    color:'#E50914',
-                                    marginTop:'6px',
-                                    marginBottom:'6px',
-                                    lineHeight:'1.3',
-                                    fontWeight:'bold',
-                                    wordBreak:'keep-all'
-                                  }}>
-                                    💡 {game.reason}
-                                  </div>
-                                )}
-
-                                <div style={{fontSize:'12px', color:'#e50914', marginTop:'5px'}}>
+                                {/* 가격을 항상 하단 고정 (reason 유무로 카드 높이 안 흔들리게) */}
+                                <div style={{fontSize:'13px', color:'#e50914', marginTop:'auto', paddingTop:'8px', fontWeight:'bold'}}>
                                     {game.price_info?.current_price > 0 ? `${game.price_info.current_price.toLocaleString()}원` : '무료'}
                                 </div>
                             </div>
