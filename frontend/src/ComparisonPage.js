@@ -215,7 +215,9 @@ function ComparisonPage({ region, user }) {
                 position: 'relative',
                 width: '100%',
                 boxSizing: 'border-box',
-                minWidth: 0
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column'
               }}
             >
               <button
@@ -263,18 +265,18 @@ function ComparisonPage({ region, user }) {
                 {game.title_ko || game.title}
               </h3>
 
-              {getDiscountPercent(game) > 0 && (
-                <p
-                  style={{
-                    fontSize: isMobile ? '12px' : '14px',
-                    color: '#E50914',
-                    margin: '5px 0',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  🏷 할인율: {getDiscountPercent(game)}%
-                </p>
-              )}
+              <p
+                style={{
+                  fontSize: isMobile ? '12px' : '14px',
+                  color: '#E50914',
+                  margin: '5px 0',
+                  fontWeight: 'bold',
+                  minHeight: isMobile ? '17px' : '20px',
+                  visibility: getDiscountPercent(game) > 0 ? 'visible' : 'hidden'
+                }}
+              >
+                🏷 할인율: {getDiscountPercent(game) > 0 ? getDiscountPercent(game) : 0}%
+              </p>
 
               <p
                 style={{
@@ -306,7 +308,7 @@ function ComparisonPage({ region, user }) {
                   textDecoration: 'none',
                   padding: isMobile ? '9px' : '10px',
                   borderRadius: '4px',
-                  marginTop: '15px',
+                  marginTop: 'auto',
                   fontWeight: 'bold',
                   fontSize: isMobile ? '13px' : '14px'
                 }}

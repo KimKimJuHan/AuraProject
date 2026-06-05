@@ -868,12 +868,19 @@ export default function ShopPage({ region, user }) {
 
         {/* ── 액션 버튼 행 (항상 고정 높이) ── */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'12px', alignItems:'stretch' }}>
-          {pi ? (
-            <a href={pi.store_url || (gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')}
-              target="_blank" rel="noreferrer" style={styles.buyButton}>
-              {getPriceDisplay(pi.current_price, pi.isFree)} 구매하기
-            </a>
-          ) : <div />}
+          {pi ? (() => {
+            // 메인 버튼은 스팀 기준으로 통일 (가격-링크 일치)
+            const steamDeal = (pi.deals || []).find(d => d.shopName === 'Steam');
+            const steamPrice = steamDeal ? steamDeal.price : pi.current_price;
+            const steamUrl = gameData.steam_appid
+              ? `https://store.steampowered.com/app/${gameData.steam_appid}`
+              : (pi.store_url || '#');
+            return (
+              <a href={steamUrl} target="_blank" rel="noreferrer" style={styles.buyButton}>
+                {getPriceDisplay(steamPrice, pi.isFree)} 구매하기
+              </a>
+            );
+          })() : <div />}
           <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>
             {isWishlisted ? '✔ 찜함' : '+ 찜하기'}
           </button>
@@ -1020,7 +1027,17 @@ export default function ShopPage({ region, user }) {
 
         <div style={styles.bottomGrid}>
           <div style={{ minWidth: 0 }}>
-            <h3 className="net-section-title">가격 비교</h3>
+            <h3 className="net-section-title">
+              가격 비교
+              {pi?.deals?.length > 0 && (() => {
+                const lowest = pi.deals.reduce((min, d) => d.price < min.price ? d : min, pi.deals[0]);
+                return (
+                  <span style={{ fontSize: '13px', fontWeight: 'normal', color: '#46d369', marginLeft: '10px' }}>
+                    최저가 {getPriceDisplay(lowest.price, false)} ({lowest.shopName})
+                  </span>
+                );
+              })()}
+            </h3>
             <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
               {renderStoreList()}
             </div>
