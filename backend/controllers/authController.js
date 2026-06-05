@@ -9,7 +9,18 @@ const axios = require('axios');
 class AuthController {
     sendOtp = async (req, res) => {
         try {
-            const { email } = req.body;
+            const { email, username } = req.body;
+
+            // 가입 전 중복 체크 (인증코드 보내기 전에 미리 거름 - UX 개선)
+            if (email) {
+                const existsEmail = await User.findOne({ email });
+                if (existsEmail) return res.status(400).json({ success: false, message: '이미 가입된 이메일입니다.' });
+            }
+            if (username) {
+                const existsUser = await User.findOne({ username });
+                if (existsUser) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
+            }
+
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             const expiresAt = new Date(Date.now() + 600000); 
 
@@ -309,7 +320,7 @@ class AuthController {
             }
 
             // DB에서 최신 역할, 플레이어 등급, 스팀 라이브러리 데이터를 당겨옵니다.
-            const dbUser = await User.findById(sessionUser.id).select('role playerType steamGames steamId');
+            const dbUser = await User.findById(sessionUser.id).select('role playerType steamGames steamId googleId naverId password');
             if (!dbUser) {
                 return res.json({ isAuthenticated: false, user: null });
             }
@@ -319,7 +330,8 @@ class AuthController {
                 role: dbUser.role,
                 playerType: dbUser.playerType || 'beginner',
                 steamGames: dbUser.steamGames || [],
-                steamId: dbUser.steamId || null
+                steamId: dbUser.steamId || null,
+                isSocial: !!(dbUser.googleId || dbUser.naverId) || !dbUser.password  // 소셜 로그인 여부
             };
             req.session.user = patchedUser;
 

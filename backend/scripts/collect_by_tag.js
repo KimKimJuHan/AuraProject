@@ -193,6 +193,8 @@ async function collectGame(appId, name, existingSet) {
     priceInfo.discount_percent = krCalc.discount_percent;
     priceInfo.store_url = `https://store.steampowered.com/app/${appId}`;
   }
+  // steam_appid 있으면 store_url 항상 스팀 (itad.link 방지)
+  priceInfo.store_url = `https://store.steampowered.com/app/${appId}`;
 
   await Game.findOneAndUpdate(
     { steam_appid: appId },

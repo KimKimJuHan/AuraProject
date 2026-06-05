@@ -224,7 +224,7 @@ function LoginPage({ user, setUser }) {
 
         <div style={{ marginTop: '30px', color: '#737373', fontSize: '16px' }}>
           AuraProject 회원이 아닌가요?
-          <Link to="/signup" style={{ color: '#fff', textDecoration: 'none', marginLeft: '5px' }}>
+          <Link to="/signup" style={{ color: '#E50914', fontWeight: '600', textDecoration: 'none', marginLeft: '5px' }}>
             지금 가입하세요.
           </Link>
         </div>

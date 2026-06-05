@@ -348,7 +348,7 @@ router.get('/games/giveaway', async (req, res) => {
         // ── 1. GamerPower (Epic/Steam/GOG/Ubisoft 등 전 플랫폼 통합) ──
         try {
             const gpRes = await axios.get(
-                'https://www.gamerpower.com/api/giveaways?platform=epic-games-store.steam.gog.ubisoft.itchio&type=game&sort-by=popularity',
+                'https://www.gamerpower.com/api/giveaways?platform=pc&type=game&sort-by=popularity',
                 { headers, timeout: 10000 }
             );
             for (const g of (gpRes.data || [])) {

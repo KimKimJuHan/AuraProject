@@ -276,6 +276,10 @@ async function run() {
         priceInfo.store_url = `https://store.steampowered.com/app/${target.appid}`;
         priceInfo.store_name = 'Steam';
       }
+      // steam_appid 있으면 store_url 항상 스팀 (itad.link 방지)
+      if (target.appid && priceInfo) {
+        priceInfo.store_url = `https://store.steampowered.com/app/${target.appid}`;
+      }
 
       const gameDoc = {
         steam_appid: target.appid,

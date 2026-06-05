@@ -23,6 +23,7 @@ function SignupPage({ setUser }) {
   // 1단계: 인증코드 발송 요청
   const handleSendCode = async (e) => {
     e.preventDefault();
+    setErrorMsg(''); setSuccessMsg('');
     if (formData.password !== formData.confirmPassword) {
       return setErrorMsg("비밀번호가 일치하지 않습니다.");
     }
@@ -45,6 +46,7 @@ function SignupPage({ setUser }) {
   // 2단계: 가입 완료 요청
   const handleVerify = async (e) => {
     e.preventDefault();
+    setErrorMsg(''); setSuccessMsg('');
     setLoading(true);
     try {
       await apiClient.post('/auth/verify-otp', {
@@ -85,8 +87,8 @@ function SignupPage({ setUser }) {
 
   // 스타일 객체
   const pageStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: 'var(--bg-primary)', padding: '20px' };
-  const boxStyle = { backgroundColor: 'var(--bg-card)', padding: '60px 68px 40px', borderRadius: '4px', width: '100%', maxWidth: '450px', display: 'flex', flexDirection: 'column', color: '#fff' };
-  const inputStyle = { background: 'var(--bg-hover)', borderRadius: '4px', border: '0', color: '#fff', height: '50px', lineHeight: '50px', padding: '0 20px', width: '100%', marginBottom: '20px', boxSizing: 'border-box' };
+  const boxStyle = { backgroundColor: 'var(--bg-card)', padding: '60px 68px 40px', borderRadius: '4px', width: '100%', maxWidth: '450px', display: 'flex', flexDirection: 'column', color: 'var(--text-primary)' };
+  const inputStyle = { background: 'var(--bg-hover)', borderRadius: '4px', border: '0', color: 'var(--text-primary)', height: '50px', lineHeight: '50px', padding: '0 20px', width: '100%', marginBottom: '20px', boxSizing: 'border-box' };
   const btnStyle = { borderRadius: '4px', fontSize: '16px', fontWeight: 'bold', margin: '24px 0 12px', padding: '16px', background: '#e50914', color: '#fff', border: 'none', cursor: 'pointer', width: '100%' };
   const socialBtnStyle = { width: '100%', padding: '12px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', border: 'none', marginBottom: '10px', fontSize: '14px' };
 
@@ -94,7 +96,20 @@ function SignupPage({ setUser }) {
     <div style={pageStyle}>
       <div style={boxStyle}>
         <h1 style={{ marginBottom: '28px', fontSize: '32px', fontWeight: 'bold' }}>회원가입</h1>
-        
+
+        {errorMsg && (
+          <div style={{ background:'rgba(229,9,20,0.12)', border:'1px solid #e50914', color:'#ff6b6b',
+            padding:'12px 16px', borderRadius:'6px', marginBottom:'16px', fontSize:'14px' }}>
+            {errorMsg}
+          </div>
+        )}
+        {successMsg && (
+          <div style={{ background:'rgba(70,211,105,0.12)', border:'1px solid #46d369', color:'#46d369',
+            padding:'12px 16px', borderRadius:'6px', marginBottom:'16px', fontSize:'14px' }}>
+            {successMsg}
+          </div>
+        )}
+
         {step === 1 ? (
           <form onSubmit={handleSendCode}>
             <input type="text" name="username" placeholder="아이디 (로그인용)" value={formData.username} onChange={handleChange} style={inputStyle} required />
@@ -129,7 +144,7 @@ function SignupPage({ setUser }) {
         </div>
 
         <div style={{ marginTop: '30px', color: '#737373', fontSize: '16px' }}>
-          이미 회원이신가요? <Link to="/login" style={{ color: '#fff', textDecoration: 'none', marginLeft: '5px' }}>로그인하기</Link>
+          이미 회원이신가요? <Link to="/login" style={{ color: '#e50914', fontWeight:'600', textDecoration: 'none', marginLeft: '5px' }}>로그인하기</Link>
         </div>
       </div>
     </div>
