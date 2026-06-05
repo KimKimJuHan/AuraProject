@@ -682,8 +682,15 @@ export default function ShopPage({ region, user }) {
       );
     }
 
+    const dealHref = (deal) => {
+      // Steam 상점은 itad.link 대신 항상 스팀 직접 링크
+      if (deal.shopName === 'Steam' && gameData.steam_appid) {
+        return `https://store.steampowered.com/app/${gameData.steam_appid}`;
+      }
+      return deal.url || '#';
+    };
     return deals.map((deal, idx) => (
-      <a key={idx} href={deal.url || (gameData.steam_appid && deal.shopName === 'Steam' ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
+      <a key={idx} href={dealHref(deal)} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={styles.storeName}>{deal.shopName}</span>
           {deal.discount > 0 && (
