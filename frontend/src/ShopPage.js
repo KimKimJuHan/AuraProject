@@ -900,16 +900,16 @@ export default function ShopPage({ region, user }) {
 
         {/* 가격 알림 패널 - 버튼 행 아래 별도 렌더 */}
         {showPriceAlert && (
-          <div style={{ border:'1px solid #444', borderRadius:'8px', padding:'12px',
-            background:'#1a1a1a', marginBottom:'16px' }}>
-            <div style={{ color:'#ccc', fontSize:'12px', marginBottom:'10px' }}>알림 방식 선택</div>
+          <div style={{ border:'1px solid var(--border)', borderRadius:'8px', padding:'12px',
+            background:'var(--bg-card)', marginBottom:'16px' }}>
+            <div style={{ color:'var(--text-secondary)', fontSize:'12px', marginBottom:'10px' }}>알림 방식 선택</div>
             <div style={{ display:'flex', gap:'5px', marginBottom:'10px' }}>
               {[{k:'price',label:'가격 입력'},{k:'discount',label:'할인율 선택'},{k:'lowest',label:'최저가 갱신 시'}].map(m => (
                 <button key={m.k} onClick={() => setAlertMode(m.k)}
                   style={{ flex:1, padding:'5px 2px', fontSize:'11px', borderRadius:'5px',
-                    background: alertMode === m.k ? '#4CAF50' : '#2a2a2a',
-                    color: alertMode === m.k ? '#fff' : '#888',
-                    border: `1px solid ${alertMode === m.k ? '#4CAF50' : '#444'}`, cursor:'pointer' }}>
+                    background: alertMode === m.k ? '#4CAF50' : 'var(--bg-hover)',
+                    color: alertMode === m.k ? '#fff' : 'var(--text-muted)',
+                    border: `1px solid ${alertMode === m.k ? '#4CAF50' : 'var(--border)'}`, cursor:'pointer' }}>
                   {m.label}
                 </button>
               ))}
@@ -917,7 +917,7 @@ export default function ShopPage({ region, user }) {
             {alertMode === 'price' && (
               <input type="number" placeholder="목표 가격 (원)" value={priceAlertInput}
                 onChange={e => setPriceAlertInput(e.target.value)}
-                style={{ width:'100%', background:'#111', border:'1px solid #444', color:'#fff',
+                style={{ width:'100%', background:'var(--bg-input, var(--bg-hover))', border:'1px solid var(--border)', color:'var(--text-primary)',
                   padding:'6px 10px', borderRadius:'6px', fontSize:'13px', boxSizing:'border-box' }}/>
             )}
             {alertMode === 'discount' && (
@@ -928,13 +928,13 @@ export default function ShopPage({ region, user }) {
                       style={{ padding:'4px 8px', fontSize:'11px', borderRadius:'4px',
                         background: alertDiscount === String(pct) ? '#4CAF50' : '#2a2a2a',
                         color: alertDiscount === String(pct) ? '#fff' : '#aaa',
-                        border:`1px solid ${alertDiscount === String(pct) ? '#4CAF50' : '#444'}`, cursor:'pointer' }}>
+                        border:`1px solid ${alertDiscount === String(pct) ? '#4CAF50' : 'var(--border)'}`, cursor:'pointer' }}>
                       {pct}%↑
                     </button>
                   ))}
                 </div>
                 {alertDiscount && gameData?.price_info?.regular_price > 0 && (
-                  <div style={{ color:'#888', fontSize:'11px', marginTop:'5px' }}>
+                  <div style={{ color:'var(--text-muted)', fontSize:'11px', marginTop:'5px' }}>
                     목표가: ₩{Math.round((gameData.price_info.regular_price||0) * (1 - Number(alertDiscount)/100)).toLocaleString()} 이하
                   </div>
                 )}
@@ -959,7 +959,7 @@ export default function ShopPage({ region, user }) {
             {priceAlert && (
               <button onClick={handleDeletePriceAlert}
                 style={{ marginTop:'6px', background:'none', border:'none',
-                  color:'#888', cursor:'pointer', fontSize:'12px', textDecoration:'underline', width:'100%' }}>
+                  color:'var(--text-muted)', cursor:'pointer', fontSize:'12px', textDecoration:'underline', width:'100%' }}>
                 알림 해제
               </button>
             )}
@@ -984,8 +984,8 @@ export default function ShopPage({ region, user }) {
           <h3 className="net-section-title">게임 소개</h3>
           <div style={{
             color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.8',
-            background: '#1a1a1a', borderRadius: '8px', padding: '16px 20px',
-            border: '1px solid #2a2a2a'
+            background: 'var(--bg-card)', borderRadius: '8px', padding: '16px 20px',
+            border: '1px solid var(--border)'
           }}
             dangerouslySetInnerHTML={{ __html: cleanHTML(gameData.description || '') }}
           />
