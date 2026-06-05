@@ -211,13 +211,20 @@ function MyPage({ user, setUser }) {
                       </div>
                     </div>
                     <p><b>이메일:</b> {user?.email || "정보 없음"}</p>
-                    <button
-                      className="search-btn"
-                      style={{ marginTop: '10px' }}
-                      onClick={() => navigate('/change-password')}
-                    >
-                      비밀번호 변경
-                    </button>
+                    {!user?.isSocial && (
+                      <button
+                        className="search-btn"
+                        style={{ marginTop: '10px' }}
+                        onClick={() => navigate('/change-password')}
+                      >
+                        비밀번호 변경
+                      </button>
+                    )}
+                    {user?.isSocial && (
+                      <p style={{ marginTop: '10px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                        소셜 로그인 계정은 비밀번호 변경이 필요 없습니다.
+                      </p>
+                    )}
                 </div>
 
                 <div className="search-panel mypage-card">

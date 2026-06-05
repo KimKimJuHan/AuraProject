@@ -328,9 +328,9 @@ router.put("/liked-tags", authenticateToken, async (req, res) => {
     try {
         const { tags } = req.body;
         if (!Array.isArray(tags)) return res.status(400).json({ message: "tags 배열이 필요합니다." });
-        // 태그 개수 제한 없음 (피드백 반영)
         await User.findByIdAndUpdate(req.user._id, { $set: { likedTags: tags } });
-        res.json({ success: true, likedTags: filtered });
+        cache.deleteByPrefix(`reco:${req.user._id}`); // 선호태그 변경 → 추천 캐시 무효화
+        res.json({ success: true, likedTags: tags });
     } catch (err) {
         res.status(500).json({ message: "서버 오류" });
     }

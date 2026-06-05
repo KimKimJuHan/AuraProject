@@ -417,22 +417,28 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 fontWeight: minDiscount===d.k ? '700':'400' }}>{d.n}</button>
           ))}
           <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
-          {/* 코옵/멀티 빠른 토글 - 정렬/가격/할인과 동시 적용 가능 */}
-          {(() => {
-            const coopOn = selectedTags.includes('협동') || selectedTags.includes('멀티플레이');
+          {/* 빠른 태그 필터 - 정렬/가격/할인과 동시 적용 가능 */}
+          {[
+            { label:'코옵·멀티', tags:['협동','멀티플레이'] },
+            { label:'싱글', tags:['싱글플레이'] },
+            { label:'오픈월드', tags:['오픈월드'] },
+            { label:'공포', tags:['공포'] },
+          ].map(f => {
+            const on = f.tags.every(t => selectedTags.includes(t));
             return (
-              <button onClick={() => {
-                  if (coopOn) setSelectedTags(prev => prev.filter(t => t!=='협동' && t!=='멀티플레이'));
-                  else setSelectedTags(prev => [...new Set([...prev, '협동', '멀티플레이'])]);
+              <button key={f.label} onClick={() => {
+                  if (on) setSelectedTags(prev => prev.filter(t => !f.tags.includes(t)));
+                  else setSelectedTags(prev => [...new Set([...prev, ...f.tags])]);
                   setPage(1); setGames([]);
                 }}
                 style={{ padding:'6px 14px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
-                  background: coopOn ? '#E50914' : 'var(--bg-hover)',
-                  color: coopOn ? '#fff' : 'var(--text-secondary)',
-                  border:`1px solid ${coopOn ? '#E50914':'var(--border)'}`,
-                  fontWeight: coopOn ? '700':'500' }}>코옵·멀티</button>
+                  whiteSpace:'nowrap', flexShrink:0,
+                  background: on ? '#E50914' : 'var(--bg-hover)',
+                  color: on ? '#fff' : 'var(--text-secondary)',
+                  border:`1px solid ${on ? '#E50914':'var(--border)'}`,
+                  fontWeight: on ? '700':'500' }}>{f.label}</button>
             );
-          })()}
+          })}
           <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
           {user && (
             <button onClick={() => { setHideOwned(v=>!v); setPage(1); setGames([]); }}

@@ -1,6 +1,7 @@
 const Game = require('../models/Game');
 const cache = require('../utils/simpleCache');
 const User = require('../models/User');
+const TrendHistory = require('../models/TrendHistory');
 const { calculateSimilarity, gameToVector, userToVector } = require('../utils/vector');
 const { getQueryTags } = require('../utils/tagMapper');
 
@@ -207,10 +208,16 @@ class RecommendController {
 
             let sortOption = {};
             if (sortBy === 'popular') sortOption = { trend_score: -1, steam_ccu: -1 };
-            else if (sortBy === 'new') sortOption = { releaseDate: -1 };
+            else if (sortBy === 'new') {
+                // 이미 출시된 게임만 (미래 출시 예정작 제외)
+                query.releaseDate = { $lte: new Date(), $ne: null };
+                sortOption = { releaseDate: -1 };
+            }
             else if (sortBy === 'discount') {
                 if (!query['price_info.discount_percent']) query['price_info.discount_percent'] = { $gt: 0 };
-                sortOption = { 'price_info.discount_percent': -1 };
+                // 완전 무명 게임 제외 (리뷰 최소 10개) - 할인이 목적이라 기준 낮게
+                query['steam_reviews.overall.total'] = { $gte: 10 };
+                sortOption = { 'price_info.discount_percent': -1, trend_score: -1 };
             }
             else if (sortBy === 'price') {
                 // 가격 미등록(0원)/무료 게임은 제외하고 실제 가격 있는 것만 오름차순
@@ -220,7 +227,37 @@ class RecommendController {
                 }
                 sortOption = { 'price_info.current_price': 1 };
             }
-            else if (sortBy === 'review') sortOption = { 'steam_reviews.overall.percent': -1 };
+            else if (sortBy === 'review') {
+                // 리뷰 수가 충분한 게임만 (무명 게임의 소수 100% 배제)
+                query['steam_reviews.overall.total'] = { $gte: 500 };
+                sortOption = { 'steam_reviews.overall.percent': -1, 'steam_reviews.overall.total': -1 };
+            }
+            else if (sortBy === 'rising') {
+                // 급상승: 최근 3일간 시청자(트렌드) 증가량이 큰 게임
+                const now = new Date();
+                const threeDaysAgo = new Date(now - 3 * 24 * 60 * 60 * 1000);
+                const recent = await TrendHistory.aggregate([
+                    { $match: { recordedAt: { $gte: threeDaysAgo } } },
+                    { $sort: { recordedAt: 1 } },
+                    { $group: {
+                        _id: '$steam_appid',
+                        first: { $first: '$trend_score' },
+                        last: { $last: '$trend_score' },
+                    }},
+                    { $project: { growth: { $subtract: ['$last', '$first'] } } },
+                    { $match: { growth: { $gt: 0 } } },
+                    { $sort: { growth: -1 } },
+                    { $limit: 200 },
+                ]);
+                const risingAppids = recent.map(r => r._id);
+                if (risingAppids.length > 0) {
+                    query.steam_appid = query.steam_appid
+                        ? { $in: risingAppids, ...(query.steam_appid.$nin ? { $nin: query.steam_appid.$nin } : {}) }
+                        : { $in: risingAppids };
+                }
+                // 급상승 순서 유지 위해 trend_score 보조 정렬
+                sortOption = { trend_score: -1 };
+            }
             else sortOption = { trend_score: -1 };
 
             const [totalGames, games] = await Promise.all([

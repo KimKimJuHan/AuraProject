@@ -324,7 +324,7 @@ async function collectTrends() {
             const soopViewers = await getSoopViewers(game);
 
             // 트렌드 점수: Chzzk/SOOP에 2배 가중치 (한국 서비스 특성)
-            const trendScore = twitchViewers + ((chzzkViewers + soopViewers) * 2) + Math.round(steamCCU * 0.1);
+            const trendScore = twitchViewers + ((chzzkViewers + soopViewers) * 2) + Math.round(steamCCU * 0.3);
 
             await Promise.all([
                 Game.updateOne(
