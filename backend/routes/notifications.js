@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth_middleware');
 
 // 1. 내 모든 알림 조회 (최신순)
 router.get('/', authenticateToken, async (req, res) => {

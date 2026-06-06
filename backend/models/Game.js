@@ -55,7 +55,6 @@ const gameSchema = new mongoose.Schema({
     store_url: String,
     store_name: String,
     historical_low: Number,
-    expiry: String,
     isFree: { type: Boolean, default: false },
     expiry: { type: Date, default: null }, // 할인 종료 시각
     deals: [
@@ -87,9 +86,9 @@ const gameSchema = new mongoose.Schema({
   dislikes_count: { type: Number, default: 0 }
 });
 
-module.exports = mongoose.model('Game', gameSchema, 'games');
 // ── 복합 인덱스 (추천 API 쿼리 최적화) ───────────────────────────────────────
 // 메인 추천 API가 항상 isAdult 필터 + 정렬 조합으로 쿼리함
+// (반드시 model 컴파일 전에 정의해야 인덱스가 정상 적용됨)
 gameSchema.index({ isAdult: 1, steam_ccu: -1 });
 gameSchema.index({ isAdult: 1, trend_score: -1 });
 gameSchema.index({ isAdult: 1, 'price_info.discount_percent': -1 });
@@ -98,3 +97,5 @@ gameSchema.index({ isAdult: 1, 'steam_reviews.overall.percent': -1 });
 gameSchema.index({ isAdult: 1, 'price_info.current_price': 1 });
 // 태그 + isAdult 복합 (태그 필터링 쿼리)
 gameSchema.index({ isAdult: 1, smart_tags: 1, steam_ccu: -1 });
+
+module.exports = mongoose.model('Game', gameSchema, 'games');

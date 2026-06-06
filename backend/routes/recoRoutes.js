@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const Game = require('../models/Game');
 const cache = require('../utils/simpleCache');
 const TrendHistory = require('../models/TrendHistory');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth_middleware');
 const recoController = require('../controllers/recoController');
 
 function escapeRegex(text = '') {

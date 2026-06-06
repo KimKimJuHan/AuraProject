@@ -67,7 +67,7 @@ const authenticateToken = async (req, res, next) => {
     // 3) JWT 쿠키 인증 (token 쿠키)
     const token = req.cookies?.token;
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretKey');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       const dbUser = await loadUserFromDb(decoded.id);
 
