@@ -20,7 +20,7 @@ const compression = require('compression');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
-const authRoutes = require('./routes/auth_routes');
+const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const recoRoutes = require('./routes/recoRoutes');
 const advancedRecoRoutes = require('./routes/recommend');
