@@ -299,7 +299,7 @@ const path = require('path');
 function runScript(scriptName) {
     const scriptPath = path.join(__dirname, 'scripts', scriptName);
     console.log(`[Cron] 실행: ${scriptName}`);
-    exec(`node ${scriptPath}`, { timeout: 30 * 60 * 1000 }, (err, stdout, stderr) => {
+    exec(`node ${scriptPath}`, { timeout: 3 * 60 * 60 * 1000, maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
         if (err) console.error(`[Cron] ${scriptName} 실패:`, err.message);
         else console.log(`[Cron] ${scriptName} 완료`);
     });
