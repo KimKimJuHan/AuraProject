@@ -3,7 +3,7 @@ const router = express.Router();
 
 const mongoose = require('mongoose');
 const Inquiry = require('../models/Inquiry');
-const { authenticateToken, requireAdmin } = require('../middleware/auth_middleware');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 // 헬스체크
 router.get('/health', (req, res) => {
