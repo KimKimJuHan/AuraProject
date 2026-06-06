@@ -104,64 +104,108 @@ function getSimilarity(s1, s2) {
  * 치지직에서 해당 게임의 총 시청자 수를 가져옵니다.
  * 403 발생 시 대기 후 1회 재시도, 그래도 실패하면 0 반환.
  */
-async function getChzzkViewers(game) {
+// ── Chzzk (하이브리드: 인기 라이브 맵 + 카테고리별 API 보강) ──────────────────
+// 1) 인기 라이브 목록(상위 50)을 1회 받아 카테고리별 시청자 맵 구축 (롤·메이플 등 대형 게임)
+// 2) 맵에 없는 게임은 검색으로 카테고리 코드를 찾고 v2 카테고리 API로 정확한 시청자 합산
+//    (타르코프·카스2처럼 상위 50위 밖 게임도 정확히 잡음)
+// 주의: 검색 API의 시청자 수(concurrentUserCount)는 부정확하므로 시청자 합산엔 절대 쓰지 않고,
+//       오직 liveCategory(영문 코드) 추출 용도로만 사용. 실제 시청자는 v2 카테고리 API에서 가져옴.
+let _chzzkPopularMap = null;
+async function loadChzzkCategories() {
+    if (_chzzkPopularMap) return _chzzkPopularMap;
+    const map = {};           // normalize(카테고리명) → 시청자 합계
+    const url = `https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=POPULAR`;
+    try {
+        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 10000 });
+        const lives = res.data?.content?.data || [];
+        for (const item of lives) {
+            const live = item.live || item;
+            if (!live || live.categoryType !== 'GAME') continue;
+            const cat = live.liveCategoryValue || '';
+            if (!cat) continue;
+            map[normalize(cat)] = (map[normalize(cat)] || 0) + (live.concurrentUserCount || 0);
+        }
+    } catch (err) {
+        console.log(`  [Chzzk] 인기 라이브 로드 실패: ${err.message}`);
+    }
+    _chzzkPopularMap = map;
+    console.log(`  [Chzzk] 인기 카테고리 ${Object.keys(map).length}개 로드`);
+    return map;
+}
+
+// 검색으로 게임의 치지직 카테고리 영문 코드(liveCategory) 알아내기 (시청자 수는 안 씀)
+async function findChzzkCategoryId(game) {
     const koCore = getCoreKeyword(game.title_ko);
     const enCore = getCoreKeyword(game.title);
-    const searchQuery = koCore || enCore;
-    if (!searchQuery) return 0;
+    const query = koCore || enCore;
+    if (!query) return null;
 
     const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
     const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
 
-    const ENDPOINTS = [
-        `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeURIComponent(searchQuery)}&offset=0&size=50&sortType=POPULAR`,
-        `https://api.chzzk.naver.com/service/v2/search/lives?keyword=${encodeURIComponent(searchQuery)}&offset=0&size=50&sortType=POPULAR`,
-    ];
-
-    for (let attempt = 0; attempt < ENDPOINTS.length; attempt++) {
-        try {
-            const res = await axios.get(ENDPOINTS[attempt], {
-                headers: CHZZK_HEADERS,
-                timeout: 10000
-            });
-
-            const lives = res.data?.content?.data || res.data?.data || [];
-            let viewers = 0;
-
-            for (const item of lives) {
-                const live = item.live || item;
-                if (!live) continue;
-
-                const catValue = live.liveCategoryValue || live.categoryValue || '';
-                const normCat = normalize(catValue);
-
-                let isMatch = false;
-                // 1순위: 직접 포함 일치
-                if (targetKor && targetKor.length > 1 && normCat.includes(targetKor)) isMatch = true;
-                else if (targetEng && targetEng.length > 2 && normCat.includes(targetEng)) isMatch = true;
-
-                // 2순위: 유사도 매칭 (임계값 0.75 — 0.70보다 엄격하게)
-                if (!isMatch && normCat.length > 0) {
-                    const simKor = targetKor ? getSimilarity(targetKor, normCat) : 0;
-                    const simEng = targetEng ? getSimilarity(targetEng, normCat) : 0;
-                    if (simKor >= 0.75 || simEng >= 0.75) isMatch = true;
-                }
-
-                if (isMatch) {
-                    viewers += live.concurrentUserCount || live.viewerCount || 0;
-                }
+    try {
+        const url = `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeURIComponent(query)}&offset=0&size=10&sortType=POPULAR`;
+        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 10000 });
+        const lives = res.data?.content?.data || [];
+        for (const item of lives) {
+            const live = item.live || item;
+            if (!live || live.categoryType !== 'GAME') continue;
+            const catVal = normalize(live.liveCategoryValue || '');
+            // 검색 결과 카테고리가 우리 게임과 일치하는지 확인 후 코드 반환
+            let ok = false;
+            if (targetKor && targetKor.length > 1 && (catVal.includes(targetKor) || targetKor.includes(catVal))) ok = true;
+            else if (targetEng && targetEng.length > 2 && (catVal.includes(targetEng) || targetEng.includes(catVal))) ok = true;
+            if (!ok && catVal.length > 0) {
+                const sK = targetKor ? getSimilarity(targetKor, catVal) : 0;
+                const sE = targetEng ? getSimilarity(targetEng, catVal) : 0;
+                if (sK >= 0.8 || sE >= 0.8) ok = true;
             }
-
-            return viewers;
-
-        } catch (err) {
-            const status = err.response?.status;
-            if (status === 403 || status === 429) {
-                console.log(`  [Chzzk ${status}] ${game.title} — ${attempt < ENDPOINTS.length - 1 ? '엔드포인트 전환 후 재시도' : '포기'}`);
-                if (attempt < ENDPOINTS.length - 1) await sleep(3000);
-            }
-            // 다른 에러는 그냥 다음 엔드포인트로
+            if (ok && live.liveCategory) return live.liveCategory;
         }
+    } catch (err) { /* 검색 실패 시 null */ }
+    return null;
+}
+
+// v2 카테고리 API로 특정 게임 카테고리의 모든 방송 시청자 합산 (정확)
+async function getChzzkCategoryViewers(catId) {
+    try {
+        const url = `https://api.chzzk.naver.com/service/v2/categories/GAME/${encodeURIComponent(catId)}/lives?size=20&sortType=POPULAR`;
+        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 10000 });
+        const lives = res.data?.content?.data || [];
+        let total = 0;
+        for (const item of lives) {
+            const live = item.live || item;
+            if (!live) continue;
+            total += (live.concurrentUserCount || 0);
+        }
+        return total;
+    } catch (err) { return 0; }
+}
+
+async function getChzzkViewers(game) {
+    const catMap = await loadChzzkCategories();
+    const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
+    const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
+
+    // 1) 인기 맵(상위 50)에서 먼저 조회 — 대형 게임은 여기서 해결 (API 호출 없음)
+    let best = 0;
+    for (const [catKey, viewers] of Object.entries(catMap)) {
+        let isMatch = false;
+        if (targetKor && targetKor.length > 1 && (catKey.includes(targetKor) || targetKor.includes(catKey))) isMatch = true;
+        else if (targetEng && targetEng.length > 2 && (catKey.includes(targetEng) || targetEng.includes(catKey))) isMatch = true;
+        if (!isMatch && catKey.length > 0) {
+            const sK = targetKor ? getSimilarity(targetKor, catKey) : 0;
+            const sE = targetEng ? getSimilarity(targetEng, catKey) : 0;
+            if (sK >= 0.8 || sE >= 0.8) isMatch = true;
+        }
+        if (isMatch && viewers > best) best = viewers;
+    }
+    if (best > 0) return best;
+
+    // 2) 인기 맵에 없으면(상위 50위 밖) 검색→v2 카테고리 API로 정확히 보강
+    const catId = await findChzzkCategoryId(game);
+    if (catId) {
+        return await getChzzkCategoryViewers(catId);
     }
     return 0;
 }
@@ -304,21 +348,15 @@ async function collectTrends() {
         await getTwitchToken();
         console.log(`📋 총 ${allGames.length}개 게임 처리 시작\n`);
 
-        // Chzzk 연속 403 감지용 카운터
-        let chzzkFailStreak = 0;
-        const CHZZK_FAIL_LIMIT = 5; // 5연속 실패 시 Chzzk 수집 비활성화
+        // Chzzk 인기 라이브 목록을 미리 1회 로드 (카테고리별 시청자 맵)
+        await loadChzzkCategories();
 
         for (let i = 0; i < allGames.length; i++) {
             const game = allGames[i];
 
             const twitchViewers = await getTwitchViewers(game.steam_appid);
 
-            let chzzkViewers = 0;
-            if (chzzkFailStreak < CHZZK_FAIL_LIMIT) {
-                chzzkViewers = await getChzzkViewers(game);
-                if (chzzkViewers === 0) chzzkFailStreak++;
-                else chzzkFailStreak = 0;
-            }
+            const chzzkViewers = await getChzzkViewers(game);
 
             const steamCCU = await getSteamCCU(game.steam_appid);
             const soopViewers = await getSoopViewers(game);
