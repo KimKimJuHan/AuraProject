@@ -53,7 +53,8 @@ router.get(
       avatar: req.user.avatar,
       role: req.user.role, 
     };
-    const redirectUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
+    const baseUrl = process.env.FRONTEND_URL || 'https://playforyou.net';
+    const redirectUrl = (!req.user?.playerTypeSetByUser) ? `${baseUrl}/onboarding` : baseUrl;
     res.redirect(redirectUrl);
   }
 );
@@ -66,7 +67,7 @@ router.get(
       req.session.steamLinkingUserId = req.session.user.id;
     } else if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretKey');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.session.steamLinkingUserId = decoded.id;
       } catch (e) {}
     }
