@@ -288,7 +288,7 @@ class AuthController {
         try {
             const { username, password, rememberMe } = req.body;
             const user = await User.findOne({ username });
-            if (!user || !(await bcrypt.compare(password, user.password))) {
+            if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
             }
 
@@ -373,7 +373,7 @@ class AuthController {
             });
 
             // 유저가 직접 설정했으면 자동분류 안 함
-            const existingUser = await User.findById(userId).select('playerTypeSetByUser').lean();
+            const existingUser = await User.findById(userId).select('playerTypeSetByUser playerType').lean();
             let newPlayerType = 'beginner';
 
             if (!existingUser?.playerTypeSetByUser) {
