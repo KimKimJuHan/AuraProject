@@ -5,7 +5,7 @@ const User = require("../models/User");
 const Game = require("../models/Game");
 const axios = require("axios");
 const bcrypt = require("bcrypt");
-const { authenticateToken } = require("../middleware/auth_middleware");
+const { authenticateToken } = require("../middleware/auth");
 const cache = require("../utils/simpleCache");
 
 // 1. 유저 IP 조회
