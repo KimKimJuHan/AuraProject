@@ -210,128 +210,108 @@ async function getChzzkViewers(game) {
     return 0;
 }
 
-// ── SOOP ─────────────────────────────────────────────────────────────────────
-// ── SOOP (공식 Open API - 게임 카테고리 기반) ──────────────────────────────
-// 게임 카테고리 목록을 1회 로드 후 캐싱 (카테고리명 → cate_no 매핑)
-let _soopCategoryMap = null;
+// ── SOOP (공식 Open API - 치지직과 동일 방식: 전체 게임방송 1회 수집 후 매핑) ──
+// 게임마다 API 호출 대신 게임 카테고리 전체 방송을 한 번에 받아
+// normalize(카테고리명) → 시청자 합계 맵 구축 후 게임마다 로컬 매칭
+let _soopViewerMap = null;
 async function loadSoopCategories() {
-    if (_soopCategoryMap !== null) return _soopCategoryMap;
-    _soopCategoryMap = new Map();
-
+    if (_soopViewerMap !== null) return _soopViewerMap;
+    _soopViewerMap = {};
     const clientId = process.env.SOOP_CLIENT_ID;
-    if (!clientId) return _soopCategoryMap;
-
+    if (!clientId) return _soopViewerMap;
     try {
-        const res = await axios.get('https://openapi.sooplive.com/broad/category/list', {
-            params: { client_id: clientId, locale: 'ko_KR' },
-            headers: { 'Accept': '*/*' },
-            timeout: 10000,
-        });
-        const categories = res.data?.broad_category || [];
-        for (const parent of categories) {
-            // 게임 카테고리(00040000) 하위만 수집
-            const children = parent.child || [];
-            for (const child of children) {
-                if (child.cate_name && child.cate_no) {
-                    _soopCategoryMap.set(normalize(child.cate_name), child.cate_no);
-                }
-            }
-            // 부모 자체도 등록 (게임명이 부모 카테고리인 경우)
-            if (parent.cate_name && parent.cate_no) {
-                _soopCategoryMap.set(normalize(parent.cate_name), parent.cate_no);
-            }
-        }
-        console.log(`  [SOOP] 카테고리 ${_soopCategoryMap.size}개 로드`);
-    } catch (e) {
-        console.warn('  [SOOP] 카테고리 로드 실패:', e.message);
-    }
-    return _soopCategoryMap;
-}
-
-async function getSoopViewers(game) {
-    const clientId = process.env.SOOP_CLIENT_ID;
-
-    // ── 공식 API (카테고리 기반) ──
-    if (clientId) {
-        try {
-            const catMap = await loadSoopCategories();
-            // 게임명(한글 우선)으로 카테고리 번호 찾기
-            const nameKo = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
-            const nameEn = normalize((game.title || '').replace(/[™®©]/g, ''));
-
-            let cateNo = catMap.get(nameKo) || catMap.get(nameEn);
-            // 부분 매칭 (정확히 안 맞으면 포함 관계 탐색)
-            if (!cateNo) {
-                for (const [catName, no] of catMap) {
-                    if (catName.length >= 3 && (catName === nameKo || catName === nameEn ||
-                        (nameKo && nameKo.includes(catName)) || (nameEn && nameEn.includes(catName)))) {
-                        cateNo = no;
-                        break;
-                    }
-                }
-            }
-            if (!cateNo) return 0;  // SOOP에 해당 게임 카테고리 없음
-
-            // 해당 카테고리의 라이브 방송 시청자 합산
+        // 1) 게임 카테고리(00040000) 전체 방송 목록 (시청자 많은 순, 최대 5페이지)
+        const cateNoViewers = {};
+        for (let page = 1; page <= 5; page++) {
             const res = await axios.get('https://openapi.sooplive.com/broad/list', {
-                params: { client_id: clientId, select_key: 'cate', select_value: cateNo,
-                          order_type: 'view_cnt', page_no: 1 },
+                params: { client_id: clientId, select_key: 'cate', select_value: '00040000',
+                          order_type: 'view_cnt', page_no: page },
                 headers: { 'Accept': '*/*' },
                 timeout: 10000,
             });
             const broads = res.data?.broad || [];
-            return broads.reduce((sum, b) => sum + Number(b.total_view_cnt || 0), 0);
-        } catch (e) {
-            // 공식 API 실패 시 아래 비공식 폴백
+            if (broads.length === 0) break;
+            for (const b of broads) {
+                const cno = b.broad_cate_no || '';
+                if (!cno) continue;
+                cateNoViewers[cno] = (cateNoViewers[cno] || 0) + Number(b.total_view_cnt || 0);
+            }
+            await sleep(200);
         }
-    }
-
-    // ── 비공식 API 폴백 (공식 키 없거나 실패 시) ──
-    try {
-        const searchQuery = getCoreKeyword(game.title_ko) || getCoreKeyword(game.title);
-        if (!searchQuery) return 0;
-
-        const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
-        const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
-
-        const res = await axios.get('https://sch.afreecatv.com/api.php', {
-            params: { szWork: 'schLive', szKeyword: searchQuery, nPageNo: 1, nListCnt: 50 },
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': 'https://www.sooplive.co.kr/',
-            },
-            timeout: 10000,
+        // 2) 카테고리 번호 → 이름 매핑
+        const catRes = await axios.get('https://openapi.sooplive.com/broad/category/list', {
+            params: { client_id: clientId, locale: 'ko_KR' },
+            headers: { 'Accept': '*/*' }, timeout: 10000,
         });
-
-        const broads = res.data?.REAL_BROAD || [];
-        let viewers = 0;
-        for (const item of broads) {
-            const catName = normalize(item.broad_cate_name || '');
-            const titleNorm = normalize(item.broad_title || '');
-            let isMatch = false;
-            if (targetKor && (catName.includes(targetKor) || titleNorm.includes(targetKor))) isMatch = true;
-            if (targetEng && (catName.includes(targetEng) || titleNorm.includes(targetEng))) isMatch = true;
-            if (isMatch) viewers += Number(item.total_view_cnt || item.view_cnt || 0);
+        const cats = catRes.data?.broad_category || [];
+        const cateNoToName = {};
+        for (const parent of cats) {
+            for (const child of (parent.child || [])) {
+                if (child.cate_no) cateNoToName[child.cate_no] = child.cate_name;
+            }
+            if (parent.cate_no) cateNoToName[parent.cate_no] = parent.cate_name;
         }
-        return viewers;
-    } catch {
-        return 0;
+        // 3) 번호 → normalize(이름) 으로 최종 맵 구성
+        for (const [cno, viewers] of Object.entries(cateNoViewers)) {
+            const name = cateNoToName[cno];
+            if (!name) continue;
+            const key = normalize(name);
+            _soopViewerMap[key] = (_soopViewerMap[key] || 0) + viewers;
+        }
+        console.log(`  [SOOP] 게임 카테고리 ${Object.keys(_soopViewerMap).length}개 로드`);
+    } catch (e) {
+        console.warn('  [SOOP] 로드 실패:', e.message);
     }
+    return _soopViewerMap;
 }
-// ── Twitch viewers ───────────────────────────────────────────────────────────
+
+async function getSoopViewers(game) {
+    const soopMap = await loadSoopCategories();
+    if (!soopMap || Object.keys(soopMap).length === 0) return 0;
+    const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
+    const targetEng = normalize((game.title || '').replace(/[™®©]/g, ''));
+    let best = 0;
+    for (const [catKey, viewers] of Object.entries(soopMap)) {
+        let isMatch = false;
+        if (targetKor && targetKor.length > 1 && (catKey.includes(targetKor) || targetKor.includes(catKey))) isMatch = true;
+        else if (targetEng && targetEng.length > 2 && (catKey.includes(targetEng) || targetEng.includes(catKey))) isMatch = true;
+        if (!isMatch && catKey.length > 0) {
+            const sK = targetKor ? getSimilarity(targetKor, catKey) : 0;
+            const sE = targetEng ? getSimilarity(targetEng, catKey) : 0;
+            if (sK >= 0.8 || sE >= 0.8) isMatch = true;
+        }
+        if (isMatch && viewers > best) best = viewers;
+    }
+    return best;
+}
+
 async function getTwitchViewers(steamId) {
-    if (!twitchToken || !TWITCH_CLIENT_ID) return 0;
+    if (!TWITCH_CLIENT_ID) return 0;
+    if (!twitchToken) await getTwitchToken();
+    if (!twitchToken) return 0;
     try {
         const categoryData = await GameCategory.findOne({ steamAppId: steamId }).lean();
         if (!categoryData?.twitch?.id) return 0;
-
         const res = await axios.get('https://api.twitch.tv/helix/streams', {
             headers: { 'Client-ID': TWITCH_CLIENT_ID, Authorization: `Bearer ${twitchToken}` },
             params: { game_id: categoryData.twitch.id, first: 100 },
             timeout: 8000
         });
         return res.data.data.reduce((acc, s) => acc + (s.viewer_count || 0), 0);
-    } catch {
+    } catch (err) {
+        if (err.response?.status === 401) {
+            await getTwitchToken();
+            try {
+                const categoryData2 = await GameCategory.findOne({ steamAppId: steamId }).lean();
+                if (!categoryData2?.twitch?.id) return 0;
+                const res2 = await axios.get('https://api.twitch.tv/helix/streams', {
+                    headers: { 'Client-ID': TWITCH_CLIENT_ID, Authorization: `Bearer ${twitchToken}` },
+                    params: { game_id: categoryData2.twitch.id, first: 100 },
+                    timeout: 8000
+                });
+                return res2.data.data.reduce((acc, s) => acc + (s.viewer_count || 0), 0);
+            } catch { return 0; }
+        }
         return 0;
     }
 }
@@ -348,8 +328,9 @@ async function collectTrends() {
         await getTwitchToken();
         console.log(`📋 총 ${allGames.length}개 게임 처리 시작\n`);
 
-        // Chzzk 인기 라이브 목록을 미리 1회 로드 (카테고리별 시청자 맵)
+        // Chzzk + SOOP 인기 라이브 목록을 미리 1회 로드 (카테고리별 시청자 맵)
         await loadChzzkCategories();
+        await loadSoopCategories();
 
         for (let i = 0; i < allGames.length; i++) {
             const game = allGames[i];
