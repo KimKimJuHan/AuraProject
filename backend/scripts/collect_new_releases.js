@@ -118,25 +118,52 @@ async function getCandidates() {
         } catch {}
     }
 
-    // 6. SteamSpy 월별 (최근 3개월)
-    const now = new Date();
-    for (let i = 0; i < 4; i++) {
-        const d = new Date(now);
-        d.setMonth(d.getMonth() - i);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
+    // 6. SteamSpy all 여러 페이지 (pool 확장)
+    for (let page = 0; page <= 5; page++) {
         try {
-            const res = await axios.get(`https://steamspy.com/api.php?request=all&page=0`, { timeout: 15000 });
-            // SteamSpy all은 전체라 너무 크니 스킵, month API만
-            const res2 = await axios.get(`https://steamspy.com/api.php?request=all&page=1`, { timeout: 15000 });
+            const res = await axios.get(`https://steamspy.com/api.php?request=all&page=${page}`, { timeout: 20000 });
             const before = candidates.size;
-            Object.values({...res.data, ...res2.data} || {}).forEach(g => {
+            Object.values(res.data || {}).forEach(g => {
                 if (g.appid) candidates.set(Number(g.appid), { appid: Number(g.appid), name: g.name });
             });
-            if (candidates.size - before > 0) console.log(`  SteamSpy all p0+p1: +${candidates.size - before}개`);
-            break; // 1회만
-        } catch { break; }
+            const added = candidates.size - before;
+            if (added > 0) console.log(`  SteamSpy all p${page}: +${added}개`);
+            else break; // 더 이상 새 게임 없으면 중단
+            await sleep(1000);
+        } catch (e) { break; }
     }
+
+    // 7. Steam 최근 출시 앱 목록 (GetAppList v2)
+    try {
+        const before = candidates.size;
+        // 최근 출시 기준 appid가 높은 게임들 (최신 게임일수록 appid가 큼)
+        // 알려진 최근 게임 appid 범위: 2000000~3500000
+        const recentRanges = [
+            { from: 2800000, to: 3500000 },
+            { from: 2400000, to: 2800000 },
+            { from: 2000000, to: 2400000 },
+        ];
+        for (const range of recentRanges) {
+            try {
+                const res = await axios.get('https://api.steampowered.com/IStoreService/GetAppList/v1/', {
+                    params: { 
+                        include_games: true, include_dlc: false, include_software: false,
+                        include_videos: false, include_hardware: false,
+                        last_appid: range.from, max_results: 1000
+                    },
+                    timeout: 20000
+                });
+                const apps = res.data?.response?.apps || [];
+                apps.forEach(a => {
+                    if (a.appid && Number(a.appid) <= range.to) {
+                        candidates.set(Number(a.appid), { appid: Number(a.appid), name: a.name });
+                    }
+                });
+                await sleep(500);
+            } catch {}
+        }
+        console.log(`  Steam GetAppList (최근 범위): +${candidates.size - before}개`);
+    } catch {}
 
     console.log(`\n📊 총 후보: ${candidates.size}개`);
     return Array.from(candidates.values());
