@@ -683,9 +683,18 @@ export default function ShopPage({ region, user }) {
     }
 
     const dealHref = (deal) => {
-      // Steam 상점은 itad.link 대신 항상 스팀 직접 링크
+      // Steam: appid로 직접 링크 (itad.link는 잘못된 게임으로 리다이렉트될 수 있음)
       if (deal.shopName === 'Steam' && gameData.steam_appid) {
         return `https://store.steampowered.com/app/${gameData.steam_appid}`;
+      }
+      // Epic: itad.link는 다른 게임으로 잘못 매핑될 수 있으므로
+      // Epic 공식 검색 페이지로 대체 (게임 제목으로 검색)
+      if (deal.shopName === 'Epic Game Store' || deal.shopName === 'Epic Games') {
+        // deal.url이 itad.link이면 Epic 검색으로 대체, 직접 Epic URL이면 그대로
+        if (!deal.url || deal.url.includes('itad.link')) {
+          const q = encodeURIComponent(gameData.title || '');
+          return `https://store.epicgames.com/browse?q=${q}&sortBy=relevancy`;
+        }
       }
       return deal.url || '#';
     };
