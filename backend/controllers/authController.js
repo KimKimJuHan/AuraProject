@@ -24,7 +24,7 @@ class AuthController {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             const expiresAt = new Date(Date.now() + 600000); 
 
-            await Otp.findOneAndUpdate({ email }, { code, expiresAt }, { upsert: true });
+            await Otp.findOneAndUpdate({ email, purpose: 'signup' }, { code, expiresAt }, { upsert: true });
 
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
@@ -47,10 +47,11 @@ class AuthController {
 
     verifyOtp = async (req, res) => {
         const { email, code } = req.body;
-        const otp = await Otp.findOne({ email, code });
+        const otp = await Otp.findOne({ email, purpose: 'signup', code });
         if (!otp || otp.expiresAt < new Date()) {
             return res.status(400).json({ success: false, message: '인증코드가 틀리거나 만료되었습니다.' });
         }
+        await Otp.deleteOne({ _id: otp._id }); // 1회용: 인증 완료 후 즉시 삭제
         res.json({ success: true });
     }
 
@@ -288,7 +289,10 @@ class AuthController {
         try {
             const { username, password, rememberMe } = req.body;
             const user = await User.findOne({ username });
-            if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
+            if (!user || !user.password) {
+                return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
+            }
+            if (!(await bcrypt.compare(password, user.password))) {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
             }
 
@@ -350,7 +354,7 @@ class AuthController {
 
     syncSteamGames = async (userId, steamId) => {
         try {
-            const apiKey = process.env.STEAM_API_KEY;
+            const apiKey = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
             const response = await axios.get(`http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/`, {
                 params: {
                     key: apiKey,
