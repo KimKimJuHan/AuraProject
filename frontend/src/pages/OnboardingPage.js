@@ -223,7 +223,17 @@ export default function OnboardingPage({ user, setUser }) {
           <button style={S.btnPrimary(!playerType || loading)} onClick={saveStep1} disabled={!playerType || loading}>
             {loading ? '저장 중...' : '다음'}
           </button>
-          <button style={S.btnSecondary} onClick={handleFinish}>나중에 설정할게요</button>
+          <button style={S.btnSecondary} onClick={async () => {
+             // 성향을 설정하지 않고 나중에 설정하기를 누르면 기본값으로 저장하여 매번 강제되지 않게 함
+             try {
+               await apiClient.put('/user/playerType', { playerType: 'beginner' });
+               if (setUser) {
+                 const res = await apiClient.get('/auth/status');
+                 if (res.data?.user) setUser(res.data.user);
+               }
+             } catch(e) {}
+             handleFinish();
+          }}>나중에 설정할게요</button>
         </>
       )}
       {step === 2 && (

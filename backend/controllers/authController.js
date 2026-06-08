@@ -305,6 +305,7 @@ class AuthController {
                 steamId: user.steamId,
                 role: user.role,
                 playerType: user.playerType || 'beginner',
+                playerTypeSetByUser: !!user.playerTypeSetByUser,
                 steamGames: user.steamGames || []
             };
             
@@ -324,7 +325,7 @@ class AuthController {
             }
 
             // DB에서 최신 역할, 플레이어 등급, 스팀 라이브러리 데이터를 당겨옵니다.
-            const dbUser = await User.findById(sessionUser.id).select('role playerType steamGames steamId googleId naverId password');
+            const dbUser = await User.findById(sessionUser.id).select('role playerType playerTypeSetByUser steamGames steamId googleId naverId password');
             if (!dbUser) {
                 return res.json({ isAuthenticated: false, user: null });
             }
@@ -333,6 +334,7 @@ class AuthController {
                 ...sessionUser, 
                 role: dbUser.role,
                 playerType: dbUser.playerType || 'beginner',
+                playerTypeSetByUser: !!dbUser.playerTypeSetByUser,
                 steamGames: dbUser.steamGames || [],
                 steamId: dbUser.steamId || null,
                 isSocial: !!(dbUser.googleId || dbUser.naverId) || !dbUser.password  // 소셜 로그인 여부
