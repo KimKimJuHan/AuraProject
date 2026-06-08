@@ -88,43 +88,61 @@ async function getSteamCCU(appId) {
 }
 
 // ── ITAD 가격 수집 ────────────────────────────────────────────────────────────
+// 주의: ITAD는 멀티스토어 딜 목록 수집 전용. 가격의 정확성 기준은 항상 Steam API.
+// country=KR로 요청해도 스토어마다 응답 통화가 달라서 수동 변환이 필요함.
 async function getITADPrice(itadUuid) {
     if (!ITAD_API_KEY || !itadUuid) return null;
     try {
         const res = await axios.post(
-            `https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR&capacity=5`,
+            `https://api.isthereanydeal.com/games/prices/v3?key=${ITAD_API_KEY}&country=KR&capacity=10`,
             [itadUuid],
             { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
         );
         const deals = res.data?.[0]?.deals || [];
         if (deals.length === 0) return null;
-        const sorted = [...deals].sort((a, b) => a.price.amount - b.price.amount);
-        const best = sorted[0];
 
-        // cents 단위 자동 감지 및 KRW 변환
-        // ITAD API가 country=KR로 호출해도 일부 스토어는 USD cents 단위로 응답
-        const convertToKRW = (amount) => {
-            if (amount >= 2000) return Math.round(amount); // 이미 KRW
-            if (amount >= 100) return Math.round((amount / 100) * 1350); // cents → KRW
-            return Math.round(amount * 1350); // USD → KRW
+        // 통화 필드 기반 정확한 변환 (amount 크기로 추측하는 방식 제거)
+        const toKRW = (amount, currency) => {
+            if (!amount || amount === 0) return 0;
+            const cur = (currency || '').toUpperCase();
+            if (cur === 'KRW') return Math.round(amount);
+            if (cur === 'USD') return Math.round(amount * 1350);
+            if (cur === 'EUR') return Math.round(amount * 1450);
+            if (cur === 'GBP') return Math.round(amount * 1700);
+            if (cur === 'JPY') return Math.round(amount * 9);
+            // 알 수 없는 통화는 0 반환 (Steam 값으로 대체됨)
+            return 0;
         };
 
+        const sorted = [...deals].sort((a, b) => a.price.amount - b.price.amount);
+        const best = sorted[0];
+        const currency = best.price?.currency || 'USD';
+
+        // 통화를 알 수 없으면 딜 목록만 반환 (가격은 Steam에서)
+        if (!['KRW', 'USD', 'EUR', 'GBP', 'JPY'].includes(currency.toUpperCase())) {
+            return null;
+        }
+
         return {
-            current_price: convertToKRW(best.price.amount),
-            regular_price: convertToKRW(best.regular.amount),
+            current_price: toKRW(best.price.amount, currency),
+            regular_price: toKRW(best.regular.amount, currency),
             discount_percent: best.cut || 0,
             store_url: best.url,
             store_name: best.shop?.name || 'Unknown',
-            deals: sorted.slice(0, 10).map(d => ({
-                shopName: d.shop?.name || '',
-                price: convertToKRW(d.price.amount),
-                regularPrice: convertToKRW(d.regular.amount),
-                discount: d.cut || 0,
-                url: d.url
-            }))
+            deals: sorted.slice(0, 10).map(d => {
+                const dCur = d.price?.currency || currency;
+                return {
+                    shopName: d.shop?.name || '',
+                    price: toKRW(d.price.amount, dCur),
+                    regularPrice: toKRW(d.regular.amount, dCur),
+                    discount: d.cut || 0,
+                    url: d.url
+                };
+            }).filter(d => d.price > 0) // 변환 실패(0원) 딜 제외
         };
     } catch { return null; }
 }
+
 
 // ── Puppeteer로 .app_tag 스크래핑 ─────────────────────────────────────────────
 let browser = null;
