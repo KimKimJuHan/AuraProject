@@ -445,16 +445,27 @@ export default function ShopPage({ region, user }) {
           historyRes.data.forEach(item => {
             const d = new Date(item.recordedAt);
             const dateStr = `${d.getMonth() + 1}.${d.getDate()}`;
-            dailyMap[dateStr] = {
-              time: dateStr,
-              twitch: item.twitch_viewers || 0,
-              chzzk: item.chzzk_viewers || 0,
-              soop: item.soop_viewers || 0,
-              steam: item.steam_ccu || 0
-            };
+            
+            if (!dailyMap[dateStr]) {
+              dailyMap[dateStr] = {
+                time: dateStr,
+                twitch: 0,
+                chzzk: 0,
+                soop: 0,
+                steam: 0
+              };
+            }
+            
+            // 하루에 여러번 수집된 경우, 그날의 최고점(Peak)을 표시하도록 수정
+            dailyMap[dateStr].twitch = Math.max(dailyMap[dateStr].twitch, item.twitch_viewers || 0);
+            dailyMap[dateStr].chzzk = Math.max(dailyMap[dateStr].chzzk, item.chzzk_viewers || 0);
+            dailyMap[dateStr].soop = Math.max(dailyMap[dateStr].soop, item.soop_viewers || 0);
+            dailyMap[dateStr].steam = Math.max(dailyMap[dateStr].steam, item.steam_ccu || 0);
           });
-
-          setHistoryData(Object.values(dailyMap));
+          
+          // 날짜 오름차순으로 정렬
+          const sortedHistory = Object.values(dailyMap).reverse();
+          setHistoryData(sortedHistory);
         } catch (e) {}
 
         const videos = (data.trailers || []).map(url => ({
