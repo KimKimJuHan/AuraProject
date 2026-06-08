@@ -29,9 +29,9 @@ function LoginPage({ user, setUser }) {
 
       if (response.data.success) {
         setUser(response.data.user);
-        // playerTypeSetByUser 확인 - 미설정이면 온보딩으로
+        // playerTypeSetByUser 확인 - 미설정이면 무조건 온보딩으로
         const fromSignup = getRedirectParam() === 'onboarding';
-        if (fromSignup) {
+        if (!response.data.user.playerTypeSetByUser || fromSignup) {
           navigate('/onboarding');
         } else {
           navigate('/');
