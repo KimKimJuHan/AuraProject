@@ -52,15 +52,13 @@ const CHZZK_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': 'application/json, text/plain, */*',
     'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept-Encoding': 'gzip, deflate, br',
     'Origin': 'https://chzzk.naver.com',
     'Referer': 'https://chzzk.naver.com/',
-    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-site',
+    // 공식 인증 헤더 (환경변수가 있을 때 사용)
+    ...(process.env.CHZZK_CLIENT_ID && {
+        'Client-Id': process.env.CHZZK_CLIENT_ID,
+        'Client-Secret': process.env.CHZZK_CLIENT_SECRET,
+    }),
 };
 
 function normalize(str) {
@@ -148,25 +146,58 @@ function getSimilarity(s1, s2) {
 // 주의: 검색 API의 시청자 수(concurrentUserCount)는 부정확하므로 시청자 합산엔 절대 쓰지 않고,
 //       오직 liveCategory(영문 코드) 추출 용도로만 사용. 실제 시청자는 v2 카테고리 API에서 가져옴.
 let _chzzkPopularMap = null;
+let _chzzkFailCount = 0; // 연속 실패 횟수 카운터
+
 async function loadChzzkCategories() {
-    if (_chzzkPopularMap) return _chzzkPopularMap;
-    const map = {};           // normalize(카테고리명) → 시청자 합계
-    // 상위 50개로 제한 (Chzzk API는 100 요청 시 400 에러 발생)
-    const url = `https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=POPULAR`;
-    try {
-        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 12000 });
-        const lives = res.data?.content?.data || [];
-        for (const item of lives) {
-            const live = item.live || item;
-            if (!live || live.categoryType !== 'GAME') continue;
-            const cat = live.liveCategoryValue || '';
-            if (!cat) continue;
-            // 영울과 한글 둘 다 맵에 저장 (matchingg 편의)
-            map[normalize(cat)] = (map[normalize(cat)] || 0) + (live.concurrentUserCount || 0);
+    // 매 실행 시 초기화 (stale 데이터 방지)
+    _chzzkPopularMap = null;
+    const map = {};
+
+    // 사이즈를 20 → 30 → 50 순서로 시도 (제한 없는 사이즈부터 시작)
+    const sizes = [20, 30, 50];
+    let success = false;
+
+    for (const size of sizes) {
+        const url = `https://api.chzzk.naver.com/service/v1/lives?size=${size}&sortType=POPULAR`;
+        try {
+            const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 12000 });
+            const lives = res.data?.content?.data || [];
+            for (const item of lives) {
+                const live = item.live || item;
+                if (!live || live.categoryType !== 'GAME') continue;
+                const cat = live.liveCategoryValue || '';
+                if (!cat) continue;
+                map[normalize(cat)] = (map[normalize(cat)] || 0) + (live.concurrentUserCount || 0);
+            }
+            success = true;
+            _chzzkFailCount = 0; // 성공 시 실패 카운터 리셋
+            break;
+        } catch (err) {
+            const status = err.response?.status;
+            if (status === 400) {
+                // 400이면 사이즈 문제 → 더 작은 사이즈로 진행
+                console.log(`  [Chzzk] size=${size} 거부(400) → 더 작은 사이즈 시도`);
+                continue;
+            }
+            console.log(`  [Chzzk] 인기 라이브 로드 실패: ${err.message}`);
+            break;
         }
-    } catch (err) {
-        console.log(`  [Chzzk] 인기 라이브 로드 실패: ${err.message}`);
     }
+
+    if (!success) {
+        _chzzkFailCount++;
+        console.warn(`  [Chzzk] 로드 실패 (${_chzzkFailCount}회연속)`);
+        // 3회 연속 실패 시 Discord 경보
+        if (_chzzkFailCount >= 3) {
+            await sendDiscordAlert(
+                'Chzzk 수집기 3회 연속 실패',
+                'API 차단 또는 네트워크 오류. 치지직 헤더/사이즈 점검 필요.',
+                'warn'
+            );
+            _chzzkFailCount = 0;
+        }
+    }
+
     _chzzkPopularMap = map;
     console.log(`  [Chzzk] 인기 카테고리 ${Object.keys(map).length}개 로드`);
     return map;
