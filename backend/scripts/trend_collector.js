@@ -67,6 +67,43 @@ function normalize(str) {
     return (str || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 }
 
+const GAME_SYNONYMS = {
+    '리그 오브 레전드': ['롤', 'leagueoflegends', 'lol'],
+    '배틀그라운드': ['배그', 'pubg', 'pubgbattlegrounds'],
+    '발로란트': ['valorant', '발로'],
+    '오버워치 2': ['오버워치', '옵치', 'overwatch', 'overwatch2'],
+    '에이펙스 레전드': ['에이펙스', 'apex', 'apexlegends'],
+    '로스트아크': ['로아', 'lostark'],
+    '메이플스토리': ['메이플', 'maplestory'],
+    '팰월드': ['팔월드', 'palworld'],
+    '디제이맥스 리스펙트 v': ['디제이맥스', 'djmax', 'djmaxrespectv'],
+    '스타크래프트': ['스타', 'starcraft'],
+    '스타크래프트 2': ['스타2', 'starcraft2', 'starcraftii'],
+    '피파 온라인 4': ['피파', 'fc온라인', 'fconline', 'fifa'],
+    '마인크래프트': ['마크', 'minecraft'],
+    '팀포트리스 2': ['팀포2', 'teamfortress2'],
+    '레프트 4 데드 2': ['레포데', '레포데2', 'left4dead2', 'l4d2'],
+    '카운터 스트라이크 2': ['카스2', '글옵', 'csgo', 'cs2', 'counterstrike2'],
+    '이터널 리턴': ['이리', '블서', 'eternalreturn'],
+    '리썰 컴퍼니': ['리썰', 'lethalcompany'],
+    '쓰론 앤 리버티': ['tl', 'throneandliberty']
+};
+
+function getSynonyms(game) {
+    const list = [];
+    const tk = normalize(game.title_ko);
+    const te = normalize(game.title);
+    if (tk) list.push(tk);
+    if (te) list.push(te);
+
+    for (const [key, syns] of Object.entries(GAME_SYNONYMS)) {
+        if (tk === normalize(key) || te === normalize(key)) {
+            list.push(...syns.map(normalize));
+        }
+    }
+    return list;
+}
+
 function getCoreKeyword(text) {
     if (!text) return '';
     let core = text.replace(/[™®©]/g, '');
@@ -195,20 +232,28 @@ async function getChzzkCategoryViewers(catId) {
 
 async function getChzzkViewers(game) {
     const catMap = await loadChzzkCategories();
-    const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
-    const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
+    const targetSyns = getSynonyms(game);
 
     // 1) 인기 맵(상위 100)에서 먼저 조회 — 대형 게임은 여기서 해결 (API 호출 없음)
     let best = 0;
     for (const [catKey, viewers] of Object.entries(catMap)) {
         let isMatch = false;
-        if (targetKor && targetKor.length > 1 && (catKey.includes(targetKor) || targetKor.includes(catKey))) isMatch = true;
-        else if (targetEng && targetEng.length > 2 && (catKey.includes(targetEng) || targetEng.includes(catKey))) isMatch = true;
+        
+        for (const syn of targetSyns) {
+            if (syn && syn.length > 1 && (catKey.includes(syn) || syn.includes(catKey))) {
+                isMatch = true;
+                break;
+            }
+        }
+
         // 유사도 완화 (0.8 → 0.65)
         if (!isMatch && catKey.length > 0) {
-            const sK = targetKor ? getSimilarity(targetKor, catKey) : 0;
-            const sE = targetEng ? getSimilarity(targetEng, catKey) : 0;
-            if (sK >= 0.65 || sE >= 0.65) isMatch = true;
+            for (const syn of targetSyns) {
+                if (syn && getSimilarity(syn, catKey) >= 0.65) {
+                    isMatch = true;
+                    break;
+                }
+            }
         }
         if (isMatch && viewers > best) best = viewers;
     }
@@ -285,26 +330,35 @@ async function loadSoopCategories() {
 async function getSoopViewers(game) {
     const soopMap = await loadSoopCategories();
     if (!soopMap || Object.keys(soopMap).length === 0) return 0;
-    const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
-    const targetEng = normalize((game.title || '').replace(/[™®©]/g, ''));
+    
+    const targetSyns = getSynonyms(game);
     // 코어 키워드도 추출 (시리즈명 매칭 개선)
     const coreEng = normalize(getCoreKeyword(game.title).replace(/[™®©]/g, ''));
     const coreKor = normalize(getCoreKeyword(game.title_ko || '').replace(/[™®©]/g, ''));
+    if (coreEng) targetSyns.push(coreEng);
+    if (coreKor) targetSyns.push(coreKor);
+
     let best = 0;
     for (const [catKey, viewers] of Object.entries(soopMap)) {
         let isMatch = false;
-        if (targetKor && targetKor.length > 1 && (catKey.includes(targetKor) || targetKor.includes(catKey))) isMatch = true;
-        else if (targetEng && targetEng.length > 2 && (catKey.includes(targetEng) || targetEng.includes(catKey))) isMatch = true;
-        else if (coreKor && coreKor.length > 1 && (catKey.includes(coreKor) || coreKor.includes(catKey))) isMatch = true;
-        else if (coreEng && coreEng.length > 2 && (catKey.includes(coreEng) || coreEng.includes(catKey))) isMatch = true;
+        
+        for (const syn of targetSyns) {
+            if (syn && syn.length > 1 && (catKey.includes(syn) || syn.includes(catKey))) {
+                isMatch = true;
+                break;
+            }
+        }
+        
         // 유사도 완화 (0.8 → 0.65)
         if (!isMatch && catKey.length > 0) {
-            const sK = targetKor ? getSimilarity(targetKor, catKey) : 0;
-            const sE = targetEng ? getSimilarity(targetEng, catKey) : 0;
-            const sKc = coreKor ? getSimilarity(coreKor, catKey) : 0;
-            const sEc = coreEng ? getSimilarity(coreEng, catKey) : 0;
-            if (sK >= 0.65 || sE >= 0.65 || sKc >= 0.65 || sEc >= 0.65) isMatch = true;
+            for (const syn of targetSyns) {
+                if (syn && getSimilarity(syn, catKey) >= 0.65) {
+                    isMatch = true;
+                    break;
+                }
+            }
         }
+        
         if (isMatch && viewers > best) best = viewers;
     }
     return best;
