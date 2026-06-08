@@ -296,18 +296,37 @@ async function getChzzkViewers(game) {
 // normalize(카테고리명) → 시청자 합계 맵 구축 후 게임마다 로컬 매칭
 let _soopViewerMap = null;
 async function loadSoopCategories() {
+    // 이미 로드된 경우 캐시 리턴
     if (_soopViewerMap !== null) return _soopViewerMap;
     _soopViewerMap = {};
     const clientId = process.env.SOOP_CLIENT_ID;
     if (!clientId) { console.log('  [SOOP] SOOP_CLIENT_ID 누락'); return _soopViewerMap; }
     try {
-        // 1) 게임 카테고리(00040000) 전체 방송 목록 (시청자 많은 순, 10페이지로 확장)
+        // 1단계: 게임 하위 카테고리 목록 가져오기 (번호→이름 맵 구성)
+        const catRes = await axios.get('https://openapi.sooplive.com/broad/category/list', {
+            params: { client_id: clientId, locale: 'ko_KR' },
+            headers: { 'Accept': '*/*' }, timeout: 12000,
+        });
+        const allCats = catRes.data?.broad_category || [];
+        const gameCat = allCats.find(c => c.cate_no === '00040000');
+        const gameSubCats = gameCat?.child || [];
+        const cateNoToName = {};
+        for (const c of gameSubCats) {
+            if (c.cate_no && c.cate_name) cateNoToName[c.cate_no] = c.cate_name;
+        }
+
+        // 2단계: 게임 카테고리 방송 목록 수집 (최대 5페이지 × 60개)
         const cateNoViewers = {};
-        for (let page = 1; page <= 10; page++) {
+        for (let page = 1; page <= 5; page++) {
             try {
                 const res = await axios.get('https://openapi.sooplive.com/broad/list', {
-                    params: { client_id: clientId, select_key: 'cate', select_value: '00040000',
-                              order_type: 'view_cnt', page_no: page },
+                    params: {
+                        client_id: clientId,
+                        select_key: 'cate',
+                        select_value: '00040000',
+                        order_type: 'view_cnt',
+                        page_no: page
+                    },
                     headers: { 'Accept': '*/*' },
                     timeout: 12000,
                 });
@@ -318,33 +337,23 @@ async function loadSoopCategories() {
                     if (!cno) continue;
                     cateNoViewers[cno] = (cateNoViewers[cno] || 0) + Number(b.total_view_cnt || 0);
                 }
-                await sleep(150); // 속도 제한 방지
+                await sleep(200);
             } catch (pageErr) {
-                console.log(`  [SOOP] 페이지 ${page} 로드 실패: ${pageErr.message}`);
+                console.log(`  [SOOP] 페이지 ${page} 실패: ${pageErr.message}`);
                 break;
             }
         }
-        // 2) 카테고리 번호 → 이름 매핑
-        const catRes = await axios.get('https://openapi.sooplive.com/broad/category/list', {
-            params: { client_id: clientId, locale: 'ko_KR' },
-            headers: { 'Accept': '*/*' }, timeout: 12000,
-        });
-        const cats = catRes.data?.broad_category || [];
-        const cateNoToName = {};
-        for (const parent of cats) {
-            for (const child of (parent.child || [])) {
-                if (child.cate_no) cateNoToName[child.cate_no] = child.cate_name;
-            }
-            if (parent.cate_no) cateNoToName[parent.cate_no] = parent.cate_name;
-        }
-        // 3) 번호 → normalize(이름) 으로 최종 맵 구성
+
+        // 3단계: cate_no → normalize(이름) 맵으로 변환
+        let mapped = 0;
         for (const [cno, viewers] of Object.entries(cateNoViewers)) {
             const name = cateNoToName[cno];
             if (!name) continue;
             const key = normalize(name);
             _soopViewerMap[key] = (_soopViewerMap[key] || 0) + viewers;
+            mapped++;
         }
-        console.log(`  [SOOP] 게임 카테고리 ${Object.keys(_soopViewerMap).length}개 로드`);
+        console.log(`  [SOOP] 게임 카테고리 ${mapped}개 로드 (전체 하위: ${gameSubCats.length}개)`);
     } catch (e) {
         console.warn('  [SOOP] 로드 실패:', e.message);
     }

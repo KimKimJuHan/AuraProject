@@ -12,7 +12,7 @@
   --text-primary:  #ffffff;
   --text-secondary:#b3b3b3;
   --text-muted:    #777777;
-  --text-disabled: #444444;
+  --text-disabled: #666666;
   --accent:        #E50914;
   --accent-hover:  #f40612;
   --accent-light:  rgba(229,9,20,0.12);
@@ -47,7 +47,6 @@
   --accent-light:  rgba(229,9,20,0.08);
   --border:        #dddddd;
   --border-light:  #eeeeee;
-  --border-hover:  #aaaaaa;
   --border-hover:  #aaaaaa;
   --shadow:        rgba(0,0,0,0.15);
   --shadow-card:   0 4px 12px rgba(0,0,0,0.12);

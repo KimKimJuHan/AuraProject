@@ -1009,9 +1009,16 @@ export default function ShopPage({ region, user }) {
           </div>
         )}
 
-                {pi?.discount_percent > 0 && countdown && (
-          <div style={{ color: '#E50914', fontWeight: 'bold', fontSize: '16px', marginBottom: '40px' }}>
-            특가 할인 중! (남은 시간: {countdown})
+                {pi?.discount_percent > 0 && (
+          <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <span style={{ background: '#E50914', color: '#fff', borderRadius: '6px', padding: '3px 10px', fontSize: '14px' }}>
+              -{pi.discount_percent}% 할인 중
+            </span>
+            {countdown && countdown !== '종료됨' && (
+              <span style={{ color: 'var(--text-muted)', fontSize: '14px', fontWeight: 'normal' }}>
+                남은 시간: {countdown}
+              </span>
+            )}
           </div>
         )}
 

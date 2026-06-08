@@ -67,13 +67,13 @@ const styles = {
   loadMoreButton: { display: 'block', margin: '40px auto', padding: '12px 30px', backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid #fff', cursor: 'pointer', borderRadius:'4px', fontSize:'16px' },
   filterContainer: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '40px', alignItems: 'start' },
   filterBox: { backgroundColor: 'var(--bg-card)', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease' },
-  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: 'var(--bg-hover)', borderBottom: '1px solid #333', userSelect: 'none' },
+  filterHeader: { padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: 'var(--bg-hover)', borderBottom: '1px solid var(--border)', userSelect: 'none' },
   filterTitle: { fontSize: '14px', color: 'var(--text-primary)', fontWeight: 'bold' },
   filterArrow: { color: 'var(--text-secondary)', fontSize: '12px' },
   filterContent: { padding: '15px', display: 'flex', flexWrap: 'wrap', gap: '8px', backgroundColor: 'var(--bg-card)', borderTop: '1px solid var(--border)' },
-  tagBtn: { backgroundColor: 'var(--bg-hover)', border: '1px solid #444', color: '#ccc', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
+  tagBtn: { backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-hover)', color: 'var(--text-secondary)', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer', transition: '0.2s' },
   tagBtnActive: { backgroundColor: '#E50914', borderColor: '#E50914', color: 'white', fontWeight: 'bold', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'pointer' },
-  tagBtnDisabled: { backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-light)', color: 'var(--text-disabled)', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.5 },
+  tagBtnDisabled: { backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-light)', color: 'var(--text-disabled)', padding: '6px 12px', borderRadius: '15px', fontSize: '12px', cursor: 'not-allowed', opacity: 0.45 },
   heartBtn: { position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', zIndex: 5 },
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
@@ -107,7 +107,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
   const [isOpen, setIsOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const hasSelection = selectedTags.length > 0;
-  const shouldUseRestriction = hasSelection && selectedTags.length >= 2 && validTags.length > 0;
+  const shouldUseRestriction = hasSelection && selectedTags.length >= 1 && validTags.length > 0;
 
   const defaultShow = TAG_DEFAULT_SHOW[title] || tags.length;
   const hasMore = tags.length > defaultShow;
@@ -135,6 +135,7 @@ const FilterCategoryBox = ({ title, tags, selectedTags, onToggleTag, validTags }
                       return (
                           <button
                               key={tag}
+                              title={isDisabled ? '현재 선택한 태그와 함께 결과가 없는 태그입니다' : ''}
                               style={isSelected ? styles.tagBtnActive : isDisabled ? styles.tagBtnDisabled : styles.tagBtn}
                               onClick={() => !isDisabled && onToggleTag(tag)}
                               disabled={isDisabled}
