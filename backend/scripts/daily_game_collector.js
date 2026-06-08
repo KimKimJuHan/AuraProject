@@ -360,7 +360,7 @@ async function run() {
         const staleGames = await Game.find({
             steam_appid: { $exists: true, $ne: null },
             $or: [{ lastUpdated: { $lt: staleDate } }, { lastUpdated: { $exists: false } }]
-        }).select('_id title steam_appid').limit(100).lean();
+        }).sort({ lastUpdated: 1 }).select('_id title steam_appid').limit(100).lean();
 
         console.log(`  가격 갱신 대상: ${staleGames.length}개`);
 
