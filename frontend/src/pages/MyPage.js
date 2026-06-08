@@ -180,7 +180,7 @@ function MyPage({ user, setUser }) {
                 </button>
             </div>
 
-            <div className="mypage-grid" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px', minWidth:0}}>
+            <div className="mypage-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:'20px', marginTop:'20px', minWidth:0}}>
                 <div className="search-panel mypage-card" style={{minWidth:0, overflow:'hidden'}}>
                     <h3>내 계정 정보</h3>
                     {user?.avatar && <img src={user.avatar} alt="프로필" style={{width:'50px', height:'50px', borderRadius:'50%', marginBottom:'10px'}} />}
@@ -192,10 +192,10 @@ function MyPage({ user, setUser }) {
                               value={newDisplayName}
                               onChange={(e) => setNewDisplayName(e.target.value)}
                               placeholder="새 닉네임 (2~20자)"
-                              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-primary)', fontSize: '14px' }}
+                              style={{ flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-hover)', color: 'var(--text-primary)', fontSize: '14px', width: '100%' }}
                             />
-                            <button onClick={handleSaveNickname} className="search-btn" style={{ whiteSpace: 'nowrap', padding: '7px 12px' }}>저장</button>
-                            <button onClick={() => { setIsEditingNickname(false); setNewDisplayName(user?.displayName || user?.username || ''); }} className="search-btn" style={{ backgroundColor: '#666', whiteSpace: 'nowrap', padding: '7px 12px' }}>취소</button>
+                            <button onClick={handleSaveNickname} className="search-btn" style={{ padding: '7px 12px', flexShrink: 0 }}>저장</button>
+                            <button onClick={() => { setIsEditingNickname(false); setNewDisplayName(user?.displayName || user?.username || ''); }} className="search-btn" style={{ backgroundColor: '#666', padding: '7px 12px', flexShrink: 0 }}>취소</button>
                           </>
                         ) : (
                           <>
