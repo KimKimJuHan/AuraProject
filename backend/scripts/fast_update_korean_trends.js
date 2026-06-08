@@ -151,8 +151,8 @@ let _chzzkPopularMap = null;
 async function loadChzzkCategories() {
     if (_chzzkPopularMap) return _chzzkPopularMap;
     const map = {};           // normalize(카테고리명) → 시청자 합계
-    // 상위 100개로 확장 (50개 → 100개)
-    const url = `https://api.chzzk.naver.com/service/v1/lives?size=100&sortType=POPULAR`;
+    // 상위 50개로 제한 (Chzzk API는 100 요청 시 400 에러 발생)
+    const url = `https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=POPULAR`;
     try {
         const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 12000 });
         const lives = res.data?.content?.data || [];

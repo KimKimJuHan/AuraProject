@@ -70,10 +70,19 @@ const allowedOrigins = process.env.NODE_ENV === 'production'
     ? [FRONTEND_URL]
     : [FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000'];
 
+// CORS 설정
 app.use(cors({
-    origin: allowedOrigins,
-    credentials: true
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
 }));
+
+// API Rate Limiting (보안/안정성)
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15분
+    max: 1000, // IP당 최대 1000번 요청 허용 (적절히 여유롭게 설정)
+    message: { success: false, message: '너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.' }
+});
+app.use('/api', apiLimiter);
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
@@ -309,12 +318,25 @@ function runScript(scriptName) {
 cron.schedule('0 1 * * 0', () => runScript('enrich_all.js'));
 // 매일 새벽 2시: DB 백업
 cron.schedule('0 2 * * *', () => runScript('backup_db.js'));
-// 매일 새벽 3시: 트렌드(시청자/동접) 수집
+// 매일 새벽 3시: 트렌드(시청자/동접) 글로벌 수집 (무거운 작업)
 cron.schedule('0 3 * * *', () => runScript('trend_collector.js'));
+// 매일 4회(0, 6, 12, 18시): 한국 특화 치지직/숲(SOOP) 트렌드 빠른 수집
+cron.schedule('0 0,6,12,18 * * *', () => runScript('fast_update_korean_trends.js'));
 // 매일 새벽 4시: 신규 게임 + 가격 + 메타데이터 보완
 cron.schedule('0 4 * * *', () => runScript('daily_game_collector.js'));
 // 매주 일요일 새벽 5시: 가격 알림 발송
 cron.schedule('0 5 * * 0', () => runScript('notify_sales.js'));
+
+// Uncaught Exception / Unhandled Rejection 전역 에러 핸들링 (서버 다운 방지)
+process.on('uncaughtException', (err) => {
+    console.error('CRITICAL ERROR - Uncaught Exception:', err);
+    // Node.js 권장사항: 치명적 에러 시 종료 후 프로세스 매니저(Docker/PM2)가 재시작하게 냅둠
+    // 하지만 가벼운 스크립트 에러로 인해 메인 서버가 죽는 것을 최대한 로깅만 하고 유지할 수도 있음
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('CRITICAL ERROR - Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
