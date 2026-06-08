@@ -30,12 +30,7 @@ function MyPage({ user, setUser }) {
         localStorage.setItem('currency', newCurrency);
         window.dispatchEvent(new Event('currencyChanged'));
     };
-    // eslint-disable-next-line no-unused-vars
-    const [isEditingPassword, setIsEditingPassword] = useState(false);
-    // eslint-disable-next-line no-unused-vars
-    const [pwError, setPwError] = useState('');
-    // eslint-disable-next-line no-unused-vars
-    const [notifSaved, setNotifSaved] = useState(false);
+
 
     useEffect(() => {
         if (!user) { navigate('/login'); return; }

@@ -305,6 +305,8 @@ function runScript(scriptName) {
     });
 }
 
+// 매주 일요일 새벽 1시: 전체 데이터 무결성 점검 및 누락 데이터(트레일러, 평점 등) 자가 치유
+cron.schedule('0 1 * * 0', () => runScript('enrich_all.js'));
 // 매일 새벽 2시: DB 백업
 cron.schedule('0 2 * * *', () => runScript('backup_db.js'));
 // 매일 새벽 3시: 트렌드(시청자/동접) 수집

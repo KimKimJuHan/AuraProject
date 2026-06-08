@@ -23,7 +23,7 @@ router.post('/change-password', authController.changePassword);
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: `${process.env.FRONTEND_URL || 'https://playforyou.net'}/login` }),
+  passport.authenticate('google', { failureRedirect: `${process.env.FRONTEND_URL || 'https://playforyou.net'}/login?error=social` }),
   (req, res) => {
     req.session.user = {
       id: req.user._id,
@@ -43,7 +43,7 @@ router.get(
 router.get('/naver', passport.authenticate('naver'));
 router.get(
   '/naver/callback',
-  passport.authenticate('naver', { failureRedirect: `${process.env.FRONTEND_URL || 'https://playforyou.net'}/login` }),
+  passport.authenticate('naver', { failureRedirect: `${process.env.FRONTEND_URL || 'https://playforyou.net'}/login?error=social` }),
   (req, res) => {
     req.session.user = {
       id: req.user._id,
@@ -78,7 +78,7 @@ router.get(
 
 router.get(
   '/steam/return',
-  passport.authenticate('steam', { failureRedirect: `${process.env.FRONTEND_URL || 'https://playforyou.net'}/login` }),
+  passport.authenticate('steam', { failureRedirect: `${process.env.FRONTEND_URL || 'https://playforyou.net'}/login?error=social` }),
   async (req, res) => { 
     req.session.user = {
       id: req.user._id,

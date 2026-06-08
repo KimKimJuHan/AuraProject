@@ -1,4 +1,6 @@
 const Game = require('../models/Game');
+const User = require('../models/User');
+const cache = require('../utils/simpleCache');
 
 exports.getRecommendations = async (req, res) => {
     // (recoRoutes.js에서 처리하므로 이 함수는 사용되지 않으나 구조 유지를 위해 빈 함수로 남겨둠)
@@ -41,7 +43,7 @@ exports.getMyVote = async (req, res) => {
     }
 };
 
-// ★ 신규 추가: 실제 투표 처리 로직 (authenticateToken을 안 타더라도 자체 세션 검증)
+// ★ 신규 추가: 실제 투표 처리 로직 (authenticateToken을 안 타더라도 자체 세션 검증) + 추천 알고리즘 학습 연동
 exports.voteGame = async (req, res) => {
     try {
         const gameId = req.params.id;
@@ -67,17 +69,24 @@ exports.voteGame = async (req, res) => {
         if (!game.votes) game.votes = [];
 
         const existingVoteIndex = game.votes.findIndex(v => v.identifier === userId);
+        let returnVote = null;
+        let weightChange = 0;
+        let isDisliked = false;
+        let isUnDisliked = false;
 
         if (existingVoteIndex !== -1) {
             const prevVote = game.votes[existingVoteIndex].type;
             if (prevVote === type) {
+                // 투표 취소
                 game.votes.splice(existingVoteIndex, 1);
                 if (type === 'like') game.likes_count = Math.max(0, (game.likes_count || 1) - 1);
                 else game.dislikes_count = Math.max(0, (game.dislikes_count || 1) - 1);
                 
-                await game.save();
-                return res.json({ success: true, likes: game.likes_count, dislikes: game.dislikes_count, userVote: null });
+                weightChange = type === 'like' ? -0.2 : 0.2;
+                if (type === 'dislike') isUnDisliked = true;
+
             } else {
+                // 투표 변경
                 game.votes[existingVoteIndex].type = type;
                 if (type === 'like') {
                     game.likes_count = (game.likes_count || 0) + 1;
@@ -87,17 +96,56 @@ exports.voteGame = async (req, res) => {
                     game.likes_count = Math.max(0, (game.likes_count || 1) - 1);
                 }
                 
-                await game.save();
-                return res.json({ success: true, likes: game.likes_count, dislikes: game.dislikes_count, userVote: type });
+                weightChange = type === 'like' ? +0.4 : -0.4;
+                returnVote = type;
+                if (type === 'dislike') isDisliked = true;
+                if (prevVote === 'dislike') isUnDisliked = true;
             }
         } else {
+            // 신규 투표
             game.votes.push({ identifier: userId, type });
             if (type === 'like') game.likes_count = (game.likes_count || 0) + 1;
             else game.dislikes_count = (game.dislikes_count || 0) + 1;
 
-            await game.save();
-            return res.json({ success: true, likes: game.likes_count, dislikes: game.dislikes_count, userVote: type });
+            weightChange = type === 'like' ? +0.2 : -0.2;
+            returnVote = type;
+            if (type === 'dislike') isDisliked = true;
         }
+
+        await game.save();
+
+        // [핵심] 유저 tagWeights 업데이트 및 dislikedGames 목록 관리
+        if (weightChange !== 0 || isDisliked || isUnDisliked) {
+            const user = await User.findById(userId);
+            if (user) {
+                // 1. 태그별 가중치 업데이트
+                if (game.smart_tags && game.smart_tags.length > 0) {
+                    const weights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
+                    for (const tag of game.smart_tags) {
+                        weights[tag] = Math.max(Math.min((weights[tag] || 0) + weightChange, 2.0), -1.0);
+                    }
+                    user.tagWeights = weights;
+                }
+
+                // 2. 싫어요를 누르면 dislikedGames에 추가 (추천 리스트에서 아예 안 보이게 하기 위함)
+                if (isDisliked) {
+                    if (!user.dislikedGames) user.dislikedGames = [];
+                    if (!user.dislikedGames.includes(game.slug)) {
+                        user.dislikedGames.push(game.slug);
+                    }
+                }
+                
+                // 3. 싫어요 취소/변경 시 dislikedGames에서 제거
+                if (isUnDisliked && user.dislikedGames) {
+                    user.dislikedGames = user.dislikedGames.filter(slug => slug !== game.slug);
+                }
+
+                await user.save();
+                cache.deleteByPrefix(`reco:${userId}`); // 추천 캐시 즉시 무효화 (실시간 반영)
+            }
+        }
+
+        return res.json({ success: true, likes: game.likes_count, dislikes: game.dislikes_count, userVote: returnVote });
 
     } catch (error) {
         console.error("투표 처리 에러:", error);

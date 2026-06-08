@@ -114,15 +114,17 @@ let _chzzkPopularMap = null;
 async function loadChzzkCategories() {
     if (_chzzkPopularMap) return _chzzkPopularMap;
     const map = {};           // normalize(카테고리명) → 시청자 합계
-    const url = `https://api.chzzk.naver.com/service/v1/lives?size=50&sortType=POPULAR`;
+    // 상위 100개로 확장 (50개 → 100개)
+    const url = `https://api.chzzk.naver.com/service/v1/lives?size=100&sortType=POPULAR`;
     try {
-        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 10000 });
+        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 12000 });
         const lives = res.data?.content?.data || [];
         for (const item of lives) {
             const live = item.live || item;
             if (!live || live.categoryType !== 'GAME') continue;
             const cat = live.liveCategoryValue || '';
             if (!cat) continue;
+            // 영울과 한글 둘 다 맵에 저장 (matchingg 편의)
             map[normalize(cat)] = (map[normalize(cat)] || 0) + (live.concurrentUserCount || 0);
         }
     } catch (err) {
@@ -133,36 +135,45 @@ async function loadChzzkCategories() {
     return map;
 }
 
-// 검색으로 게임의 치지직 카테고리 영문 코드(liveCategory) 알아내기 (시청자 수는 안 씀)
+// 검색으로 게임의 치지직 카테고리 영문 코드(liveCategory) 알아내기 (시청자 수는 안 씨)
 async function findChzzkCategoryId(game) {
     const koCore = getCoreKeyword(game.title_ko);
     const enCore = getCoreKeyword(game.title);
-    const query = koCore || enCore;
-    if (!query) return null;
+
+    // 엄격한 매칭: 영한글 두 키워드로 모두 시도
+    const queries = [];
+    if (koCore && koCore !== enCore) queries.push(koCore);
+    if (enCore) queries.push(enCore);
+    if (queries.length === 0) return null;
 
     const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
     const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
 
-    try {
-        const url = `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeURIComponent(query)}&offset=0&size=10&sortType=POPULAR`;
-        const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 10000 });
-        const lives = res.data?.content?.data || [];
-        for (const item of lives) {
-            const live = item.live || item;
-            if (!live || live.categoryType !== 'GAME') continue;
-            const catVal = normalize(live.liveCategoryValue || '');
-            // 검색 결과 카테고리가 우리 게임과 일치하는지 확인 후 코드 반환
-            let ok = false;
-            if (targetKor && targetKor.length > 1 && (catVal.includes(targetKor) || targetKor.includes(catVal))) ok = true;
-            else if (targetEng && targetEng.length > 2 && (catVal.includes(targetEng) || targetEng.includes(catVal))) ok = true;
-            if (!ok && catVal.length > 0) {
-                const sK = targetKor ? getSimilarity(targetKor, catVal) : 0;
-                const sE = targetEng ? getSimilarity(targetEng, catVal) : 0;
-                if (sK >= 0.8 || sE >= 0.8) ok = true;
+    for (const query of queries) {
+        try {
+            // size 10 → 20으로 확장, 더 많은 결과 탐색
+            const url = `https://api.chzzk.naver.com/service/v1/search/lives?keyword=${encodeURIComponent(query)}&offset=0&size=20&sortType=POPULAR`;
+            const res = await axios.get(url, { headers: CHZZK_HEADERS, timeout: 10000 });
+            const lives = res.data?.content?.data || [];
+            for (const item of lives) {
+                const live = item.live || item;
+                if (!live || live.categoryType !== 'GAME') continue;
+                const catVal = normalize(live.liveCategoryValue || '');
+                if (!catVal) continue;
+                let ok = false;
+                // 포함 관계 체크
+                if (targetKor && targetKor.length > 1 && (catVal.includes(targetKor) || targetKor.includes(catVal))) ok = true;
+                else if (targetEng && targetEng.length > 2 && (catVal.includes(targetEng) || targetEng.includes(catVal))) ok = true;
+                // 유사도 체크 (0.8 → 0.65로 완화하여 더 많은 매칭)
+                if (!ok && catVal.length > 0) {
+                    const sK = targetKor ? getSimilarity(targetKor, catVal) : 0;
+                    const sE = targetEng ? getSimilarity(targetEng, catVal) : 0;
+                    if (sK >= 0.65 || sE >= 0.65) ok = true;
+                }
+                if (ok && live.liveCategory) return live.liveCategory;
             }
-            if (ok && live.liveCategory) return live.liveCategory;
-        }
-    } catch (err) { /* 검색 실패 시 null */ }
+        } catch (err) { /* 검색 실패 시 다음 쿼리 시도 */ }
+    }
     return null;
 }
 
@@ -187,22 +198,23 @@ async function getChzzkViewers(game) {
     const targetEng = normalize(game.title.replace(/[™®©]/g, ''));
     const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
 
-    // 1) 인기 맵(상위 50)에서 먼저 조회 — 대형 게임은 여기서 해결 (API 호출 없음)
+    // 1) 인기 맵(상위 100)에서 먼저 조회 — 대형 게임은 여기서 해결 (API 호출 없음)
     let best = 0;
     for (const [catKey, viewers] of Object.entries(catMap)) {
         let isMatch = false;
         if (targetKor && targetKor.length > 1 && (catKey.includes(targetKor) || targetKor.includes(catKey))) isMatch = true;
         else if (targetEng && targetEng.length > 2 && (catKey.includes(targetEng) || targetEng.includes(catKey))) isMatch = true;
+        // 유사도 완화 (0.8 → 0.65)
         if (!isMatch && catKey.length > 0) {
             const sK = targetKor ? getSimilarity(targetKor, catKey) : 0;
             const sE = targetEng ? getSimilarity(targetEng, catKey) : 0;
-            if (sK >= 0.8 || sE >= 0.8) isMatch = true;
+            if (sK >= 0.65 || sE >= 0.65) isMatch = true;
         }
         if (isMatch && viewers > best) best = viewers;
     }
     if (best > 0) return best;
 
-    // 2) 인기 맵에 없으면(상위 50위 밖) 검색→v2 카테고리 API로 정확히 보강
+    // 2) 인기 맵에 없으면(상위 100위 밖) 검색→v2 카테고리 API로 정확히 보강
     const catId = await findChzzkCategoryId(game);
     if (catId) {
         return await getChzzkCategoryViewers(catId);
@@ -218,30 +230,35 @@ async function loadSoopCategories() {
     if (_soopViewerMap !== null) return _soopViewerMap;
     _soopViewerMap = {};
     const clientId = process.env.SOOP_CLIENT_ID;
-    if (!clientId) return _soopViewerMap;
+    if (!clientId) { console.log('  [SOOP] SOOP_CLIENT_ID 누락'); return _soopViewerMap; }
     try {
-        // 1) 게임 카테고리(00040000) 전체 방송 목록 (시청자 많은 순, 최대 5페이지)
+        // 1) 게임 카테고리(00040000) 전체 방송 목록 (시청자 많은 순, 10페이지로 확장)
         const cateNoViewers = {};
-        for (let page = 1; page <= 5; page++) {
-            const res = await axios.get('https://openapi.sooplive.com/broad/list', {
-                params: { client_id: clientId, select_key: 'cate', select_value: '00040000',
-                          order_type: 'view_cnt', page_no: page },
-                headers: { 'Accept': '*/*' },
-                timeout: 10000,
-            });
-            const broads = res.data?.broad || [];
-            if (broads.length === 0) break;
-            for (const b of broads) {
-                const cno = b.broad_cate_no || '';
-                if (!cno) continue;
-                cateNoViewers[cno] = (cateNoViewers[cno] || 0) + Number(b.total_view_cnt || 0);
+        for (let page = 1; page <= 10; page++) {
+            try {
+                const res = await axios.get('https://openapi.sooplive.com/broad/list', {
+                    params: { client_id: clientId, select_key: 'cate', select_value: '00040000',
+                              order_type: 'view_cnt', page_no: page },
+                    headers: { 'Accept': '*/*' },
+                    timeout: 12000,
+                });
+                const broads = res.data?.broad || [];
+                if (broads.length === 0) break;
+                for (const b of broads) {
+                    const cno = b.broad_cate_no || '';
+                    if (!cno) continue;
+                    cateNoViewers[cno] = (cateNoViewers[cno] || 0) + Number(b.total_view_cnt || 0);
+                }
+                await sleep(150); // 속도 제한 방지
+            } catch (pageErr) {
+                console.log(`  [SOOP] 페이지 ${page} 로드 실패: ${pageErr.message}`);
+                break;
             }
-            await sleep(200);
         }
         // 2) 카테고리 번호 → 이름 매핑
         const catRes = await axios.get('https://openapi.sooplive.com/broad/category/list', {
             params: { client_id: clientId, locale: 'ko_KR' },
-            headers: { 'Accept': '*/*' }, timeout: 10000,
+            headers: { 'Accept': '*/*' }, timeout: 12000,
         });
         const cats = catRes.data?.broad_category || [];
         const cateNoToName = {};
@@ -270,15 +287,23 @@ async function getSoopViewers(game) {
     if (!soopMap || Object.keys(soopMap).length === 0) return 0;
     const targetKor = normalize((game.title_ko || '').replace(/[™®©]/g, ''));
     const targetEng = normalize((game.title || '').replace(/[™®©]/g, ''));
+    // 코어 키워드도 추출 (시리즈명 매칭 개선)
+    const coreEng = normalize(getCoreKeyword(game.title).replace(/[™®©]/g, ''));
+    const coreKor = normalize(getCoreKeyword(game.title_ko || '').replace(/[™®©]/g, ''));
     let best = 0;
     for (const [catKey, viewers] of Object.entries(soopMap)) {
         let isMatch = false;
         if (targetKor && targetKor.length > 1 && (catKey.includes(targetKor) || targetKor.includes(catKey))) isMatch = true;
         else if (targetEng && targetEng.length > 2 && (catKey.includes(targetEng) || targetEng.includes(catKey))) isMatch = true;
+        else if (coreKor && coreKor.length > 1 && (catKey.includes(coreKor) || coreKor.includes(catKey))) isMatch = true;
+        else if (coreEng && coreEng.length > 2 && (catKey.includes(coreEng) || coreEng.includes(catKey))) isMatch = true;
+        // 유사도 완화 (0.8 → 0.65)
         if (!isMatch && catKey.length > 0) {
             const sK = targetKor ? getSimilarity(targetKor, catKey) : 0;
             const sE = targetEng ? getSimilarity(targetEng, catKey) : 0;
-            if (sK >= 0.8 || sE >= 0.8) isMatch = true;
+            const sKc = coreKor ? getSimilarity(coreKor, catKey) : 0;
+            const sEc = coreEng ? getSimilarity(coreEng, catKey) : 0;
+            if (sK >= 0.65 || sE >= 0.65 || sKc >= 0.65 || sEc >= 0.65) isMatch = true;
         }
         if (isMatch && viewers > best) best = viewers;
     }

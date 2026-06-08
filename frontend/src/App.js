@@ -350,10 +350,21 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
 
             if (data.validTags) setValidTags(data.validTags);
 
+            // 온전하지 않은 카드(이미지·가격 없는 게임)는 하단으로 밀기
+            const sortWithIncompleteAtBottom = (list) => {
+                const isComplete = (g) =>
+                    g.main_image &&
+                    g.price_info &&
+                    (g.price_info.isFree || (g.price_info.current_price > 0));
+                const complete = list.filter(g => isComplete(g));
+                const incomplete = list.filter(g => !isComplete(g));
+                return [...complete, ...incomplete];
+            };
+
             setGames(prev => {
-                if (page === 1) return data.games;
+                if (page === 1) return sortWithIncompleteAtBottom(data.games);
                 const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
-                return [...prev, ...newGames];
+                return sortWithIncompleteAtBottom([...prev, ...newGames]);
             });
             setHasMore(page < data.totalPages);
         } catch (err) {
@@ -368,6 +379,9 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+      setPage(1);
+      setGames([]);
+      setHasMore(true);
   };
 
   return (

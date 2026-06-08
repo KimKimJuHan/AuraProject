@@ -85,11 +85,21 @@ async function run() {
             const sorted = [...deals].sort((a, b) => a.price.amount - b.price.amount);
             const best = sorted[0];
 
-            const currentPrice = Math.round(best.price.amount);
-            const regularPrice = Math.round(best.regular.amount);
+            // cents 단위 자동 감지 및 KRW 변환:
+            // ITAD API가 country=KR 로 호출해도 일부 스토어(MS Store 등)는
+            // USD cents (예: $4.95 → 495) 단위로 응답할 수 있음.
+            // 100 이상 2000 미만이면 cents 단위로 판별하여 KRW로 변환.
+            const convertToKRW = (amount) => {
+                if (amount >= 2000) return Math.round(amount); // 이미 KRW
+                if (amount >= 100) return Math.round((amount / 100) * 1350); // cents → KRW
+                return Math.round(amount * 1350); // USD → KRW
+            };
 
-            // 비정상 가격 감지 (100만원 초과 = USD로 저장된 것)
-            if (currentPrice > 1000000) {
+            const currentPrice = convertToKRW(best.price.amount);
+            const regularPrice = convertToKRW(best.regular.amount);
+
+            // 비정상 가격 감지 (200만원 초과)
+            if (currentPrice > 2000000) {
                 abnormal++;
                 console.log(`  ⚠️  비정상 가격 스킵 (appid: ${meta.steamAppId}): ₩${currentPrice.toLocaleString()}`);
                 continue;
@@ -109,8 +119,8 @@ async function run() {
                                 ? new Date(priceData.deals[0].until) : null,
                             'price_info.deals': sorted.slice(0, 15).map(d => ({
                                 shopName: d.shop?.name || '',
-                                price: Math.round(d.price.amount),
-                                regularPrice: Math.round(d.regular.amount),
+                                price: convertToKRW(d.price.amount),
+                                regularPrice: convertToKRW(d.regular.amount),
                                 discount: d.cut || 0,
                                 url: d.url,
                                 until: d.until || null
