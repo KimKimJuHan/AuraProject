@@ -197,7 +197,9 @@ export default function PersonalRecoPage({ user }) {
               const tagRes = await axios.post(`${API_BASE_URL}/api/recommend`, {
                   tags: tagsArray,
                   sortBy: 'popular', // 태그가 최우선이므로 기본 인기순 정렬
-                  playerType: user?.playerType || 'beginner'
+                  playerType: user?.playerType || 'beginner',
+                  userId: user?._id,
+                  hideOwned: true
               });
               
               if (tagRes.data.success) {

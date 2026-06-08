@@ -18,7 +18,7 @@ router.get("/ip", (req, res) => {
 // 2. 유저 정보 조회
 router.get("/info", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("-password");
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: "오류" });
@@ -29,7 +29,7 @@ router.get("/info", authenticateToken, async (req, res) => {
 router.put("/info", authenticateToken, async (req, res) => {
   const { username } = req.body;
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     if (username) user.username = username;
     await user.save();
     res.json(user);
@@ -41,7 +41,7 @@ router.put("/info", authenticateToken, async (req, res) => {
 // 4. 스팀 라이브러리 동기화
 router.get("/games", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     const steamId = user?.steamId;
     const STEAM_API_KEY = process.env.STEAM_WEB_API_KEY || process.env.STEAM_API_KEY;
 
@@ -93,17 +93,19 @@ router.get("/games", authenticateToken, async (req, res) => {
 
     res.json({ linked: true, games: enrichedGames });
   } catch (error) {
-    if (error.response?.status === 403) {
-      return res.json({ linked: true, games: [], error: "PRIVATE" });
+    console.error("Steam API Error:", error.response?.data || error.message);
+    if (error.response?.status === 403 || error.response?.status === 401) {
+      return res.json({ linked: true, games: [], error: "PRIVATE_OR_UNAUTHORIZED" });
     }
-    res.status(500).json({ message: "실패" });
+    // 프론트엔드에서 500 에러를 던지지 않고 우아하게 처리할 수 있도록 200 리턴
+    return res.json({ linked: false, games: [], error: "API_ERROR", message: "스팀 데이터를 불러오는데 실패했습니다." });
   }
 });
 
 // 5. 스팀 연동 해제
 router.delete("/steam", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     user.steamId = null;
     user.steamGames = [];
     await user.save();
@@ -117,7 +119,7 @@ router.delete("/steam", authenticateToken, async (req, res) => {
 // 6. 선호 태그 저장
 router.post("/tags", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     user.likedTags = req.body.tags || [];
     await user.save();
     cache.deleteByPrefix(`reco:${req.user._id}`); // 선호태그 변경 → 추천 캐시 무효화
@@ -130,7 +132,7 @@ router.post("/tags", authenticateToken, async (req, res) => {
 // 7. 찜 목록 조회
 router.get("/wishlist", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     res.json(user.wishlist || []);
   } catch (error) {
     res.status(500).json({ message: "오류" });
@@ -140,7 +142,7 @@ router.get("/wishlist", authenticateToken, async (req, res) => {
 // 8. 찜 추가
 router.post("/wishlist", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     if (!user.wishlist.includes(req.body.slug)) {
       user.wishlist.push(req.body.slug);
       await user.save();
@@ -154,7 +156,7 @@ router.post("/wishlist", authenticateToken, async (req, res) => {
 // 9. 찜 삭제
 router.delete("/wishlist/:slug", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     user.wishlist = user.wishlist.filter((item) => item !== req.params.slug);
     await user.save();
     res.json(user.wishlist);
@@ -237,8 +239,8 @@ router.put("/password", authenticateToken, async (req, res) => {
         if (newPassword.length < 8)
             return res.status(400).json({ message: "새 비밀번호는 8자 이상이어야 합니다." });
 
-        const user = await User.findById(req.user._id);
-        if (!user.password)
+        \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    if (!user.password)
             return res.status(400).json({ message: "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다." });
 
         const isMatch = await bcrypt.compare(currentPassword, user.password);
@@ -256,8 +258,8 @@ router.put("/password", authenticateToken, async (req, res) => {
 // 알림 설정 조회
 router.get("/notifications/settings", authenticateToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select("notificationSettings");
-        res.json(user.notificationSettings || { saleAlert: true, newGameAlert: false, emailAlert: true });
+        \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    res.json(user.notificationSettings || { saleAlert: true, newGameAlert: false, emailAlert: true });
     } catch (err) {
         res.status(500).json({ message: "서버 오류" });
     }
@@ -284,8 +286,8 @@ router.post("/price-alert", authenticateToken, async (req, res) => {
         const { slug, targetPrice } = req.body;
         if (!slug || !targetPrice || targetPrice <= 0)
             return res.status(400).json({ message: "slug와 목표 가격을 입력해주세요." });
-        const user = await User.findById(req.user._id);
-        if (!user.priceAlerts) user.priceAlerts = [];
+        \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    if (!user.priceAlerts) user.priceAlerts = [];
         const existing = user.priceAlerts.find(a => a.slug === slug);
         if (existing) {
             existing.targetPrice = targetPrice;
@@ -302,8 +304,8 @@ router.post("/price-alert", authenticateToken, async (req, res) => {
 // 목표 가격 알림 조회
 router.get("/price-alert/:slug", authenticateToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select("priceAlerts");
-        const found = (user.priceAlerts || []).find(a => a.slug === req.params.slug);
+        \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    const found = (user.priceAlerts || []).find(a => a.slug === req.params.slug);
         res.json({ targetPrice: found ? found.targetPrice : null });
     } catch (err) {
         res.status(500).json({ message: "서버 오류" });
@@ -313,8 +315,8 @@ router.get("/price-alert/:slug", authenticateToken, async (req, res) => {
 // 목표 가격 알림 삭제
 router.delete("/price-alert/:slug", authenticateToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
-        user.priceAlerts = (user.priceAlerts || []).filter(a => a.slug !== req.params.slug);
+        \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    user.priceAlerts = (user.priceAlerts || []).filter(a => a.slug !== req.params.slug);
         await user.save();
         res.json({ success: true });
     } catch (err) {
@@ -348,8 +350,8 @@ router.post('/dislike', authenticateToken, async (req, res) => {
 
         // 태그 가중치 감소 (-0.3씩, 최소 -1.0)
         if (tags && tags.length > 0) {
-            const user = await User.findById(req.user._id).lean();
-            const weights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
+            \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    const weights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
             for (const tag of tags) {
                 weights[tag] = Math.max((weights[tag] || 0) - 0.3, -1.0);
             }
@@ -379,8 +381,8 @@ router.delete('/dislike/:slug', authenticateToken, async (req, res) => {
 // 관심없음 목록 조회
 router.get('/disliked', authenticateToken, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('dislikedGames').lean();
-        res.json(user?.dislikedGames || []);
+        \n    if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    res.json(user?.dislikedGames || []);
     } catch (err) {
         res.status(500).json({ message: '서버 오류' });
     }

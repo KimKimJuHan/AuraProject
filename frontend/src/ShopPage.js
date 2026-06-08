@@ -9,6 +9,7 @@ import { safeLocalStorage } from './utils/storage';
 import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import MinSpecChecker from "./MinSpecChecker";
+import ReactPlayer from 'react-player';
 
 const styles = {
   buyButton: {
@@ -404,12 +405,6 @@ export default function ShopPage({ region, user }) {
 
   const handlePlayVideo = () => {
     setIsPlaying(true);
-    requestAnimationFrame(() => {
-      const v = videoRef.current;
-      if (!v) return;
-      const p = v.play?.();
-      if (p?.catch) p.catch(() => {});
-    });
   };
 
   const REVIEW_KO = {
@@ -543,13 +538,13 @@ export default function ShopPage({ region, user }) {
     if (isFree || priceVal === 0) return '무료';
     if (!priceVal) return '가격 정보 없음';
 
-    // KRW 기준: Steam KRW 가격은 최소 1000원 이상 (달러 가격은 0.01~999)
-    const isBaseKRW = priceVal >= 1000;
-    const krwPrice = isBaseKRW ? priceVal : priceVal * 1350;
-    // 비합리적 가격 필터 (100만원 초과 = 통화 단위 오류 가능성)
-    if (krwPrice > 1000000) return '가격 정보 없음';
-    const usdPrice = isBaseKRW ? priceVal / 1350 : priceVal;
-    const jpyPrice = isBaseKRW ? priceVal / 9 : priceVal * 150;
+    // DB는 이제 항상 정확한 원화(KRW)로 저장되어 있습니다.
+    const krwPrice = priceVal;
+
+    if (krwPrice > 2000000) return '가격 정보 없음';
+
+    const usdPrice = krwPrice / 1350;
+    const jpyPrice = krwPrice / 9;
 
     if (region === 'US') return `$${usdPrice.toFixed(2)}`;
     if (region === 'JP') return `¥${Math.round(jpyPrice).toLocaleString()}`;
@@ -673,6 +668,17 @@ export default function ShopPage({ region, user }) {
   const renderStoreList = () => {
     const deals = pi?.deals || [];
 
+    // 무료 게임(isFree)은 가격 비교 불필요
+    if (pi?.isFree) {
+      return (
+        <a href={gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#'}
+          target="_blank" rel="noreferrer" style={styles.storeRowLink}>
+          <span style={styles.storeName}>Steam</span>
+          <span style={{ color: '#46d369', fontWeight: 'bold' }}>무료 플레이</span>
+        </a>
+      );
+    }
+
     if (deals.length === 0 && pi) {
       return (
         <a href={pi.store_url || (gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
@@ -683,20 +689,38 @@ export default function ShopPage({ region, user }) {
     }
 
     const dealHref = (deal) => {
+      const shopLower = (deal.shopName || '').toLowerCase();
       // Steam: appid로 직접 링크 (itad.link는 잘못된 게임으로 리다이렉트될 수 있음)
-      if (deal.shopName === 'Steam' && gameData.steam_appid) {
+      if (shopLower.includes('steam') && gameData.steam_appid) {
         return `https://store.steampowered.com/app/${gameData.steam_appid}`;
       }
-      // Epic: itad.link는 다른 게임으로 잘못 매핑될 수 있으므로
-      // Epic 공식 검색 페이지로 대체 (게임 제목으로 검색)
-      if (deal.shopName === 'Epic Game Store' || deal.shopName === 'Epic Games') {
-        // deal.url이 itad.link이면 Epic 검색으로 대체, 직접 Epic URL이면 그대로
+      // Epic: itad.link → Epic 공식 검색으로 대체
+      if (shopLower.includes('epic')) {
         if (!deal.url || deal.url.includes('itad.link')) {
           const q = encodeURIComponent(gameData.title || '');
           return `https://store.epicgames.com/browse?q=${q}&sortBy=relevancy`;
         }
+        return deal.url;
       }
-      return deal.url || '#';
+      // GOG: itad.link → GOG 검색으로 대체
+      if (shopLower.includes('gog')) {
+        if (!deal.url || deal.url.includes('itad.link')) {
+          const q = encodeURIComponent(gameData.title || '');
+          return `https://www.gog.com/en/games?query=${q}`;
+        }
+        return deal.url;
+      }
+      // Humble: itad.link → Humble 검색으로 대체
+      if (shopLower.includes('humble')) {
+        if (!deal.url || deal.url.includes('itad.link')) {
+          const q = encodeURIComponent(gameData.title || '');
+          return `https://www.humblebundle.com/store/search?search=${q}`;
+        }
+        return deal.url;
+      }
+      // 그 외 스토어: itad.link가 아닌 경우만 사용, itad.link면 '#' 처리
+      if (deal.url && !deal.url.includes('itad.link')) return deal.url;
+      return '#';
     };
     return deals.map((deal, idx) => (
       <a key={idx} href={dealHref(deal)} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
@@ -774,17 +798,17 @@ export default function ShopPage({ region, user }) {
           <div style={styles.mainMediaDisplay}>
             {selectedMedia?.type === 'video' ? (
               <>
-                <video
-                  ref={videoRef}
-                  src={selectedMedia.url}
-                  controls={isPlaying}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    display: isPlaying ? 'block' : 'none'
-                  }}
-                />
+                <div style={{ width: '100%', height: '100%', display: isPlaying ? 'block' : 'none' }}>
+                  <ReactPlayer
+                    ref={videoRef}
+                    url={selectedMedia.url}
+                    playing={isPlaying}
+                    controls={true}
+                    width="100%"
+                    height="100%"
+                    style={{ objectFit: 'contain' }}
+                  />
+                </div>
                 {!isPlaying && (
                   <>
                     <img
@@ -878,9 +902,14 @@ export default function ShopPage({ region, user }) {
         {/* ── 액션 버튼 행 (항상 고정 높이) ── */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'8px', marginBottom:'12px', alignItems:'stretch' }}>
           {pi ? (() => {
-            // 메인 버튼은 스팀 기준으로 통일 (가격-링크 일치)
-            const steamDeal = (pi.deals || []).find(d => d.shopName === 'Steam');
-            const steamPrice = steamDeal ? steamDeal.price : pi.current_price;
+            // 메인 버튼: Steam deal 먼저, 없으면 current_price_krw, 그것도 없으면 current_price
+            const steamDeal = (pi.deals || []).find(d =>
+              (d.shopName || '').toLowerCase().includes('steam')
+            );
+            // deals.price는 KRW(원화) 기준이므로 getPriceDisplay에서 isBaseKRW 체크 통과
+            const steamPrice = steamDeal
+              ? steamDeal.price
+              : (pi.current_price_krw || pi.current_price);
             const steamUrl = gameData.steam_appid
               ? `https://store.steampowered.com/app/${gameData.steam_appid}`
               : (pi.store_url || '#');
@@ -1001,44 +1030,74 @@ export default function ShopPage({ region, user }) {
         </div>
       )}
 
-      {historyData.length > 0 && (
-  <div style={styles.chartsGrid}>
-    <div style={styles.chartBox}>
-      <h3 className="net-section-title">방송 시청자 트렌드</h3>
-      <div style={{ width: '100%', overflowX: 'auto' }}>
-        <LineChart width={chartWidth} height={250} data={historyData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-          <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
-          <YAxis stroke="#888" style={{ fontSize: '11px' }} />
-          <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
-          <Legend />
-          <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="soop" name="SOOP" stroke="#FF6B35" strokeWidth={2} dot={false} />
-        </LineChart>
-      </div>
-    </div>
+      {historyData.length > 0 && (() => {
+        // 플랫폼별로 실제 데이터가 있는지(0이 아닌 값이 하나라도 있는지) 확인
+        const hasTwitch = historyData.some(d => (d.twitch || 0) > 0);
+        const hasChzzk  = historyData.some(d => (d.chzzk  || 0) > 0);
+        const hasSoop   = historyData.some(d => (d.soop   || 0) > 0);
+        const hasSteam  = historyData.some(d => (d.steam  || 0) > 0);
+        const hasAnyBroadcast = hasTwitch || hasChzzk || hasSoop;
 
-    <div style={styles.chartBox}>
-      <h3 className="net-section-title">스팀 동접자 추이</h3>
-      <div style={{ width: '100%', overflowX: 'auto' }}>
-        <AreaChart width={chartWidth} height={250} data={historyData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-          <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
-          <YAxis stroke="#888" style={{ fontSize: '11px' }} domain={['auto', 'auto']} />
-          <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
-          <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
-        </AreaChart>
-      </div>
-    </div>
-  </div>
-)}
+        return (
+          <div style={styles.chartsGrid}>
+            <div style={styles.chartBox}>
+              <h3 className="net-section-title">방송 시청자 트렌드</h3>
+              {hasAnyBroadcast ? (
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <LineChart width={chartWidth} height={250} data={historyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
+                    <YAxis stroke="#888" style={{ fontSize: '11px' }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
+                    <Legend />
+                    {hasTwitch && <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />}
+                    {hasChzzk  && <Line type="monotone" dataKey="chzzk"  name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />}
+                    {hasSoop   && <Line type="monotone" dataKey="soop"   name="SOOP"  stroke="#FF6B35" strokeWidth={2} dot={false} />}
+                  </LineChart>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  height: '250px', color: '#555', fontSize: '13px', gap: '8px' }}>
+                  <span style={{ fontSize: '28px' }}>📺</span>
+                  <span>수집된 방송 시청자 데이터가 없습니다</span>
+                  <span style={{ fontSize: '11px', color: '#444' }}>트위치 · 치지직 · 숲(SOOP) 방송이 없거나<br />아직 데이터가 수집되지 않았습니다</span>
+                </div>
+              )}
+            </div>
+
+            <div style={styles.chartBox}>
+              <h3 className="net-section-title">스팀 동접자 추이</h3>
+              {hasSteam ? (
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <AreaChart width={chartWidth} height={250} data={historyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
+                    <YAxis stroke="#888" style={{ fontSize: '11px' }} domain={['auto', 'auto']} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
+                    <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
+                  </AreaChart>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  height: '250px', color: '#555', fontSize: '13px', gap: '8px' }}>
+                  <span style={{ fontSize: '28px' }}>👥</span>
+                  <span>동접자 데이터가 없습니다</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
         <div style={styles.bottomGrid}>
           <div style={{ minWidth: 0 }}>
             <h3 className="net-section-title">
               가격 비교
-              {pi?.deals?.length > 0 && (() => {
+              {pi?.isFree ? (
+                <span style={{ fontSize: '13px', fontWeight: 'normal', color: '#46d369', marginLeft: '10px' }}>
+                  무료 플레이
+                </span>
+              ) : pi?.deals?.length > 0 && (() => {
                 const lowest = pi.deals.reduce((min, d) => d.price < min.price ? d : min, pi.deals[0]);
                 return (
                   <span style={{ fontSize: '13px', fontWeight: 'normal', color: '#46d369', marginLeft: '10px' }}>

@@ -100,16 +100,25 @@ async function getITADPrice(itadUuid) {
         if (deals.length === 0) return null;
         const sorted = [...deals].sort((a, b) => a.price.amount - b.price.amount);
         const best = sorted[0];
+
+        // cents 단위 자동 감지 및 KRW 변환
+        // ITAD API가 country=KR로 호출해도 일부 스토어는 USD cents 단위로 응답
+        const convertToKRW = (amount) => {
+            if (amount >= 2000) return Math.round(amount); // 이미 KRW
+            if (amount >= 100) return Math.round((amount / 100) * 1350); // cents → KRW
+            return Math.round(amount * 1350); // USD → KRW
+        };
+
         return {
-            current_price: Math.round(best.price.amount),
-            regular_price: Math.round(best.regular.amount),
+            current_price: convertToKRW(best.price.amount),
+            regular_price: convertToKRW(best.regular.amount),
             discount_percent: best.cut || 0,
             store_url: best.url,
             store_name: best.shop?.name || 'Unknown',
             deals: sorted.slice(0, 10).map(d => ({
                 shopName: d.shop?.name || '',
-                price: Math.round(d.price.amount),
-                regularPrice: Math.round(d.regular.amount),
+                price: convertToKRW(d.price.amount),
+                regularPrice: convertToKRW(d.regular.amount),
                 discount: d.cut || 0,
                 url: d.url
             }))

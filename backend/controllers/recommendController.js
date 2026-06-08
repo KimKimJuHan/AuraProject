@@ -18,49 +18,26 @@ const PERSONAL_TAG_POOL = [
 ];
 
 // ── playerType별 추천 가중치 테이블 ────────────────────────────────────────────
-// 각 값은 해당 요소의 상대적 비중 (합산 후 정규화됨)
 const PLAYER_WEIGHTS = {
     casual: {
-        review: 0.45,   // 검증된 게임 위주 (평점 중시)
-        tag: 0.35,      // 취향 반영
-        trend: 0.10,    // 트렌드 낮게 (복잡한 게임 회피)
-        steam: 0.10,    // Steam 이력 낮게 (보유 게임 적음)
-        // 난이도 페널티: 심화 강하게 회피
-        hardPenalty: 0.50,
-        easyBonus: 1.20,
+        review: 0.45, tag: 0.35, trend: 0.10, steam: 0.10,
+        hardPenalty: 0.50, easyBonus: 1.20,
     },
     beginner: {
-        review: 0.35,
-        tag: 0.40,      // 선택한 태그 가장 중요
-        trend: 0.15,
-        steam: 0.10,
-        hardPenalty: 0.70,
-        easyBonus: 1.10,
+        review: 0.35, tag: 0.40, trend: 0.15, steam: 0.10,
+        hardPenalty: 0.70, easyBonus: 1.10,
     },
     intermediate: {
-        review: 0.25,
-        tag: 0.35,
-        trend: 0.20,    // 트렌드도 반영
-        steam: 0.20,    // Steam 이력 적극 반영
-        hardPenalty: 0.90,  // 거의 페널티 없음
-        easyBonus: 1.00,
+        review: 0.25, tag: 0.35, trend: 0.20, steam: 0.20,
+        hardPenalty: 0.90, easyBonus: 1.00,
     },
     hardcore: {
-        review: 0.15,   // 평점보다 취향 우선
-        tag: 0.35,
-        trend: 0.15,
-        steam: 0.35,    // Steam 플레이 이력 가장 중요
-        hardPenalty: 1.10,  // 고난이도 오히려 보너스
-        easyBonus: 0.85,    // 쉬운 게임 소폭 페널티
+        review: 0.15, tag: 0.35, trend: 0.15, steam: 0.35,
+        hardPenalty: 1.10, easyBonus: 0.85,
     },
     streamer: {
-        review: 0.20,
-        tag: 0.25,
-        trend: 0.40,    // 트렌드 압도적 중요 (시청자 관심)
-        steam: 0.15,
-        hardPenalty: 0.95,
-        easyBonus: 1.00,
-        multiBonus: 1.25,   // 멀티플레이 게임 보너스
+        review: 0.20, tag: 0.25, trend: 0.40, steam: 0.15,
+        hardPenalty: 0.95, easyBonus: 1.00, multiBonus: 1.25,
     },
 };
 
@@ -75,19 +52,19 @@ function buildTagAndQuery(tags) {
     return andConditions.length > 0 ? andConditions : null;
 }
 
-// ── 로그 정규화 (trend_score 분포 극단적 치우침 보정) ─────────────────────────
+// ── 로그 정규화 ─────────────────────────────────────────────────────────────
 function logNormalize(value, max) {
     if (max <= 0 || value <= 0) return 0;
     return Math.log10(value + 1) / Math.log10(max + 1);
 }
 
-// ── 리뷰 점수 정규화 (70점 이하는 빠르게 감소) ───────────────────────────────
+// ── 리뷰 점수 정규화 ───────────────────────────────────────────────────────
 function reviewNormalize(percent) {
     if (!percent || percent <= 0) return 0;
     if (percent >= 95) return 1.0;
     if (percent >= 85) return 0.85 + (percent - 85) * 0.015;
     if (percent >= 70) return 0.50 + (percent - 70) * 0.023;
-    return percent / 140; // 70점 미만은 급격히 낮아짐
+    return percent / 140;
 }
 
 // ── 추천 이유 생성 ────────────────────────────────────────────────────────────
@@ -99,37 +76,23 @@ function buildReason(game, topFactors) {
         const shownTags = tags.slice(0, 2).join(', ');
         reasons.push(`${shownTags} 장르 취향에 맞는 게임`);
     }
-    if (topFactors.includes('steam')) {
-        reasons.push('플레이 이력 기반 추천');
-    }
-    if (topFactors.includes('trend') && (game.trend_score || 0) > 1000) {
-        reasons.push('지금 인기 급상승 중');
-    }
+    if (topFactors.includes('steam')) reasons.push('플레이 이력 기반 추천');
+    if (topFactors.includes('trend') && (game.trend_score || 0) > 1000) reasons.push('지금 인기 급상승 중');
     if (game.steam_reviews?.overall?.percent >= 90 && game.steam_reviews?.overall?.total > 1000) {
         reasons.push(`스팀 ${game.steam_reviews.overall.percent}% 긍정 평가`);
     }
-    if (game.price_info?.discount_percent >= 50) {
-        reasons.push(`${game.price_info.discount_percent}% 할인 중`);
-    }
+    if (game.price_info?.discount_percent >= 50) reasons.push(`${game.price_info.discount_percent}% 할인 중`);
     return reasons.slice(0, 2).join(' · ') || '맞춤 추천';
 }
 
 // ── 다양성 보장: 유사 장르 통합 그룹핑 ─────────────────────────────────────
-// 비슷한 장르를 하나의 버킷으로 묶어서 특정 카테고리 편중 방지
 const GENRE_BUCKETS = {
-    // FPS 계열 통합
     'FPS': 'shooter', '배틀로얄': 'shooter',
-    // 멀티플레이 경쟁 계열
     'MOBA': 'competitive', '경쟁': 'competitive', 'PvP': 'competitive',
-    // RPG 계열
     'RPG': 'rpg', '소울라이크': 'rpg', '메트로배니아': 'rpg', '로그라이크': 'rpg',
-    // 액션 계열
     '액션': 'action', '격투': 'action', '플랫포머': 'action',
-    // 전략 계열
     '전략': 'strategy', '턴제': 'strategy', '카드게임': 'strategy',
-    // 시뮬레이션 계열
-    '시뮬레이션': 'simulation', '자원관리': 'simulation', '기지건설': 'simulation', '농장경영': 'simulation',
-    // 어드벤처 계열
+    '시뮬레이션': 'simulation', '자원관리': 'simulation', '기지건설': 'simulation',
     '어드벤처': 'adventure', '공포': 'adventure', '비주얼노벨': 'adventure', '퍼즐': 'adventure',
 };
 
@@ -170,9 +133,12 @@ class RecommendController {
             const query = { isAdult: { $ne: true } };
 
             if (userId) {
-                const user = await User.findById(userId).select('steamGames');
-                if (user?.steamGames?.length > 0) {
+                const user = await User.findById(userId).select('steamGames dislikedGames');
+                if (hideOwned && user?.steamGames?.length > 0) {
                     query.steam_appid = { $nin: user.steamGames.map(g => g.appid) };
+                }
+                if (user?.dislikedGames?.length > 0) {
+                    query.slug = { $nin: user.dislikedGames };
                 }
             }
 
@@ -183,57 +149,41 @@ class RecommendController {
             if (priceRange === 'free') {
                 query['price_info.isFree'] = true;
             } else if (priceRange === '~10000') {
-                query['price_info.current_price'] = { $gt: 0, $lte: 10000 };
+                query['price_info.current_price'] = { $gte: 2000, $lte: 10000 };
             } else if (priceRange === '~30000') {
-                query['price_info.current_price'] = { $gt: 0, $lte: 30000 };
+                query['price_info.current_price'] = { $gte: 2000, $lte: 30000 };
             } else if (priceRange === '~50000') {
-                query['price_info.current_price'] = { $gt: 0, $lte: 50000 };
+                query['price_info.current_price'] = { $gte: 2000, $lte: 50000 };
             } else if (priceRange === '50000+') {
-                query['price_info.current_price'] = { $gt: 50000 };
+                query['price_info.current_price'] = { $gt: 50000, $lte: 500000 };
             }
 
-            // 최소 할인율 필터
-            if (minDiscount > 0) {
-                query['price_info.discount_percent'] = { $gte: Number(minDiscount) };
-            }
-
-            // 보유 게임 숨기기
-            if (hideOwned && userId) {
-                const userDoc = await User.findById(userId).select('steamGames').lean();
-                const ownedAppIds = (userDoc?.steamGames || []).map(g => g.appid);
-                if (ownedAppIds.length > 0) {
-                    query.steam_appid = { $nin: ownedAppIds };
-                }
-            }
-
+            // sortBy별 필터 + 정렬
             let sortOption = {};
-            if (sortBy === 'popular') sortOption = { trend_score: -1, steam_ccu: -1 };
-            else if (sortBy === 'new') {
-                // 이미 출시된 게임만 (미래 출시 예정작 제외)
+            if (sortBy === 'popular') {
+                sortOption = { trend_score: -1, steam_ccu: -1 };
+            } else if (sortBy === 'new') {
                 query.releaseDate = { $lte: new Date(), $ne: null };
+                query.main_image = { $nin: [null, ''] };
+                if (!query['price_info.current_price']) query['price_info.current_price'] = { $gt: 0 };
+                query['steam_reviews.overall.total'] = { $gte: 5 };
                 sortOption = { releaseDate: -1 };
-            }
-            else if (sortBy === 'discount') {
-                if (!query['price_info.discount_percent']) query['price_info.discount_percent'] = { $gt: 0 };
-                // 완전 무명 게임 제외 (리뷰 최소 10개) - 할인이 목적이라 기준 낮게
+            } else if (sortBy === 'discount') {
+                // 유료 게임만 할인 표시 (무료 게임 할인률 이상한 데이터 제외)
+                query['price_info.isFree'] = { $ne: true };
+                query['price_info.regular_price'] = { $gt: 0 };
+                query['price_info.discount_percent'] = { $gt: 0 };
                 query['steam_reviews.overall.total'] = { $gte: 10 };
                 sortOption = { 'price_info.discount_percent': -1, trend_score: -1 };
-            }
-            else if (sortBy === 'price') {
-                // 가격 미등록(0원)/무료 게임은 제외하고 실제 가격 있는 것만 오름차순
-                // (무료는 '무료배포' 탭에서 별도 제공)
-                if (!query['price_info.current_price']) {
-                    query['price_info.current_price'] = { $gt: 0 };
-                }
+            } else if (sortBy === 'price') {
+                // 실제 유료 게임만: isFree!=true && 2000원~50만원 (비정상 가격 제외)
+                query['price_info.isFree'] = { $ne: true };
+                query['price_info.current_price'] = { $gte: 2000, $lte: 500000 };
                 sortOption = { 'price_info.current_price': 1 };
-            }
-            else if (sortBy === 'review') {
-                // 리뷰 수가 충분한 게임만 (무명 게임의 소수 100% 배제)
+            } else if (sortBy === 'review') {
                 query['steam_reviews.overall.total'] = { $gte: 500 };
                 sortOption = { 'steam_reviews.overall.percent': -1, 'steam_reviews.overall.total': -1 };
-            }
-            else if (sortBy === 'rising') {
-                // 급상승: 최근 3일간 시청자(트렌드) 증가량이 큰 게임
+            } else if (sortBy === 'rising') {
                 const now = new Date();
                 const threeDaysAgo = new Date(now - 3 * 24 * 60 * 60 * 1000);
                 const recent = await TrendHistory.aggregate([
@@ -255,10 +205,15 @@ class RecommendController {
                         ? { $in: risingAppids, ...(query.steam_appid.$nin ? { $nin: query.steam_appid.$nin } : {}) }
                         : { $in: risingAppids };
                 }
-                // 급상승 순서 유지 위해 trend_score 보조 정렬
+                sortOption = { trend_score: -1 };
+            } else {
                 sortOption = { trend_score: -1 };
             }
-            else sortOption = { trend_score: -1 };
+
+            // 최소 할인율 필터 (sortBy=discount일 때는 위에서 이미 처리)
+            if (minDiscount > 0 && sortBy !== 'discount') {
+                query['price_info.discount_percent'] = { $gte: Number(minDiscount) };
+            }
 
             const [totalGames, games] = await Promise.all([
                 Game.countDocuments(query),
@@ -285,7 +240,6 @@ class RecommendController {
     // ── 개인화 추천 ────────────────────────────────────────────────────────
     async getPersonalRecommendations(req, res) {
         try {
-            // 유저별 추천 5분 캐시 (page/tags 조합 키)
             const { userId, tags = [], term } = req.body;
             const cacheKey = `reco:${userId || 'guest'}:${JSON.stringify(tags)}`;
             const cached = cache.get(cacheKey);
@@ -314,12 +268,8 @@ class RecommendController {
             const hasTags = combinedTags.length > 0;
             const hasSteam = userSteamGames.length > 0;
 
-            // ── 후보 게임 쿼리 ────────────────────────────────────────────
             const candidateQuery = { isAdult: { $ne: true } };
-
-            if (hasSteam) {
-                candidateQuery.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
-            }
+            if (hasSteam) candidateQuery.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
 
             if (term?.trim()) {
                 const keyword = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -329,17 +279,13 @@ class RecommendController {
                 ];
             }
 
-            // 태그 선택 시: AND 필터 (정확한 매칭)
-            // 태그 미선택 시: 전체 후보에서 벡터 유사도로 추천
             if (userSelectedTags.length > 0) {
                 const andConditions = buildTagAndQuery(userSelectedTags);
                 if (andConditions) candidateQuery.$and = andConditions;
             }
 
-            // 후보 선정: 매칭 게임 + 랜덤 샘플로 다양성 확보
             let candidates;
             if (hasTags || hasSteam) {
-                // 태그/Steam 있으면: 매칭 우선 500 + 전체 랜덤 300
                 const matched = await Game.find(candidateQuery)
                     .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score')
                     .sort({ trend_score: -1 })
@@ -353,7 +299,6 @@ class RecommendController {
                 ]);
                 candidates = [...matched, ...randomExtra.filter(g => !matchedSlugs.has(g.slug))];
             } else {
-                // 선호 정보 없음(콜드스타트): 전체 랜덤 샘플 (Steam 보유 제외)
                 const coldStartMatch = { isAdult: { $ne: true } };
                 if (hasSteam) coldStartMatch.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
                 candidates = await Game.aggregate([
@@ -362,7 +307,6 @@ class RecommendController {
                 ]);
             }
 
-            // 태그 AND 필터 결과가 너무 적으면 ($and 제거하고 OR 방식으로 확장)
             if (candidates.length < 20 && userSelectedTags.length > 0) {
                 const relaxedQuery = { ...candidateQuery };
                 delete relaxedQuery.$and;
@@ -385,34 +329,24 @@ class RecommendController {
                 });
             }
 
-            // ── 벡터 준비 ─────────────────────────────────────────────────
-            // 관심없음 게임 제거
-            const filteredCandidates = candidates.filter(g =>
-                !userDislikedGames.includes(g.slug)
-            );
+            const filteredCandidates = candidates.filter(g => !userDislikedGames.includes(g.slug));
             const maxTrend = Math.max(...filteredCandidates.map(g => g.trend_score || 0), 1);
             const userTagVec = hasTags ? userToVector(combinedTags, []) : {};
             const userSteamVec = hasSteam ? userToVector([], userSteamGames) : {};
 
-            // ── 점수 계산 ─────────────────────────────────────────────────
             const scored = filteredCandidates.map(game => {
                 const gTags = game.smart_tags?.length > 0 ? game.smart_tags : [];
                 const gameVec = gameToVector(gTags);
-
-                // 각 요소 0~1 정규화
                 const reviewNorm = reviewNormalize(game.steam_reviews?.overall?.percent || 0);
-                // trend 상한선 캡: 상위 5% 게임이 trend를 독점하지 않도록 0.8로 제한
                 const trendNorm = Math.min(logNormalize(game.trend_score || 0, maxTrend), 0.8);
                 const tagSim = hasTags ? calculateSimilarity(userTagVec, gameVec) : 0;
                 const steamSim = hasSteam ? calculateSimilarity(userSteamVec, gameVec) : 0;
 
-                // 가중치 적용 (hasTags/hasSteam 없으면 해당 가중치를 review에 분배)
                 let tagW = hasTags ? weights.tag : 0;
                 let steamW = hasSteam ? weights.steam : 0;
                 let reviewW = weights.review + (hasTags ? 0 : weights.tag * 0.5) + (hasSteam ? 0 : weights.steam * 0.5);
                 let trendW = weights.trend + (hasTags ? 0 : weights.tag * 0.5) + (hasSteam ? 0 : weights.steam * 0.5);
 
-                // tagWeights 반영 - 관심없는 태그 패널티
                 let tagWeightBonus = 0;
                 if (Object.keys(userTagWeights).length > 0) {
                     const gameTags = game.smart_tags || [];
@@ -424,10 +358,8 @@ class RecommendController {
                 }
 
                 let score = (reviewNorm * reviewW) + (trendNorm * trendW) + (tagSim * tagW) + (steamSim * steamW) + tagWeightBonus;
-                // 약간의 랜덤성 (±5%) → 매번 다른 순서
                 score *= (0.95 + Math.random() * 0.10);
 
-                // ── playerType 보정 ───────────────────────────────────────
                 const isHard = gTags.some(t => ['소울라이크', '고난이도'].includes(t));
                 const isEasy = gTags.some(t => ['귀여운', '힐링', '캐주얼'].includes(t));
                 const isMulti = gTags.some(t => ['멀티플레이', '협동', 'PvP', '경쟁'].includes(t));
@@ -436,15 +368,12 @@ class RecommendController {
                 if (isHard) score *= weights.hardPenalty;
                 if (isEasy) score *= weights.easyBonus;
                 if (isMulti && weights.multiBonus) score *= weights.multiBonus;
-                // 신작 보너스 (streamer/intermediate는 신작 선호)
                 if (isNew && ['streamer', 'intermediate'].includes(userType)) score *= 1.10;
 
-                // 리뷰 수 신뢰도 보정 (리뷰 수 적으면 점수 약간 감소)
                 const reviewTotal = game.steam_reviews?.overall?.total || 0;
                 if (reviewTotal < 100) score *= 0.85;
                 else if (reviewTotal < 1000) score *= 0.95;
 
-                // 상위 기여 요소 파악 (추천 이유 생성용)
                 const factors = [
                     { name: 'tag', val: tagSim * tagW },
                     { name: 'steam', val: steamSim * steamW },
@@ -453,51 +382,40 @@ class RecommendController {
                 ].sort((a, b) => b.val - a.val);
 
                 const reason = buildReason(game, factors.slice(0, 2).map(f => f.name));
-
                 return { ...game, _score: score, reason };
             });
 
-            // ── 정렬 + 다양성 보장 ────────────────────────────────────────
             scored.sort((a, b) => b._score - a._score);
-            const diversified = diversify(scored, 3); // 유사 장르 버킷당 최대 3개
+            const diversified = diversify(scored, 3);
             const comprehensive = diversified.slice(0, 20);
 
-            // ── 섹션별 쿼리 (Steam 보유 게임 배제 유지) ──────────────────
             const baseSectionQuery = { isAdult: { $ne: true } };
             if (hasSteam) baseSectionQuery.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
 
-            // 종합추천에 사용된 slug set (섹션 간 중복 방지)
             const usedSlugs = new Set(comprehensive.map(g => g.slug));
 
             const [costEffectiveRaw, trendRaw, hiddenGemRaw, multiplayerRaw] = await Promise.all([
-                // 가성비: 50% 이상 할인 or 5000원 이하
                 Game.find({
                     ...baseSectionQuery,
+                    'price_info.isFree': { $ne: true },
                     $or: [
                         { 'price_info.discount_percent': { $gte: 50 } },
-                        { 'price_info.current_price': { $lte: 5000, $gt: 0 } }
+                        { 'price_info.current_price': { $gte: 2000, $lte: 5000 } }
                     ]
                 }).sort({ 'price_info.discount_percent': -1 }).limit(20).lean(),
-
-                // 트렌드: trend_score 기반
                 Game.find({ ...baseSectionQuery, trend_score: { $gt: 0 } })
                     .sort({ trend_score: -1 }).limit(20).lean(),
-
-                // 숨겨진 명작: 평점 90%+ AND 리뷰 100~10000개
                 Game.find({
                     ...baseSectionQuery,
                     'steam_reviews.overall.percent': { $gte: 90 },
                     'steam_reviews.overall.total': { $gte: 100, $lte: 10000 }
                 }).sort({ 'steam_reviews.overall.percent': -1 }).limit(20).lean(),
-
-                // 멀티플레이
                 Game.find({
                     ...baseSectionQuery,
                     smart_tags: { $in: [/멀티플레이/i, /협동/i, /PvP/i] }
                 }).sort({ trend_score: -1 }).limit(20).lean()
             ]);
 
-            // 섹션 중복 제거 함수
             const dedup = (arr, limit = 10) => {
                 const result = [];
                 for (const g of arr) {
@@ -510,7 +428,6 @@ class RecommendController {
                 return result;
             };
 
-            // 사용자 태그 기반 섹션 내 정렬 보정
             const sortByUserTags = (arr) => {
                 if (!hasTags) return arr;
                 return [...arr].sort((a, b) => {
@@ -525,7 +442,7 @@ class RecommendController {
             const hiddenGem = dedup(sortByUserTags(hiddenGemRaw));
             const multiplayer = dedup(multiplayerRaw);
 
-            res.status(200).json({
+            const responseData = {
                 success: true,
                 data: {
                     comprehensive,
@@ -535,10 +452,78 @@ class RecommendController {
                     multiplayer: multiplayer.map(g => ({ ...g, reason: '함께 즐기기 좋은 게임' }))
                 },
                 validTags: PERSONAL_TAG_POOL
-            });
+            };
+
+            cache.set(cacheKey, responseData, 5 * 60 * 1000); // 5분 캐시
+            res.status(200).json(responseData);
 
         } catch (error) {
             console.error('개인화 추천 에러:', error);
+            res.status(500).json({ success: false, message: '서버 에러' });
+        }
+    }
+
+    // ── 내 투표 조회 ────────────────────────────────────────────────────────
+    async getMyVote(req, res) {
+        try {
+            const { id } = req.params;
+            const userId = req.user?._id;
+            if (!userId) return res.json({ userVote: null });
+
+            let game = null;
+            if (id.startsWith('steam-')) {
+                const appId = parseInt(id.replace('steam-', ''), 10);
+                if (!isNaN(appId)) game = await Game.findOne({ steam_appid: appId }).select('slug votes').lean();
+            }
+            if (!game) game = await Game.findOne({ slug: id }).select('slug votes').lean();
+            if (!game) return res.json({ userVote: null });
+
+            const vote = (game.votes || []).find(v => String(v.userId) === String(userId));
+            res.json({ userVote: vote?.type || null });
+        } catch (err) {
+            console.error('getMyVote 에러:', err);
+            res.json({ userVote: null });
+        }
+    }
+
+    // ── 게임 투표 ────────────────────────────────────────────────────────────
+    async voteGame(req, res) {
+        try {
+            const { id } = req.params;
+            const { type } = req.body;
+            const userId = req.user?._id;
+            if (!userId) return res.status(401).json({ success: false, message: '로그인 필요' });
+            if (!['like', 'dislike'].includes(type)) return res.status(400).json({ success: false, message: '잘못된 타입' });
+
+            let game = null;
+            if (id.startsWith('steam-')) {
+                const appId = parseInt(id.replace('steam-', ''), 10);
+                if (!isNaN(appId)) game = await Game.findOne({ steam_appid: appId });
+            }
+            if (!game) game = await Game.findOne({ slug: id });
+            if (!game) return res.status(404).json({ success: false, message: '게임 없음' });
+
+            const votes = game.votes || [];
+            const existingIdx = votes.findIndex(v => String(v.userId) === String(userId));
+
+            if (existingIdx >= 0) {
+                if (votes[existingIdx].type === type) {
+                    votes.splice(existingIdx, 1);
+                } else {
+                    votes[existingIdx].type = type;
+                }
+            } else {
+                votes.push({ userId, type });
+            }
+
+            game.votes = votes;
+            game.likes_count = votes.filter(v => v.type === 'like').length;
+            game.dislikes_count = votes.filter(v => v.type === 'dislike').length;
+            await game.save();
+
+            res.json({ success: true, likes: game.likes_count, dislikes: game.dislikes_count });
+        } catch (err) {
+            console.error('voteGame 에러:', err);
             res.status(500).json({ success: false, message: '서버 에러' });
         }
     }
