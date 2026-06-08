@@ -348,48 +348,91 @@ async function run() {
 
         for (const game of staleGames) {
             try {
-                const meta = await GameMetadata.findOne({ steamAppId: game.steam_appid }).lean();
-                let priceInfo = null;
+                // ① Steam 공식 API를 항상 먼저 조회 (정확한 현재 가격 기준)
+                const steamData = await getSteamDetails(game.steam_appid);
+                await sleep(300);
 
-                if (meta?.itad?.uuid) {
-                    priceInfo = await getITADPrice(meta.itad.uuid);
+                let steamPrice = null;
+                if (steamData?.price_overview) {
+                    const po = steamData.price_overview;
+                    steamPrice = {
+                        current_price: Math.round((po.final || 0) / 100),
+                        regular_price: Math.round((po.initial || 0) / 100),
+                        discount_percent: po.discount_percent || 0,
+                        isFree: false,
+                    };
+                } else if (steamData?.is_free) {
+                    steamPrice = { current_price: 0, regular_price: 0, discount_percent: 0, isFree: true };
                 }
 
-                // ITAD 없으면 Steam appdetails에서 직접 가격 가져오기
-                if (!priceInfo) {
-                    const steamData = await getSteamDetails(game.steam_appid);
-                    if (steamData?.price_overview) {
-                        const po = steamData.price_overview;
-                        priceInfo = {
-                            current_price: Math.round((po.final || 0) / 100),
-                            regular_price: Math.round((po.initial || 0) / 100),
-                            discount_percent: po.discount_percent || 0,
-                            store_url: `https://store.steampowered.com/app/${game.steam_appid}`,
-                            store_name: 'Steam',
-                            deals: []
-                        };
+                if (!steamPrice) { await sleep(200); continue; }
+
+                // ② ITAD에서 멀티스토어 딜 목록 추가 (Steam 가격이 기준이므로 보정 필요)
+                let deals = [];
+                let expiry = null;
+                try {
+                    const meta = await GameMetadata.findOne({ steamAppId: game.steam_appid }).lean();
+                    if (meta?.itad?.uuid) {
+                        const itadData = await getITADPrice(meta.itad.uuid);
+                        if (itadData?.deals?.length > 0) {
+                            // ITAD 딜이 Steam 가격과 너무 차이나면(50% 이상 낮으면) 제외
+                            const minSane = steamPrice.regular_price * 0.3;
+                            deals = itadData.deals.filter(d =>
+                                d.price >= minSane || d.price === 0 || steamPrice.regular_price === 0
+                            );
+                        }
+                        await sleep(300);
                     }
-                    await sleep(300);
-                }
+                } catch {}
 
-                if (!priceInfo) { await sleep(200); continue; }
+                // ③ Steam 딜을 deals[0] 자리에 항상 포함
+                const steamDeal = {
+                    shopName: 'Steam',
+                    price: steamPrice.current_price,
+                    regularPrice: steamPrice.regular_price,
+                    discount: steamPrice.discount_percent,
+                    url: `https://store.steampowered.com/app/${game.steam_appid}/`
+                };
+                // Steam 딜이 중복이면 교체, 없으면 맨 앞에 추가
+                const withoutSteam = deals.filter(d => d.shopName !== 'Steam');
+                deals = [steamDeal, ...withoutSteam];
+
+                // ④ 할인 중이면 expiry 설정 (ITAD expiry 없으면 30일 임시 설정)
+                if (steamPrice.discount_percent > 0) {
+                    expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 최대 30일
+                } else {
+                    expiry = null; // 할인 아니면 만료일 제거
+                }
 
                 const reviews = await getSteamReviews(game.steam_appid);
+                await sleep(300);
                 const ccu = await getSteamCCU(game.steam_appid);
 
-                const updateData = { 'price_info.current_price': priceInfo.current_price, 'price_info.discount_percent': priceInfo.discount_percent, 'price_info.deals': priceInfo.deals, steam_ccu: ccu, lastUpdated: new Date() };
+                const updateData = {
+                    'price_info.current_price': steamPrice.current_price,
+                    'price_info.regular_price': steamPrice.regular_price,
+                    'price_info.discount_percent': steamPrice.discount_percent,
+                    'price_info.isFree': steamPrice.isFree,
+                    'price_info.expiry': expiry,
+                    'price_info.deals': deals,
+                    steam_ccu: ccu,
+                    lastUpdated: new Date()
+                };
                 if (reviews) {
                     updateData['steam_reviews.overall.percent'] = reviews.percent;
                     updateData['steam_reviews.overall.total'] = reviews.total;
                     updateData['steam_reviews.overall.positive'] = reviews.positive;
+                    updateData['steam_reviews.overall.summary'] = reviews.summary;
                 }
 
                 await Game.updateOne({ _id: game._id }, { $set: updateData });
                 priceUpdated++;
+                if (priceUpdated % 10 === 0) console.log(`  💰 ${priceUpdated}/${staleGames.length} 갱신 중...`);
                 await sleep(800);
             } catch (e) { errors++; }
         }
         console.log(`  ✅ 가격 갱신: ${priceUpdated}개`);
+
 
         // ── 3단계: 메타데이터 보완 (smart_tags 없는 게임) ─────────────────────
         console.log('\n🏷️  3단계: 메타데이터 보완');
