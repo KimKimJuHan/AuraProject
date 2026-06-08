@@ -364,37 +364,6 @@ async function getSoopViewers(game) {
     return best;
 }
 
-async function getTwitchViewers(steamId) {
-    if (!TWITCH_CLIENT_ID) return 0;
-    if (!twitchToken) await getTwitchToken();
-    if (!twitchToken) return 0;
-    try {
-        const categoryData = await GameCategory.findOne({ steamAppId: steamId }).lean();
-        if (!categoryData?.twitch?.id) return 0;
-        const res = await axios.get('https://api.twitch.tv/helix/streams', {
-            headers: { 'Client-ID': TWITCH_CLIENT_ID, Authorization: `Bearer ${twitchToken}` },
-            params: { game_id: categoryData.twitch.id, first: 100 },
-            timeout: 8000
-        });
-        return res.data.data.reduce((acc, s) => acc + (s.viewer_count || 0), 0);
-    } catch (err) {
-        if (err.response?.status === 401) {
-            await getTwitchToken();
-            try {
-                const categoryData2 = await GameCategory.findOne({ steamAppId: steamId }).lean();
-                if (!categoryData2?.twitch?.id) return 0;
-                const res2 = await axios.get('https://api.twitch.tv/helix/streams', {
-                    headers: { 'Client-ID': TWITCH_CLIENT_ID, Authorization: `Bearer ${twitchToken}` },
-                    params: { game_id: categoryData2.twitch.id, first: 100 },
-                    timeout: 8000
-                });
-                return res2.data.data.reduce((acc, s) => acc + (s.viewer_count || 0), 0);
-            } catch { return 0; }
-        }
-        return 0;
-    }
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 async function collectTrends() {
     try {
@@ -413,33 +382,24 @@ async function collectTrends() {
 
         for (let i = 0; i < allGames.length; i++) {
             const game = allGames[i];
-
-            const twitchViewers = await getTwitchViewers(game.steam_appid);
-
+            
             const chzzkViewers = await getChzzkViewers(game);
-
-            const steamCCU = await getSteamCCU(game.steam_appid);
             const soopViewers = await getSoopViewers(game);
+            
+            if (chzzkViewers === 0 && soopViewers === 0) continue; // 변경점 없으면 스킵
 
-            // 트렌드 점수: Chzzk/SOOP에 2배 가중치 (한국 서비스 특성)
+            const twitchViewers = game.twitch_viewers || 0;
+            const steamCCU = game.steam_ccu || 0;
+
+            // 트렌드 점수: Chzzk/SOOP에 2배 가중치 (한국 지표 특화)
             const trendScore = twitchViewers + ((chzzkViewers + soopViewers) * 2) + Math.round(steamCCU * 0.3);
 
-            await Promise.all([
-                Game.updateOne(
-                    { steam_appid: game.steam_appid },
-                    { $set: { trend_score: trendScore, twitch_viewers: twitchViewers, chzzk_viewers: chzzkViewers, soop_viewers: soopViewers, steam_ccu: steamCCU, lastUpdated: new Date() } }
-                ),
-                new TrendHistory({
-                    steam_appid: game.steam_appid, trend_score: trendScore,
-                    twitch_viewers: twitchViewers, chzzk_viewers: chzzkViewers,
-                    soop_viewers: soopViewers, steam_ccu: steamCCU, recordedAt: new Date()
-                }).save()
-            ]);
+            await Game.updateOne(
+                { steam_appid: game.steam_appid },
+                { $set: { trend_score: trendScore, chzzk_viewers: chzzkViewers, soop_viewers: soopViewers, lastUpdated: new Date() } }
+            );
 
-            console.log(`[${i + 1}/${allGames.length}] ${game.title} | Score:${trendScore} (T:${twitchViewers} C:${chzzkViewers} SOOP:${soopViewers} S:${steamCCU})`);
-
-            // Steam CCU API 부하 방지 딜레이 (300ms → 기존 500ms보다 빠름)
-            await sleep(300);
+            console.log(`[${i + 1}/${allGames.length}] ${game.title} | Score:${trendScore} (C:${chzzkViewers} S:${soopViewers})`);
         }
 
         console.log('\n🎉 트렌드 수집 완료!');

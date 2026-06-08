@@ -718,9 +718,8 @@ export default function ShopPage({ region, user }) {
         }
         return deal.url;
       }
-      // 그 외 스토어: itad.link가 아닌 경우만 사용, itad.link면 '#' 처리
-      if (deal.url && !deal.url.includes('itad.link')) return deal.url;
-      return '#';
+      // 그 외 스토어: 기본적으로 deal.url 반환 (itad.link 포함)
+      return deal.url || '#';
     };
     return deals.map((deal, idx) => (
       <a key={idx} href={dealHref(deal)} target="_blank" rel="noreferrer" style={styles.storeRowLink}>

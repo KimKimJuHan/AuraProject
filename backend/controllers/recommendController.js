@@ -167,7 +167,7 @@ class RecommendController {
                 query.main_image = { $nin: [null, ''] };
                 if (!query['price_info.current_price']) query['price_info.current_price'] = { $gt: 0 };
                 query['steam_reviews.overall.total'] = { $gte: 5 };
-                sortOption = { releaseDate: -1 };
+                sortOption = { releaseDate: -1, trend_score: -1 };
             } else if (sortBy === 'discount') {
                 // 유료 게임만 할인 표시 (무료 게임 할인률 이상한 데이터 제외)
                 query['price_info.isFree'] = { $ne: true };
@@ -179,7 +179,7 @@ class RecommendController {
                 // 실제 유료 게임만: isFree!=true && 2000원~50만원 (비정상 가격 제외)
                 query['price_info.isFree'] = { $ne: true };
                 query['price_info.current_price'] = { $gte: 2000, $lte: 500000 };
-                sortOption = { 'price_info.current_price': 1 };
+                sortOption = { 'price_info.current_price': 1, trend_score: -1 };
             } else if (sortBy === 'review') {
                 query['steam_reviews.overall.total'] = { $gte: 500 };
                 sortOption = { 'steam_reviews.overall.percent': -1, 'steam_reviews.overall.total': -1 };
