@@ -141,7 +141,7 @@ function ComparisonPage({ region, user }) {
               fontSize: isMobile ? '18px' : '28px'
             }}
           >
-            ❤️ 내 찜/비교 목록
+            내 찜/비교 목록
           </h2>
 
           <span

@@ -118,12 +118,12 @@ export default function FaqPage() {
     <div style={styles.page}>
       <div style={styles.titleRow}>
         <div>
-          <h1 style={styles.h1}>🛎️ 고객센터 FAQ</h1>
+          <h1 style={styles.h1}>고객센터 FAQ</h1>
           <p style={styles.sub}>자주 묻는 질문을 빠르게 확인하세요.</p>
         </div>
 
         <Link to="/support/inquiry" style={styles.inquiryBtn}>
-          ✉️ 1:1 문의하기
+          1:1 문의하기
         </Link>
       </div>
 

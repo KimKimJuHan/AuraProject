@@ -223,7 +223,7 @@ function MyPage({ user, setUser }) {
                 </div>
 
                 <div className="search-panel mypage-card">
-                    <h3>🎮 스팀 연동 상태</h3>
+                    <h3>스팀 연동 상태</h3>
                     {steamInfo.linked ? (
                         <div>
                             <p style={{color:'#4CAF50'}}>✅ 연동 완료</p>
@@ -244,7 +244,7 @@ function MyPage({ user, setUser }) {
 
             <div className="search-panel" style={{marginTop:'20px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
-                    <h3 style={{margin: 0}}>🖥️ 내 PC 사양 설정</h3>
+                    <h3 style={{margin: 0}}>내 PC 사양 설정</h3>
                     {savedPcSpec && (
                         <span style={{fontSize:'12px', color:'#4CAF50', fontWeight:'bold'}}>저장됨</span>
                     )}
@@ -336,7 +336,7 @@ function MyPage({ user, setUser }) {
                             background: theme === 'light' ? 'rgba(229,9,20,0.08)' : 'transparent',
                             textAlign:'center', transition:'all 0.15s'
                         }}>
-                        <div style={{fontSize:'24px', marginBottom:'6px'}}>☀️</div>
+                        <div style={{fontSize:'16px', marginBottom:'6px', fontWeight:'bold'}}>라이트/다크 모드</div>
                         <div style={{fontSize:'13px', fontWeight: theme === 'light' ? '700' : '400'}}>라이트 모드</div>
                         <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>밝은 화면</div>
                     </div>
@@ -372,7 +372,7 @@ function MyPage({ user, setUser }) {
 
             {/* 게이머 성향 */}
             <div className="search-panel" style={{marginTop:'20px'}}>
-                <h3 style={{margin:'0 0 10px 0'}}>🎮 게이머 성향</h3>
+                <h3 style={{margin:'0 0 10px 0'}}>게이머 성향</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
                     선택한 성향에 맞게 게임을 추천해 드립니다. 언제든 변경 가능합니다.
                 </p>
@@ -413,7 +413,7 @@ function MyPage({ user, setUser }) {
 
             <div className="search-panel" style={{marginTop:'20px'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                    <h3 style={{margin: 0}}>🏷️ 나의 선호 태그</h3>
+                    <h3 style={{margin: 0}}>나의 선호 태그</h3>
                     {isEditingTags ? (
                         <div>
                             <button onClick={handleSaveTags} style={{background:'#e50914', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', marginRight:'5px', cursor:'pointer'}}>저장</button>
@@ -456,7 +456,7 @@ function MyPage({ user, setUser }) {
             </div>
 
             <div className="result-panel" style={{marginTop:'20px'}}>
-                <h3>❤️ 나의 찜 목록 ({wishlistGames.length})</h3>
+                <h3>나의 찜 목록 ({wishlistGames.length})</h3>
                 <div className="game-grid" style={{gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'15px'}}>
                     {wishlistGames.map(game => (
                         <div key={game._id} className="game-card" onClick={() => navigate(`/game/${game.slug}`)}
