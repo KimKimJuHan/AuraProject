@@ -84,7 +84,15 @@ const GAME_SYNONYMS = {
     '카운터 스트라이크 2': ['카스2', '글옵', 'csgo', 'cs2', 'counterstrike2'],
     '이터널 리턴': ['이리', '블서', 'eternalreturn'],
     '리썰 컴퍼니': ['리썰', 'lethalcompany'],
-    '쓰론 앤 리버티': ['tl', 'throneandliberty']
+    '쓰론 앤 리버티': ['tl', 'throneandliberty'],
+    'Dota 2': ['dota2', 'dota', '도타2', '도타'],
+    'ELDEN RING': ['엘든링', 'eldenring'],
+    'Dark Souls III': ['다크소울3', 'darksouls3', 'darksoulsiii'],
+    'ARK: Survival Evolved': ['아크', 'ark', 'arksurvivalevolved'],
+    'Grand Theft Auto V': ['gta5', 'gtav', 'grandtheftauto5'],
+    'Tom Clancy\'s Rainbow Six Siege': ['레인보우식스', '레식', 'rainbowsixsiege', 'r6siege'],
+    'Cyberpunk 2077': ['사이버팡크', '사이버팡크2077', 'cyberpunk2077'],
+    'The Witcher 3: Wild Hunt': ['위처3', 'witcher3'],
 };
 
 function getSynonyms(game) {
@@ -106,8 +114,10 @@ function getCoreKeyword(text) {
     if (!text) return '';
     let core = text.replace(/[™®©]/g, '');
     if (core.includes(':')) core = core.split(':')[0];
-    core = core.replace(/\s+(I|II|III|IV|V|VI|VII|VIII|IX|X|\d+)$/i, '');
-    core = core.replace(/(\d+)$/, '');
+    // 공백 뒤 로마자 숫자만 제거 (예: "Dark Souls III" → "Dark Souls")
+    // 단, "Dota 2", "CS2"처럼 숫자가 제목 핵심인 경우는 보존
+    // → 공백+아라비아 숫자 조합은 제거하지 않음 (로마자만 제거)
+    core = core.replace(/\s+(I{1,3}|IV|V|VI{0,3}|IX|XI{0,3}|XIV|XV)$/i, '');
     return core.trim();
 }
 
