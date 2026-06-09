@@ -336,6 +336,17 @@ router.delete("/price-alert/:slug", authenticateToken, async (req, res) => {
 });
 
 
+// 전체 목표 가격 알림 조회 (마이페이지용)
+router.get("/price-alerts", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("priceAlerts");
+        if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+        res.json({ success: true, priceAlerts: user.priceAlerts || [] });
+    } catch (err) {
+        res.status(500).json({ message: "서버 오류" });
+    }
+});
+
 // 선호 태그 저장
 router.put("/liked-tags", authenticateToken, async (req, res) => {
     try {

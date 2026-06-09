@@ -14,6 +14,11 @@ const AVAILABLE_TAGS = ['액션', 'RPG', '오픈월드', 'FPS', '시뮬레이션
 
 function MyPage({ user, setUser }) {
     const [wishlistGames, setWishlistGames] = useState([]);
+    const [dislikedGames, setDislikedGames] = useState([]);
+    const [priceAlerts, setPriceAlerts] = useState([]);
+    const [notificationSettings, setNotificationSettings] = useState({ saleAlert: true, newGameAlert: false, emailAlert: true });
+    const [isSyncing, setIsSyncing] = useState(false);
+    
     const [steamInfo, setSteamInfo] = useState({ linked: false, games: [] });
     const { theme, toggleTheme } = useTheme();
     const [isEditingTags, setIsEditingTags] = useState(false);
@@ -60,8 +65,40 @@ function MyPage({ user, setUser }) {
                 setWishlistGames([]);
             }
 
+            // 스팀 보유 게임 정보 조회
             const steamRes = await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
             setSteamInfo(steamRes.data);
+
+            // 관심 없음 게임 목록 조회
+            const dlRes = await apiClient.get('/user/disliked');
+            const dlSlugs = dlRes.data || [];
+            if (dlSlugs.length > 0) {
+                const dlData = await apiClient.post('/recommend/wishlist', { slugs: dlSlugs });
+                setDislikedGames(dlData.data.games || []);
+            } else {
+                setDislikedGames([]);
+            }
+
+            // 알림 설정 조회
+            const notiRes = await apiClient.get('/user/notifications/settings');
+            if (notiRes.data) setNotificationSettings(notiRes.data);
+
+            // 목표가 알림 조회
+            const alertRes = await apiClient.get('/user/price-alerts');
+            if (alertRes.data && alertRes.data.priceAlerts) {
+                const alertSlugs = alertRes.data.priceAlerts.map(a => a.slug);
+                if (alertSlugs.length > 0) {
+                    const alertGamesRes = await apiClient.post('/recommend/wishlist', { slugs: alertSlugs });
+                    const enrichedAlerts = alertRes.data.priceAlerts.map(a => {
+                        const matchedGame = alertGamesRes.data.games.find(g => g.slug === a.slug);
+                        return { ...a, game: matchedGame };
+                    });
+                    setPriceAlerts(enrichedAlerts);
+                } else {
+                    setPriceAlerts([]);
+                }
+            }
+
         } catch (e) { console.error("데이터 로드 실패:", e); }
     };
 
@@ -98,6 +135,51 @@ function MyPage({ user, setUser }) {
                 fetchData();
             }
         } catch (error) { alert("해제 처리에 실패했습니다."); }
+    };
+
+    const handleSyncSteam = async () => {
+        if (isSyncing) return;
+        setIsSyncing(true);
+        try {
+            await axios.get(`${API_BASE_URL}/api/user/games`, { withCredentials: true });
+            alert("스팀 라이브러리가 성공적으로 동기화되었습니다.");
+            fetchData();
+        } catch (error) {
+            alert("동기화에 실패했습니다. 다시 시도해주세요.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const handleCancelDislike = async (slug) => {
+        try {
+            await apiClient.delete(`/user/dislike/${slug}`);
+            alert("관심 없음이 취소되어 다시 추천에 표시될 수 있습니다.");
+            fetchData();
+        } catch (e) {
+            alert("취소에 실패했습니다.");
+        }
+    };
+
+    const handleUpdateNoti = async (field, value) => {
+        const newSettings = { ...notificationSettings, [field]: value };
+        setNotificationSettings(newSettings);
+        try {
+            await apiClient.put('/user/notifications/settings', newSettings);
+        } catch (e) {
+            alert("알림 설정 저장에 실패했습니다.");
+        }
+    };
+
+    const handleDeletePriceAlert = async (slug) => {
+        if (!window.confirm("이 목표가 알림을 삭제하시겠습니까?")) return;
+        try {
+            await apiClient.delete(`/user/price-alert/${slug}`);
+            alert("알림이 삭제되었습니다.");
+            fetchData();
+        } catch (e) {
+            alert("알림 삭제에 실패했습니다.");
+        }
     };
 
     const toggleTag = (tag) => {
@@ -226,7 +308,12 @@ function MyPage({ user, setUser }) {
                     <h3>스팀 연동 상태</h3>
                     {steamInfo.linked ? (
                         <div>
-                            <p style={{color:'#4CAF50'}}>✅ 연동 완료</p>
+                            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <p style={{color:'#4CAF50', margin:0}}>✅ 연동 완료</p>
+                                <button onClick={handleSyncSteam} disabled={isSyncing} className="search-btn" style={{padding:'4px 10px', fontSize:'12px', background: isSyncing ? '#555' : 'transparent', border:'1px solid #666', color:'#ccc'}}>
+                                    {isSyncing ? '동기화 중...' : '🔄 수동 동기화'}
+                                </button>
+                            </div>
                             <p>보유 게임: {steamInfo.games.length}개</p>
                             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                                 <button onClick={() => navigate('/recommend/personal')} className="search-btn" style={{flex: 1}}>맞춤 추천 보기</button>
@@ -450,6 +537,91 @@ function MyPage({ user, setUser }) {
                     <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
                         {currentTags.map(tag => (
                             <span key={tag} style={{background:'var(--bg-hover)', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'var(--text-primary)'}}>#{tag}</span>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* 알림 설정 */}
+            <div className="search-panel" style={{marginTop:'20px'}}>
+                <h3 style={{margin:'0 0 12px 0'}}>🔔 알림 설정</h3>
+                <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
+                    중요한 게임 할인 소식과 맞춤 정보를 이메일 등으로 받으실 수 있습니다.
+                </p>
+                <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
+                    <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                        <div>
+                            <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>이메일 수신 동의</div>
+                            <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>AuraProject의 주요 알림을 이메일로 받습니다.</div>
+                        </div>
+                        <input type="checkbox" checked={notificationSettings.emailAlert} onChange={(e) => handleUpdateNoti('emailAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
+                    </label>
+                    <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                        <div>
+                            <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>찜/목표가 게임 할인 알림</div>
+                            <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>내가 찜한 게임이나 목표가를 설정한 게임이 할인할 때 알려줍니다.</div>
+                        </div>
+                        <input type="checkbox" checked={notificationSettings.saleAlert} onChange={(e) => handleUpdateNoti('saleAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
+                    </label>
+                    <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                        <div>
+                            <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>신작/트렌드 게임 알림</div>
+                            <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>요즘 뜨는 트렌드 게임이나 추천 신작을 알려줍니다.</div>
+                        </div>
+                        <input type="checkbox" checked={notificationSettings.newGameAlert} onChange={(e) => handleUpdateNoti('newGameAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
+                    </label>
+                </div>
+            </div>
+
+            {/* 목표가 알림 내역 */}
+            <div className="result-panel" style={{marginTop:'20px'}}>
+                <h3 style={{margin:'0 0 15px 0'}}>💰 내 목표가 알림 관리 ({priceAlerts.length})</h3>
+                {priceAlerts.length === 0 ? (
+                    <p style={{color:'#888', fontSize:'13px', margin:0}}>등록된 목표가 알림이 없습니다.</p>
+                ) : (
+                    <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                        {priceAlerts.map(alert => (
+                            <div key={alert.slug} style={{display:'flex', alignItems:'center', gap:'15px', background:'var(--bg-card)', border:'1px solid var(--border)', padding:'10px', borderRadius:'8px'}}>
+                                <img src={alert.game?.main_image || ''} alt="" style={{width:'80px', height:'45px', objectFit:'cover', borderRadius:'4px', background:'#222'}} />
+                                <div style={{flex:1, minWidth:0}}>
+                                    <div style={{fontSize:'14px', fontWeight:'bold', color:'var(--text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{alert.game?.title_ko || alert.game?.title || alert.slug}</div>
+                                    <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>
+                                        현재가: <span style={{color: alert.game?.price_info?.current_price <= alert.targetPrice ? '#4CAF50' : '#888'}}>
+                                            {alert.game?.price_info?.current_price?.toLocaleString() || 0}원
+                                        </span> 
+                                        <span style={{margin:'0 6px'}}>|</span> 
+                                        목표가: <strong style={{color:'#E50914'}}>{alert.targetPrice.toLocaleString()}원</strong>
+                                    </div>
+                                </div>
+                                <button onClick={() => handleDeletePriceAlert(alert.slug)} style={{background:'none', border:'1px solid #666', color:'#ccc', padding:'6px 12px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>
+                                    알림 삭제
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* 관심없음 (숨김 처리) 관리 */}
+            <div className="result-panel" style={{marginTop:'20px'}}>
+                <h3 style={{margin:'0 0 15px 0'}}>🙈 관심 없는 게임 (숨김 처리됨) ({dislikedGames.length})</h3>
+                <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
+                    추천에 표시되지 않도록 숨김 처리한 게임들입니다. 복구하면 다시 추천 리스트에 나타납니다.
+                </p>
+                {dislikedGames.length === 0 ? (
+                    <p style={{color:'#888', fontSize:'13px', margin:0}}>관심 없는 게임으로 등록된 항목이 없습니다.</p>
+                ) : (
+                    <div style={{display:'flex', flexWrap:'wrap', gap:'10px'}}>
+                        {dislikedGames.map(game => (
+                            <div key={game.slug} style={{display:'flex', alignItems:'center', gap:'10px', background:'var(--bg-card)', border:'1px solid var(--border)', padding:'8px 12px', borderRadius:'8px', width:'fit-content'}}>
+                                <img src={game.main_image} alt="" style={{width:'40px', height:'22px', objectFit:'cover', borderRadius:'2px', background:'#222'}} />
+                                <span style={{fontSize:'13px', color:'var(--text-primary)', maxWidth:'150px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                                    {game.title_ko || game.title}
+                                </span>
+                                <button onClick={() => handleCancelDislike(game.slug)} style={{background:'none', border:'none', color:'#4CAF50', cursor:'pointer', fontSize:'12px', fontWeight:'bold', padding:'4px', marginLeft:'5px'}}>
+                                    복구
+                                </button>
+                            </div>
                         ))}
                     </div>
                 )}
