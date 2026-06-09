@@ -1053,31 +1053,44 @@ export default function ShopPage({ region, user }) {
         const hasChzzk  = historyData.some(d => (d.chzzk  || 0) > 0);
         const hasSoop   = historyData.some(d => (d.soop   || 0) > 0);
         const hasSteam  = historyData.some(d => (d.steam  || 0) > 0);
-        const hasAnyBroadcast = hasTwitch || hasChzzk || hasSoop;
 
         return (
           <div style={styles.chartsGrid}>
             <div style={styles.chartBox}>
               <h3 className="net-section-title">방송 시청자 트렌드</h3>
-              {hasAnyBroadcast ? (
-                <div style={{ width: '100%', overflowX: 'auto' }}>
-                  <LineChart width={chartWidth} height={250} data={historyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
-                    <YAxis stroke="#888" style={{ fontSize: '11px' }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
-                    <Legend />
-                    {hasTwitch && <Line type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF" strokeWidth={2} dot={false} />}
-                    {hasChzzk  && <Line type="monotone" dataKey="chzzk"  name="치지직" stroke="#00FFA3" strokeWidth={2} dot={false} />}
-                    {hasSoop   && <Line type="monotone" dataKey="soop"   name="SOOP"  stroke="#FF6B35" strokeWidth={2} dot={false} />}
-                  </LineChart>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  height: '250px', color: '#555', fontSize: '13px', gap: '8px' }}>
-                  <span style={{ fontSize: '28px' }}>📺</span>
-                  <span>수집된 방송 시청자 데이터가 없습니다</span>
-                  <span style={{ fontSize: '11px', color: '#444' }}>트위치 · 치지직 · 숲(SOOP) 방송이 없거나<br />아직 데이터가 수집되지 않았습니다</span>
+              <div style={{ width: '100%', overflowX: 'auto' }}>
+                <LineChart width={chartWidth} height={250} data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
+                  <YAxis stroke="#888" style={{ fontSize: '11px' }} />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
+                  <Legend />
+                  <Line
+                    type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF"
+                    strokeWidth={hasTwitch ? 2 : 1}
+                    strokeOpacity={hasTwitch ? 1 : 0.3}
+                    strokeDasharray={hasTwitch ? undefined : '4 4'}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3"
+                    strokeWidth={hasChzzk ? 2 : 1}
+                    strokeOpacity={hasChzzk ? 1 : 0.3}
+                    strokeDasharray={hasChzzk ? undefined : '4 4'}
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone" dataKey="soop" name="SOOP" stroke="#FF6B35"
+                    strokeWidth={hasSoop ? 2 : 1}
+                    strokeOpacity={hasSoop ? 1 : 0.3}
+                    strokeDasharray={hasSoop ? undefined : '4 4'}
+                    dot={false}
+                  />
+                </LineChart>
+              </div>
+              {!hasTwitch && !hasChzzk && !hasSoop && (
+                <div style={{ textAlign: 'center', fontSize: '11px', color: '#444', marginTop: '6px' }}>
+                  수집된 방송 시청자 데이터가 없습니다 (트위치 · 치지직 · 숲(SOOP))
                 </div>
               )}
             </div>

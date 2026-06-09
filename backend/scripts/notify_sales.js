@@ -70,6 +70,9 @@ async function runSalesNotifier() {
 
             // 새롭게 할인 소식이 있는 게임만 모아서 한 통의 이메일로 전송
             if (gamesToNotify.length > 0) {
+                // emailAlert 설정이 false인 경우 이메일 발송 스킵 (앱 내 알림은 유지)
+                if (user.notificationSettings?.emailAlert === false) continue;
+
                 let emailHtml = `
                     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background-color: #141414; color: #ffffff; padding: 20px; border-radius: 8px;">
                         <h2 style="color: #E50914;">🔥 찜하신 게임이 할인 중입니다!</h2>

@@ -241,9 +241,6 @@ class RecommendController {
     async getPersonalRecommendations(req, res) {
         try {
             const { userId, tags = [], term } = req.body;
-            const cacheKey = `reco:${userId || 'guest'}:${JSON.stringify(tags)}`;
-            const cached = cache.get(cacheKey);
-            if (cached) return res.json({ ...cached, cached: true });
             const userSelectedTags = Array.isArray(tags) ? tags : [];
 
             let userLikedTags = [];
@@ -262,6 +259,11 @@ class RecommendController {
                     userTagWeights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
                 }
             }
+
+            // 캐시 키에 playerType + likedTags 포함: 성향/태그 변경 즉시 반영
+            const cacheKey = `reco:${userId || 'guest'}:${userType}:${JSON.stringify([...userSelectedTags, ...userLikedTags].sort())}`;
+            const cached = cache.get(cacheKey);
+            if (cached) return res.json({ ...cached, cached: true });
 
             const weights = PLAYER_WEIGHTS[userType] || PLAYER_WEIGHTS.beginner;
             const combinedTags = [...new Set([...userSelectedTags, ...userLikedTags])];
