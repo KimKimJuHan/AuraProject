@@ -54,7 +54,7 @@ export default function InquiryNewPage({ user }) {
 
   return (
     <div style={styles.page}>
-      <h1 style={styles.h1}>✉️ 1:1 문의 작성</h1>
+      <h1 style={styles.h1}>1:1 문의 작성</h1>
 
       <form style={styles.panel} onSubmit={onSubmit}>
         <div style={styles.row}>

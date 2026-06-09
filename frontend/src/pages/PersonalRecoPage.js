@@ -289,7 +289,7 @@ export default function PersonalRecoPage({ user }) {
           <div className="loading-box"><div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>분석 중...</div>
       ) : (
         <div className="result-panel">
-            <h2>✨ 추천 결과</h2>
+            <h2>추천 결과</h2>
             {/* ★ 기획 적용: 사용자가 선택한 태그가 있다면 그 태그에 찰떡인 게임 탭을 가장 최상단에 생성 */}
             {picked.size > 0 && tagSpecificData.length > 0 && (
                 <RecoSection 

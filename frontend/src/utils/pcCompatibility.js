@@ -276,7 +276,7 @@ export function checkPcCompatibility(game, userSpec) {
     return {
       status: 'unset',
       label: 'PC 사양 미설정',
-      icon: '⚙️',
+      icon: '',
       color: '#aaa',
       background: 'rgba(255,255,255,0.08)',
       border: '#555'
@@ -312,7 +312,7 @@ export function checkPcCompatibility(game, userSpec) {
     return {
       status: 'minimum',
       label: '낮은 옵션 가능',
-      icon: '⚠️',
+      icon: '',
       color: '#FFD166',
       background: 'rgba(255,193,7,0.18)',
       border: '#FFC107'

@@ -792,12 +792,12 @@ export default function ShopPage({ region, user }) {
           <PcCompatibilityBadge game={gameData} />
                     {gameData.steam_ccu > 0 && (
             <span style={{ ...styles.trendBadge, backgroundColor: '#2a475e', border: '1px solid #66c0f4' }}>
-              👥 Steam {gameData.steam_ccu.toLocaleString()}명
+              Steam 동시접속 {gameData.steam_ccu.toLocaleString()}명
             </span>
           )}
           {(gameData.twitch_viewers + gameData.chzzk_viewers + (gameData.soop_viewers||0)) > 0 && (
             <span style={{ ...styles.trendBadge, backgroundColor: '#9146FF' }}>
-              📺 Live {(gameData.twitch_viewers + gameData.chzzk_viewers + (gameData.soop_viewers||0)).toLocaleString()}명
+              스트리밍 시청자 {(gameData.twitch_viewers + gameData.chzzk_viewers + (gameData.soop_viewers||0)).toLocaleString()}명
             </span>
           )}
         </div>
@@ -863,18 +863,18 @@ export default function ShopPage({ region, user }) {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '40px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <InfoWithTooltip text={`📅 ${formatDate(gameData.releaseDate)}`} tooltipText="출시일" icon="" />
+          <InfoWithTooltip text={formatDate(gameData.releaseDate)} tooltipText="출시일" icon="" />
 
           {gameData.metacritic_score > 0 && (
             <InfoWithTooltip
               text={`Metacritic ${gameData.metacritic_score}`}
               tooltipText="전문가 평점 (메타크리틱)"
-              icon="Ⓜ️"
+              icon=""
             />
           )}
 
           <InfoWithTooltip
-            text={`⏳ ${formatPlayTime(gameData.play_time || gameData.playtime)}`}
+            text={formatPlayTime(gameData.play_time || gameData.playtime)}
             tooltipText={renderPlayTimeTooltip()}
             icon=""
           />
@@ -930,7 +930,7 @@ export default function ShopPage({ region, user }) {
             );
           })() : <div />}
           <button style={isWishlisted ? styles.wishlistButtonActive : styles.wishlistButton} onClick={toggleWishlist}>
-            {isWishlisted ? '✔ 찜함' : '+ 찜하기'}
+            {isWishlisted ? '찜함' : '찜하기'}
           </button>
           <button onClick={() => setShowPriceAlert(v => !v)}
             style={{ background:'none', border:`1px solid ${priceAlert ? '#4CAF50' : '#555'}`,
@@ -940,9 +940,9 @@ export default function ShopPage({ region, user }) {
           </button>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px' }}>
             <button style={myVote === 'like' ? styles.thumbButtonActive : styles.thumbButton}
-              onClick={() => handleVote('like')}>👍 {likes}</button>
+              onClick={() => handleVote('like')}>추천 {likes}</button>
             <button style={myVote === 'dislike' ? styles.thumbButtonActive : styles.thumbButton}
-              onClick={() => handleVote('dislike')}>👎 {dislikes}</button>
+              onClick={() => handleVote('dislike')}>비추천 {dislikes}</button>
           </div>
         </div>
 
@@ -1110,7 +1110,7 @@ export default function ShopPage({ region, user }) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                   height: '250px', color: '#555', fontSize: '13px', gap: '8px' }}>
-                  <span style={{ fontSize: '28px' }}>👥</span>
+                  <span style={{ fontSize: '28px' }}></span>
                   <span>동접자 데이터가 없습니다</span>
                 </div>
               )}
@@ -1184,7 +1184,7 @@ export default function ShopPage({ region, user }) {
         </div>
 
         <div style={{ marginTop: '60px' }}>
-          <h3 className="net-section-title">👀 최근 본 게임</h3>
+          <h3 className="net-section-title">최근 본 게임</h3>
           <RecentGames currentSlug={gameData.slug} />
         </div>
       </div>
