@@ -325,7 +325,13 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 const gwRes = await fetch(`${API_BASE_URL}/api/games/giveaway`);
                 const gwData = await gwRes.json();
                 if (gwData.success) {
-                    setGames(normalizeGameList(gwData.games || []));
+                    let gwGames = gwData.games || [];
+                    // 보유 숨김이 켜져 있으면, 유저의 스팀 게임 목록과 대조하여 프론트단에서 필터링
+                    if (hideOwned && user?.steamGames?.length > 0) {
+                        const ownedAppIds = user.steamGames.map(g => g.appid);
+                        gwGames = gwGames.filter(g => !ownedAppIds.includes(g.steam_appid));
+                    }
+                    setGames(normalizeGameList(gwGames));
                     setHasMore(false);
                 }
                 setLoading(false);

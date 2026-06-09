@@ -162,12 +162,14 @@ function MyPage({ user, setUser }) {
     };
 
     const handleUpdateNoti = async (field, value) => {
+        const prevSettings = { ...notificationSettings };
         const newSettings = { ...notificationSettings, [field]: value };
         setNotificationSettings(newSettings);
         try {
             await apiClient.put('/user/notifications/settings', newSettings);
         } catch (e) {
             alert("알림 설정 저장에 실패했습니다.");
+            setNotificationSettings(prevSettings);
         }
     };
 

@@ -489,47 +489,6 @@ class RecommendController {
         }
     }
 
-    // ── 게임 투표 ────────────────────────────────────────────────────────────
-    async voteGame(req, res) {
-        try {
-            const { id } = req.params;
-            const { type } = req.body;
-            const userId = req.user?._id;
-            if (!userId) return res.status(401).json({ success: false, message: '로그인 필요' });
-            if (!['like', 'dislike'].includes(type)) return res.status(400).json({ success: false, message: '잘못된 타입' });
-
-            let game = null;
-            if (id.startsWith('steam-')) {
-                const appId = parseInt(id.replace('steam-', ''), 10);
-                if (!isNaN(appId)) game = await Game.findOne({ steam_appid: appId });
-            }
-            if (!game) game = await Game.findOne({ slug: id });
-            if (!game) return res.status(404).json({ success: false, message: '게임 없음' });
-
-            const votes = game.votes || [];
-            const existingIdx = votes.findIndex(v => String(v.userId) === String(userId));
-
-            if (existingIdx >= 0) {
-                if (votes[existingIdx].type === type) {
-                    votes.splice(existingIdx, 1);
-                } else {
-                    votes[existingIdx].type = type;
-                }
-            } else {
-                votes.push({ userId, type });
-            }
-
-            game.votes = votes;
-            game.likes_count = votes.filter(v => v.type === 'like').length;
-            game.dislikes_count = votes.filter(v => v.type === 'dislike').length;
-            await game.save();
-
-            res.json({ success: true, likes: game.likes_count, dislikes: game.dislikes_count });
-        } catch (err) {
-            console.error('voteGame 에러:', err);
-            res.status(500).json({ success: false, message: '서버 에러' });
-        }
-    }
 }
 
 module.exports = new RecommendController();
