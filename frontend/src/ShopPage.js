@@ -919,7 +919,7 @@ export default function ShopPage({ region, user }) {
           </div>
         )}
 
-                {pi?.discount_percent > 0 && (
+                {pi?.discount_percent > 0 && !pi?.isFree && pi?.current_price > 0 && (
           <div style={{ fontWeight: 'bold', fontSize: '16px', marginBottom: '40px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <span style={{ background: '#E50914', color: '#fff', borderRadius: '6px', padding: '3px 10px', fontSize: '14px' }}>
               -{pi.discount_percent}% 할인 중

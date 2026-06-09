@@ -183,7 +183,8 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
   };
 
   const currentPriceText = formatPrice(game.price_info, region);
-  const discount = game.price_info?.discount_percent > 0 ? `-${game.price_info.discount_percent}%` : null;
+  const isFreeText = currentPriceText === '무료' || game.price_info?.isFree || game.price_info?.current_price === 0;
+  const discount = (game.price_info?.discount_percent > 0 && !isFreeText) ? `-${game.price_info.discount_percent}%` : null;
   const compatibility = checkPcCompatibility(game);
 
   // 무료배포 게임(slug 없음)은 외부 링크로
