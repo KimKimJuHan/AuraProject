@@ -134,7 +134,8 @@ class RecommendController {
 
             if (userId) {
                 const user = await User.findById(userId).select('steamGames dislikedGames');
-                if (hideOwned && user?.steamGames?.length > 0) {
+                const isHideOwned = hideOwned === true || hideOwned === 'true';
+                if (isHideOwned && user?.steamGames?.length > 0) {
                     query.steam_appid = { $nin: user.steamGames.map(g => g.appid) };
                 }
                 if (user?.dislikedGames?.length > 0) {
