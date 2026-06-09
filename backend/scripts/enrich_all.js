@@ -22,15 +22,16 @@ const skip = (name) => args.includes(`--skip-${name}`);
 
 async function measure() {
     const total = await Game.countDocuments();
-    const [trend, price, review, tags, trailer, image] = await Promise.all([
+    const [trend, price, review, tags, trailer, image, playtime] = await Promise.all([
         Game.countDocuments({ trend_score: { $gt: 0 } }),
         Game.countDocuments({ 'price_info.current_price': { $gt: 0 } }),
         Game.countDocuments({ 'steam_reviews.overall.percent': { $gt: 0 } }),
         Game.countDocuments({ smart_tags: { $exists: true, $ne: [] } }),
         Game.countDocuments({ trailers: { $exists: true, $ne: [] } }),
         Game.countDocuments({ main_image: { $exists: true, $ne: '' } }),
+        Game.countDocuments({ 'play_time.main': { $gt: 0 } })
     ]);
-    return { total, trend, price, review, tags, trailer, image };
+    return { total, trend, price, review, tags, trailer, image, playtime };
 }
 
 function report(label, m) {
@@ -42,6 +43,7 @@ function report(label, m) {
     console.log(`  태그:        ${p(m.tags)}`);
     console.log(`  트레일러:    ${p(m.trailer)}`);
     console.log(`  이미지:      ${p(m.image)}`);
+    console.log(`  플레이타임:  ${p(m.playtime)}`);
 }
 
 function runStep(label, scriptName, extraArgs = '') {
@@ -68,6 +70,7 @@ async function main() {
     if (!skip('prices'))   runStep('가격 보완',   'repatch_prices.js');
     if (!skip('reviews'))  runStep('평점 보완',   'repatch_review_percent.js');
     if (!skip('trailers')) runStep('트레일러 보완', 'repatch_trailers.js', '--missing-only');
+    if (!skip('playtime')) runStep('온라인게임 플탐', 'repatch_playtime_online.js');
     if (!skip('trend'))    runStep('트렌드 수집',  'trend_collector.js');
 
     // 3. 보완 후 재측정
@@ -86,6 +89,7 @@ async function main() {
     diff('price', '가격');
     diff('review', '평점');
     diff('trailer', '트레일러');
+    diff('playtime', '플탐');
 
     console.log('\n🎉 전체 보완 완료');
     process.exit(0);
