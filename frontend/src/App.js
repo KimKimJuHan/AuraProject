@@ -24,6 +24,7 @@ import OnboardingPopup from './components/OnboardingPopup';
 import NotificationPage from './pages/NotificationPage';
 import OnboardingPage from './pages/OnboardingPage';
 import { useTheme } from './context/ThemeContext';
+import { normalizeGameList } from './utils/gameDataNormalizer';
 
 function NotFoundPage() {
   return (
@@ -324,7 +325,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 const gwRes = await fetch(`${API_BASE_URL}/api/games/giveaway`);
                 const gwData = await gwRes.json();
                 if (gwData.success) {
-                    setGames(gwData.games || []);
+                    setGames(normalizeGameList(gwData.games || []));
                     setHasMore(false);
                 }
                 setLoading(false);
@@ -363,9 +364,11 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 return [...complete, ...incomplete];
             };
 
+            const normalizedDataGames = normalizeGameList(data.games || []);
+
             setGames(prev => {
-                if (page === 1) return sortWithIncompleteAtBottom(data.games);
-                const newGames = data.games.filter(g => !prev.some(p => p.slug === g.slug));
+                if (page === 1) return sortWithIncompleteAtBottom(normalizedDataGames);
+                const newGames = normalizedDataGames.filter(g => !prev.some(p => p.slug === g.slug));
                 return sortWithIncompleteAtBottom([...prev, ...newGames]);
             });
             setHasMore(page < data.totalPages);

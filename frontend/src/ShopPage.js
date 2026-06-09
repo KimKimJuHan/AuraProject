@@ -10,6 +10,7 @@ import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import GameCharts from './components/GameCharts';
 import GameGallery from './components/GameGallery';
 import MinSpecChecker from "./MinSpecChecker";
+import { normalizeGameData } from './utils/gameDataNormalizer';
 
 const styles = {
   buyButton: {
@@ -381,7 +382,7 @@ export default function ShopPage({ region, user }) {
     const fetchDetails = async () => {
       try {
         const res = await axios.get(`${API_BASE_URL}/api/games/${id}`);
-        const data = res.data;
+        const data = normalizeGameData(res.data);
 
         setGameData(data);
         setLoading(false);

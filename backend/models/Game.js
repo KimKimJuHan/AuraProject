@@ -98,4 +98,31 @@ gameSchema.index({ isAdult: 1, 'price_info.current_price': 1 });
 // 태그 + isAdult 복합 (태그 필터링 쿼리)
 gameSchema.index({ isAdult: 1, smart_tags: 1, steam_ccu: -1 });
 
+// 데이터 무결성 보호(Sanitize) 미들웨어: 무료 게임이거나 현재가가 0이면 할인율을 0으로 강제
+gameSchema.pre('save', function (next) {
+  if (this.price_info) {
+    if (this.price_info.isFree || this.price_info.current_price === 0) {
+      this.price_info.isFree = true;
+      this.price_info.discount_percent = 0;
+      this.price_info.current_price = 0;
+    }
+  }
+  next();
+});
+
+gameSchema.pre('findOneAndUpdate', function (next) {
+  const update = this.getUpdate();
+  if (update.$set && update.$set['price_info.current_price'] !== undefined) {
+    const isFree = update.$set['price_info.isFree'];
+    const currentPrice = update.$set['price_info.current_price'];
+    
+    if (isFree === true || currentPrice === 0) {
+      update.$set['price_info.isFree'] = true;
+      update.$set['price_info.discount_percent'] = 0;
+      update.$set['price_info.current_price'] = 0;
+    }
+  }
+  next();
+});
+
 module.exports = mongoose.model('Game', gameSchema, 'games');
