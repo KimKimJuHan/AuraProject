@@ -362,6 +362,7 @@ class AuthController {
                     key: apiKey,
                     steamid: steamId,
                     include_appinfo: true,
+                    include_played_free_games: true,
                     format: 'json'
                 }
             });
