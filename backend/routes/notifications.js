@@ -25,6 +25,7 @@ router.get('/unread-count', authenticateToken, async (req, res) => {
         });
         res.json({ success: true, count });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ success: false });
     }
 });
@@ -40,6 +41,7 @@ router.patch('/:id/read', authenticateToken, async (req, res) => {
         if (!notification) return res.status(404).json({ success: false });
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ success: false });
     }
 });
@@ -53,6 +55,7 @@ router.post('/read-all', authenticateToken, async (req, res) => {
         );
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ success: false });
     }
 });
@@ -67,6 +70,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         if (result.deletedCount === 0) return res.status(404).json({ success: false });
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ success: false });
     }
 });
@@ -77,6 +81,7 @@ router.delete('/', authenticateToken, async (req, res) => {
         await Notification.deleteMany({ userId: req.user._id });
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ success: false });
     }
 });
