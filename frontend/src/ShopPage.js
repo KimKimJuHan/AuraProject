@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
@@ -7,7 +7,6 @@ import { API_BASE_URL, apiClient } from './config';
 // eslint-disable-next-line no-unused-vars
 import { safeLocalStorage } from './utils/storage';
 import PcCompatibilityBadge from './components/PcCompatibilityBadge';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import GameCharts from './components/GameCharts';
 import GameGallery from './components/GameGallery';
 import MinSpecChecker from "./MinSpecChecker";
@@ -475,6 +474,7 @@ export default function ShopPage({ region, user }) {
     };
 
     fetchDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
