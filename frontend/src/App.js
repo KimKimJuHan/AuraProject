@@ -222,7 +222,7 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
                 : (game.reason || '맞춤 추천')}
             </div>
 
-            {game.steam_reviews?.overall?.percent > 0 && game.steam_reviews?.overall?.total >= 10 && (
+            {game.steam_reviews?.overall?.percent > 0 && game.steam_reviews?.overall?.total >= 10 ? (
               <div style={{ marginBottom: '6px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
                   <span style={{ fontSize:'11px', color: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72' }}>
@@ -236,6 +236,17 @@ function GameListItem({ game, region, userWishlist, onToggleWishlist, user }) {
                     background: game.steam_reviews.overall.percent >= 80 ? '#66c0f4' : game.steam_reviews.overall.percent >= 60 ? '#d29922' : '#ff7b72',
                     borderRadius:'3px'
                   }}/>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'3px' }}>
+                  <span style={{ fontSize:'11px', color:'#777' }}>
+                    {game.releaseDate && new Date(game.releaseDate) > new Date() ? '출시 예정' : '평가 정보 없음'}
+                  </span>
+                  <span style={{ fontSize:'11px', color:'#555' }}>-</span>
+                </div>
+                <div style={{ background:'#333', borderRadius:'3px', height:'3px', overflow:'hidden' }}>
                 </div>
               </div>
             )}

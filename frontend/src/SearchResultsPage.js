@@ -146,7 +146,7 @@ function SearchResultsPage() {
                 <div style={styles.cardBody}>
                   <div style={styles.title}>{game.title_ko || game.title}
                     <PcCompatibilityBadge game={game} compact /></div>
-                  {percent > 0 && game.steam_reviews?.overall?.total >= 10 && (
+                  {percent > 0 && game.steam_reviews?.overall?.total >= 10 ? (
                     <div style={{ marginBottom: '5px' }}>
                       <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', marginBottom:'2px' }}>
                         <span style={{ color: reviewColor }}>{reviewText}</span>
@@ -154,6 +154,17 @@ function SearchResultsPage() {
                       </div>
                       <div style={{ background:'#333', borderRadius:'2px', height:'3px' }}>
                         <div style={{ width:`${percent}%`, height:'100%', background: reviewColor, borderRadius:'2px' }}/>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: '5px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', marginBottom:'2px' }}>
+                        <span style={{ color:'#777' }}>
+                          {game.releaseDate && new Date(game.releaseDate) > new Date() ? '출시 예정' : '평가 정보 없음'}
+                        </span>
+                        <span style={{ color:'#555' }}>-</span>
+                      </div>
+                      <div style={{ background:'#333', borderRadius:'2px', height:'3px' }}>
                       </div>
                     </div>
                   )}
