@@ -112,14 +112,25 @@ gameSchema.pre('save', function (next) {
 
 gameSchema.pre('findOneAndUpdate', function (next) {
   const update = this.getUpdate();
-  if (update.$set && update.$set['price_info.current_price'] !== undefined) {
-    const isFree = update.$set['price_info.isFree'];
-    const currentPrice = update.$set['price_info.current_price'];
-    
-    if (isFree === true || currentPrice === 0) {
-      update.$set['price_info.isFree'] = true;
-      update.$set['price_info.discount_percent'] = 0;
-      update.$set['price_info.current_price'] = 0;
+  if (update.$set) {
+    // 1. 객체 통째로 업데이트되는 경우
+    if (update.$set.price_info) {
+      if (update.$set.price_info.isFree === true || update.$set.price_info.current_price === 0) {
+        update.$set.price_info.isFree = true;
+        update.$set.price_info.discount_percent = 0;
+        update.$set.price_info.current_price = 0;
+      }
+    } 
+    // 2. 점(.) 표기법으로 업데이트되는 경우
+    else if (update.$set['price_info.current_price'] !== undefined || update.$set['price_info.isFree'] !== undefined) {
+      const isFree = update.$set['price_info.isFree'];
+      const currentPrice = update.$set['price_info.current_price'];
+      
+      if (isFree === true || currentPrice === 0) {
+        update.$set['price_info.isFree'] = true;
+        update.$set['price_info.discount_percent'] = 0;
+        update.$set['price_info.current_price'] = 0;
+      }
     }
   }
   next();
