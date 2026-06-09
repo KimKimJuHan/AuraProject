@@ -22,6 +22,7 @@ router.get("/info", authenticateToken, async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     res.json(user);
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -36,6 +37,7 @@ router.put("/info", authenticateToken, async (req, res) => {
     await user.save();
     res.json(user);
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -96,6 +98,7 @@ router.get("/games", authenticateToken, async (req, res) => {
 
     res.json({ linked: true, games: enrichedGames });
   } catch (error) {
+        console.error('API Error:', error);
     if (error.response?.status === 403) {
       return res.json({ linked: true, games: [], error: "PRIVATE" });
     }
@@ -114,6 +117,7 @@ router.delete("/steam", authenticateToken, async (req, res) => {
     cache.deleteByPrefix(`reco:${req.user._id}`); // Steam 해제 → 추천 캐시 무효화
     res.json({ message: "해제됨", user });
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -128,6 +132,7 @@ router.post("/tags", authenticateToken, async (req, res) => {
     cache.deleteByPrefix(`reco:${req.user._id}`); // 선호태그 변경 → 추천 캐시 무효화
     res.json({ message: "저장됨" });
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -139,6 +144,7 @@ router.get("/wishlist", authenticateToken, async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
     res.json(user.wishlist || []);
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -154,6 +160,7 @@ router.post("/wishlist", authenticateToken, async (req, res) => {
     }
     res.json(user.wishlist);
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -167,6 +174,7 @@ router.delete("/wishlist/:slug", authenticateToken, async (req, res) => {
     await user.save();
     res.json(user.wishlist);
   } catch (error) {
+        console.error('API Error:', error);
     res.status(500).json({ message: "오류" });
   }
 });
@@ -232,6 +240,7 @@ router.put("/playerType", authenticateToken, async (req, res) => {
         cache.deleteByPrefix(`reco:${req.user._id}`); // 플레이어타입 변경 → 추천 캐시 무효화
         res.json({ success: true, playerType });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -258,6 +267,7 @@ router.put("/password", authenticateToken, async (req, res) => {
         await user.save();
         res.json({ success: true, message: "비밀번호가 변경되었습니다." });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -269,6 +279,7 @@ router.get("/notifications/settings", authenticateToken, async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
         res.json(user.notificationSettings || { saleAlert: true, newGameAlert: false, emailAlert: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -282,6 +293,7 @@ router.put("/notifications/settings", authenticateToken, async (req, res) => {
         });
         res.json({ success: true, message: "알림 설정이 저장되었습니다." });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -306,6 +318,7 @@ router.post("/price-alert", authenticateToken, async (req, res) => {
         await user.save();
         res.json({ success: true, message: "목표 가격이 설정되었습니다." });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -318,6 +331,7 @@ router.get("/price-alert/:slug", authenticateToken, async (req, res) => {
         const found = (user.priceAlerts || []).find(a => a.slug === req.params.slug);
         res.json({ targetPrice: found ? found.targetPrice : null });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -331,6 +345,7 @@ router.delete("/price-alert/:slug", authenticateToken, async (req, res) => {
         await user.save();
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -343,6 +358,7 @@ router.get("/price-alerts", authenticateToken, async (req, res) => {
         if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
         res.json({ success: true, priceAlerts: user.priceAlerts || [] });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -356,6 +372,7 @@ router.put("/liked-tags", authenticateToken, async (req, res) => {
         cache.deleteByPrefix(`reco:${req.user._id}`); // 선호태그 변경 → 추천 캐시 무효화
         res.json({ success: true, likedTags: tags });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: "서버 오류" });
     }
 });
@@ -385,6 +402,7 @@ router.post('/dislike', authenticateToken, async (req, res) => {
         cache.deleteByPrefix(`reco:${req.user._id}`); // 추천 캐시 무효화
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: '서버 오류' });
     }
 });
@@ -397,6 +415,7 @@ router.delete('/dislike/:slug', authenticateToken, async (req, res) => {
         });
         res.json({ success: true });
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: '서버 오류' });
     }
 });
@@ -408,6 +427,7 @@ router.get('/disliked', authenticateToken, async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
         res.json(user?.dislikedGames || []);
     } catch (err) {
+        console.error('API Error:', err);
         res.status(500).json({ message: '서버 오류' });
     }
 });

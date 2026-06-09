@@ -80,7 +80,8 @@ class AuthController {
             await newUser.save();
             res.status(201).json({ success: true });
         } catch (e) {
-            res.status(500).json({ success: false });
+            console.error('Signup Error:', e);
+            res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
         }
     }
 
@@ -312,7 +313,8 @@ class AuthController {
             if (rememberMe) req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30;
             res.json({ success: true, user: req.session.user });
         } catch (e) {
-            res.status(500).json({ success: false });
+            console.error('Login Error:', e);
+            res.status(500).json({ success: false, message: '서버 에러가 발생했습니다.' });
         }
     }
 

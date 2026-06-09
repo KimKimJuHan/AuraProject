@@ -316,11 +316,6 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
     }));
   }, [activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
-  useEffect(() => {
-    setGames([]);
-    setPage(1);
-    setHasMore(true);
-  }, [selectedTags, activeTab, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
 
   useEffect(() => {
     if (page > 1 && !hasMore) return;
