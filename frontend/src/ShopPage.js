@@ -8,8 +8,9 @@ import { API_BASE_URL, apiClient } from './config';
 import { safeLocalStorage } from './utils/storage';
 import PcCompatibilityBadge from './components/PcCompatibilityBadge';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import GameCharts from './components/GameCharts';
+import GameGallery from './components/GameGallery';
 import MinSpecChecker from "./MinSpecChecker";
-import ReactPlayer from 'react-player';
 
 const styles = {
   buyButton: {
@@ -76,53 +77,6 @@ const styles = {
     fontWeight: '700',
     width: '100%',
     boxSizing: 'border-box',
-  },
-  galleryContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    marginBottom: '40px'
-  },
-  mainMediaDisplay: {
-    width: '100%',
-    aspectRatio: '16 / 9',
-    backgroundColor: '#000',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: '4px',
-    overflow: 'hidden',
-    border: '1px solid var(--border)',
-    position: 'relative'
-  },
-  mediaStrip: {
-    display: 'flex',
-    gap: '8px',
-    overflowX: 'auto',
-    paddingBottom: '10px'
-  },
-  thumbItem: {
-    width: '120px',
-    height: '68px',
-    borderRadius: '2px',
-    cursor: 'pointer',
-    objectFit: 'cover',
-    border: '2px solid transparent',
-    opacity: 0.6
-  },
-  thumbItemActive: {
-    border: '2px solid #E50914',
-    opacity: 1
-  },
-  playButtonOverlay: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    fontSize: '60px',
-    color: 'rgba(255,255,255,0.8)',
-    cursor: 'pointer',
-    zIndex: 10
   },
   storeRowLink: {
     display: 'flex',
@@ -400,12 +354,7 @@ export default function ShopPage({ region, user }) {
   const [myVote, setMyVote] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [reqTab, setReqTab] = useState('minimum');
-  const videoRef = useRef(null);
   const chartWidth = window.innerWidth <= 480 ? 300 : 500;
-
-  const handlePlayVideo = () => {
-    setIsPlaying(true);
-  };
 
   const REVIEW_KO = {
     'Overwhelmingly Positive': '압도적으로 긍정적',
@@ -804,63 +753,13 @@ export default function ShopPage({ region, user }) {
       </div>
 
       <div className="net-panel" style={{ position: 'relative', marginTop: '-10vh', zIndex: 2 }}>
-        <div style={styles.galleryContainer}>
-          <div style={styles.mainMediaDisplay}>
-            {selectedMedia?.type === 'video' ? (
-              <>
-                <div style={{ width: '100%', height: '100%', display: isPlaying ? 'block' : 'none' }}>
-                  <ReactPlayer
-                    ref={videoRef}
-                    url={selectedMedia.url}
-                    playing={isPlaying}
-                    controls={true}
-                    width="100%"
-                    height="100%"
-                    style={{ objectFit: 'contain' }}
-                  />
-                </div>
-                {!isPlaying && (
-                  <>
-                    <img
-                      src={selectedMedia.thumb}
-                      alt="Poster"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }}
-                    />
-                    <div style={styles.playButtonOverlay} onClick={handlePlayVideo}>▶</div>
-                  </>
-                )}
-              </>
-            ) : (
-              <img
-                src={selectedMedia?.url}
-                alt="Main"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-              />
-            )}
-          </div>
-
-          <div style={styles.mediaStrip}>
-            {mediaList.map((item, idx) => (
-              <div
-                key={idx}
-                style={{ position: 'relative', flexShrink: 0 }}
-                onClick={() => {
-                  setSelectedMedia(item);
-                  setIsPlaying(false);
-                }}
-              >
-                <img
-                  src={item.thumb}
-                  alt="thumb"
-                  style={{
-                    ...styles.thumbItem,
-                    ...(selectedMedia?.url === item.url ? styles.thumbItemActive : {})
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+        <GameGallery 
+          selectedMedia={selectedMedia} 
+          setSelectedMedia={setSelectedMedia} 
+          mediaList={mediaList} 
+          isPlaying={isPlaying} 
+          setIsPlaying={setIsPlaying} 
+        />
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '40px', flexWrap: 'wrap', alignItems: 'center' }}>
           <InfoWithTooltip text={formatDate(gameData.releaseDate)} tooltipText="출시일" icon="" />
@@ -1047,77 +946,7 @@ export default function ShopPage({ region, user }) {
         </div>
       )}
 
-      {historyData.length > 0 && (() => {
-        // 플랫폼별로 실제 데이터가 있는지(0이 아닌 값이 하나라도 있는지) 확인
-        const hasTwitch = historyData.some(d => (d.twitch || 0) > 0);
-        const hasChzzk  = historyData.some(d => (d.chzzk  || 0) > 0);
-        const hasSoop   = historyData.some(d => (d.soop   || 0) > 0);
-        const hasSteam  = historyData.some(d => (d.steam  || 0) > 0);
-
-        return (
-          <div style={styles.chartsGrid}>
-            <div style={styles.chartBox}>
-              <h3 className="net-section-title">방송 시청자 트렌드</h3>
-              <div style={{ width: '100%', overflowX: 'auto' }}>
-                <LineChart width={chartWidth} height={250} data={historyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
-                  <YAxis stroke="#888" style={{ fontSize: '11px' }} />
-                  <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
-                  <Legend />
-                  <Line
-                    type="monotone" dataKey="twitch" name="Twitch" stroke="#9146FF"
-                    strokeWidth={hasTwitch ? 2 : 1}
-                    strokeOpacity={hasTwitch ? 1 : 0.3}
-                    strokeDasharray={hasTwitch ? undefined : '4 4'}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3"
-                    strokeWidth={hasChzzk ? 2 : 1}
-                    strokeOpacity={hasChzzk ? 1 : 0.3}
-                    strokeDasharray={hasChzzk ? undefined : '4 4'}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone" dataKey="soop" name="SOOP" stroke="#FF6B35"
-                    strokeWidth={hasSoop ? 2 : 1}
-                    strokeOpacity={hasSoop ? 1 : 0.3}
-                    strokeDasharray={hasSoop ? undefined : '4 4'}
-                    dot={false}
-                  />
-                </LineChart>
-              </div>
-              {!hasTwitch && !hasChzzk && !hasSoop && (
-                <div style={{ textAlign: 'center', fontSize: '11px', color: '#444', marginTop: '6px' }}>
-                  수집된 방송 시청자 데이터가 없습니다 (트위치 · 치지직 · 숲(SOOP))
-                </div>
-              )}
-            </div>
-
-            <div style={styles.chartBox}>
-              <h3 className="net-section-title">스팀 동접자 추이</h3>
-              {hasSteam ? (
-                <div style={{ width: '100%', overflowX: 'auto' }}>
-                  <AreaChart width={chartWidth} height={250} data={historyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
-                    <YAxis stroke="#888" style={{ fontSize: '11px' }} domain={['auto', 'auto']} />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
-                    <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
-                  </AreaChart>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  height: '250px', color: '#555', fontSize: '13px', gap: '8px' }}>
-                  <span style={{ fontSize: '28px' }}></span>
-                  <span>동접자 데이터가 없습니다</span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {historyData.length > 0 && <GameCharts historyData={historyData} chartWidth={chartWidth} />}
 
         <div style={styles.bottomGrid}>
           <div style={{ minWidth: 0 }}>
