@@ -23,6 +23,7 @@ export const CPU_OPTIONS = [
   { name: 'AMD Ryzen 5 3600', score: 17800 },
   { name: 'AMD Ryzen 5 5600', score: 21500 },
   { name: 'AMD Ryzen 5 5600X', score: 22000 },
+  { name: 'AMD Ryzen 5 7500F', score: 25500 },
   { name: 'AMD Ryzen 5 7600', score: 27000 },
   { name: 'AMD Ryzen 7 2700X', score: 17600 },
   { name: 'AMD Ryzen 7 3700X', score: 22800 },

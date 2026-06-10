@@ -341,7 +341,7 @@ function MyPage({ user, setUser }) {
                 </div>
             </div>
 
-            <div className="search-panel" style={{marginTop:'20px'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
                     <h3 style={{margin: 0}}>내 PC 사양 설정</h3>
                     {savedPcSpec && (
@@ -414,7 +414,7 @@ function MyPage({ user, setUser }) {
 
 
             {/* 화면 테마 */}
-            <div className="search-panel" style={{marginTop:'20px'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
                 <h3 style={{margin:'0 0 12px 0'}}>화면 테마</h3>
                 <div style={{display:'flex', gap:'10px'}}>
                     <div onClick={() => theme === 'dark' ? null : toggleTheme()}
@@ -443,7 +443,7 @@ function MyPage({ user, setUser }) {
             </div>
 
             {/* 통화 설정 */}
-            <div className="search-panel" style={{marginTop:'20px'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
                 <h3 style={{margin:'0 0 12px 0'}}>통화 설정</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
                     게임 가격을 표시할 통화를 선택하세요.
@@ -470,7 +470,7 @@ function MyPage({ user, setUser }) {
             </div>
 
             {/* 게이머 성향 */}
-            <div className="search-panel" style={{marginTop:'20px'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
                 <h3 style={{margin:'0 0 10px 0'}}>게이머 성향</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
                     선택한 성향에 맞게 게임을 추천해 드립니다. 언제든 변경 가능합니다.
@@ -510,7 +510,7 @@ function MyPage({ user, setUser }) {
                 </div>
             </div>
 
-            <div className="search-panel" style={{marginTop:'20px', minWidth: 0, boxSizing: 'border-box'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, boxSizing:'border-box', overflow:'hidden'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'}}>
                     <h3 style={{margin: 0}}>나의 선호 태그</h3>
                     {isEditingTags ? (
@@ -557,7 +557,7 @@ function MyPage({ user, setUser }) {
             </div>
 
             {/* 알림 설정 */}
-            <div className="search-panel" style={{marginTop:'20px'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
                 <h3 style={{margin:'0 0 12px 0'}}>알림 설정</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
                     중요한 게임 할인 소식과 맞춤 정보를 이메일 등으로 받으실 수 있습니다.
