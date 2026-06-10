@@ -958,7 +958,12 @@ export default function ShopPage({ region, user }) {
                   무료 플레이
                 </span>
               ) : pi?.deals?.length > 0 && (() => {
-                const lowest = pi.deals.reduce((min, d) => d.price < min.price ? d : min, pi.deals[0]);
+                const validDeals = pi.deals.filter(d => d.price > 0 || pi.isFree);
+                let lowest = validDeals.length > 0 ? validDeals.reduce((min, d) => d.price < min.price ? d : min, validDeals[0]) : null;
+                if (pi.current_price > 0 && (!lowest || pi.current_price < lowest.price)) {
+                  lowest = { price: pi.current_price, shopName: pi.store_name || 'Steam' };
+                }
+                if (!lowest) return null;
                 return (
                   <span style={{ fontSize: '13px', fontWeight: 'normal', color: '#46d369', marginLeft: '10px' }}>
                     최저가 {getPriceDisplay(lowest.price, false)} ({lowest.shopName})
