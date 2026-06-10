@@ -136,7 +136,7 @@ class RecommendController {
                 const user = await User.findById(userId).select('steamGames dislikedGames');
                 const isHideOwned = hideOwned === true || hideOwned === 'true';
                 if (isHideOwned && user?.steamGames?.length > 0) {
-                    query.steam_appid = { $nin: user.steamGames.map(g => g.appid) };
+                    query.steam_appid = { $nin: user.steamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
                 }
                 if (user?.dislikedGames?.length > 0) {
                     query.slug = { $nin: user.dislikedGames };
@@ -272,7 +272,7 @@ class RecommendController {
             const hasSteam = userSteamGames.length > 0;
 
             const candidateQuery = { isAdult: { $ne: true } };
-            if (hasSteam) candidateQuery.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
+            if (hasSteam) candidateQuery.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
 
             if (term?.trim()) {
                 const keyword = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -295,7 +295,7 @@ class RecommendController {
                     .limit(500).lean();
                 const matchedSlugs = new Set(matched.map(g => g.slug));
                 const randomMatch = { isAdult: { $ne: true } };
-                if (hasSteam) randomMatch.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
+                if (hasSteam) randomMatch.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
                 const randomExtra = await Game.aggregate([
                     { $match: randomMatch },
                     { $sample: { size: 300 } }
@@ -303,7 +303,7 @@ class RecommendController {
                 candidates = [...matched, ...randomExtra.filter(g => !matchedSlugs.has(g.slug))];
             } else {
                 const coldStartMatch = { isAdult: { $ne: true } };
-                if (hasSteam) coldStartMatch.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
+                if (hasSteam) coldStartMatch.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
                 candidates = await Game.aggregate([
                     { $match: coldStartMatch },
                     { $sample: { size: 800 } }
@@ -393,7 +393,7 @@ class RecommendController {
             const comprehensive = diversified.slice(0, 20);
 
             const baseSectionQuery = { isAdult: { $ne: true } };
-            if (hasSteam) baseSectionQuery.steam_appid = { $nin: userSteamGames.map(g => g.appid) };
+            if (hasSteam) baseSectionQuery.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
 
             const usedSlugs = new Set(comprehensive.map(g => g.slug));
 
@@ -405,18 +405,18 @@ class RecommendController {
                         { 'price_info.discount_percent': { $gte: 50 } },
                         { 'price_info.current_price': { $gte: 2000, $lte: 5000 } }
                     ]
-                }).sort({ 'price_info.discount_percent': -1 }).limit(20).lean(),
+                }).sort({ 'price_info.discount_percent': -1 }).limit(100).lean(),
                 Game.find({ ...baseSectionQuery, trend_score: { $gt: 0 } })
-                    .sort({ trend_score: -1 }).limit(20).lean(),
+                    .sort({ trend_score: -1 }).limit(100).lean(),
                 Game.find({
                     ...baseSectionQuery,
                     'steam_reviews.overall.percent': { $gte: 90 },
                     'steam_reviews.overall.total': { $gte: 100, $lte: 10000 }
-                }).sort({ 'steam_reviews.overall.percent': -1 }).limit(20).lean(),
+                }).sort({ 'steam_reviews.overall.percent': -1 }).limit(100).lean(),
                 Game.find({
                     ...baseSectionQuery,
                     smart_tags: { $in: [/멀티플레이/i, /협동/i, /PvP/i] }
-                }).sort({ trend_score: -1 }).limit(20).lean()
+                }).sort({ trend_score: -1 }).limit(100).lean()
             ]);
 
             const dedup = (arr, limit = 10) => {

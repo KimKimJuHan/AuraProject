@@ -265,7 +265,7 @@ export default function PersonalRecoPage({ user }) {
     background: isLight ? '#fff' : '#1a1a1a', border:'1px solid var(--border)', borderRadius:'10px',
     padding:'14px 20px', marginBottom:'20px'
   }}>
-    <span style={{color:'#46d369', fontSize:'13px', fontWeight:'bold'}}>✅ 이미 Steam 연동이 되어 있습니다</span>
+    <span style={{color:'#46d369', fontSize:'13px', fontWeight:'bold'}}>이미 Steam 연동이 되어 있습니다</span>
   </div>
 )}
 
@@ -286,7 +286,7 @@ export default function PersonalRecoPage({ user }) {
       </div>
 
       {loading ? (
-          <div className="loading-box"><div style={{fontSize:'2rem', marginBottom:'10px'}}>🔮</div>분석 중...</div>
+          <div className="loading-box"><div style={{fontSize:'2rem', marginBottom:'10px'}}></div>분석 중...</div>
       ) : (
         <div className="result-panel">
             <h2>추천 결과</h2>

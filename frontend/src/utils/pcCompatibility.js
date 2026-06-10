@@ -143,8 +143,7 @@ const GPU_MODEL_SCORES = [
   [/rx\s*6900/i, 27000], [/rx\s*6800/i, 24000], [/rx\s*6700/i, 19000], [/rx\s*6600/i, 14500], [/rx\s*6500/i, 9500],
   [/rx\s*590/i, 9500], [/rx\s*580/i, 8500], [/rx\s*570/i, 7500], [/rx\s*560/i, 4500], [/rx\s*550/i, 3000],
   [/r9\s*390/i, 8500], [/r9\s*380/i, 6000], [/r9\s*290/i, 7500], [/r9\s*280/i, 5500], [/r7\s*370/i, 4000], [/r7\s*260/i, 2200],
-  [/intel\s*hd/i, 600], [/intel\s*iris/i, 2500], [/vega\s*8/i, 2500], [/vega\s*11/i, 3500],
-  [/directx\s*11/i, 2500], [/directx\s*12/i, 6000]
+  [/intel\s*hd/i, 600], [/intel\s*iris/i, 2500], [/vega\s*8/i, 2500], [/vega\s*11/i, 3500]
 ];
 
 function scoreFromRules(rawText, rules) {
@@ -159,8 +158,9 @@ function scoreFromRules(rawText, rules) {
 
   if (matches.length === 0) return 0;
 
-  // 요구 사양에 "A / B"처럼 여러 제품이 있으면 보통 둘 중 하나면 되므로 가장 낮은 점수를 기준으로 사용
-  return Math.min(...matches);
+  // 여러 패턴이 매칭될 경우 (예: "GTX 1050 Ti"가 "GTX 1050"도 매칭), 
+  // 가장 높은 점수를 기준으로 삼아야 정확한 최소 사양을 판단할 수 있습니다.
+  return Math.max(...matches);
 }
 
 function parseCpuScore(requirementText) {
