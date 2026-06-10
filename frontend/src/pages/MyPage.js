@@ -10,7 +10,14 @@ import { savePcSpec, removePcSpec, getSavedPcSpec } from '../utils/pcCompatibili
 import '../styles/Recommend.css';
 import { useTheme } from '../context/ThemeContext';
 
-const AVAILABLE_TAGS = ['액션', 'RPG', '오픈월드', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', '공포', '어드벤처', '로그라이크', '사이버펑크'];
+const AVAILABLE_TAGS = [
+    '액션', 'RPG', '오픈월드', 'FPS', '시뮬레이션', '전략', '스포츠', '레이싱', '퍼즐', '생존', 
+    '공포', '어드벤처', '로그라이크', '사이버펑크', '캐주얼', '멀티플레이', '협동', '인디', 
+    '스토리 풍부', '턴제 전략', '플랫포머', '건축', '경영', 'VR', '애니메이션', '리듬', '샌드박스',
+    '소울라이크', '메트로배니아', '카드게임', 'MOBA', '배틀로얄', '비주얼노벨', '힐링', '현실적',
+    '좀비', '포스트아포칼립스', '선택지', '멀티엔딩', '고난이도', '기지건설', '자원관리', '우주',
+    '핵앤슬래시', 'MMORPG', '파티게임', '보드게임', '추리', '전술', '기계', '역사', 'SF', '음악'
+];
 
 function MyPage({ user, setUser }) {
     const [wishlistGames, setWishlistGames] = useState([]);
@@ -341,7 +348,7 @@ function MyPage({ user, setUser }) {
                 </div>
             </div>
 
-            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
+            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, width:'100%', boxSizing:'border-box', overflow:'hidden'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
                     <h3 style={{margin: 0}}>내 PC 사양 설정</h3>
                     {savedPcSpec && (
@@ -413,177 +420,183 @@ function MyPage({ user, setUser }) {
 
 
 
-            {/* 화면 테마 */}
-            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
-                <h3 style={{margin:'0 0 12px 0'}}>화면 테마</h3>
-                <div style={{display:'flex', gap:'10px'}}>
-                    <div onClick={() => theme === 'dark' ? null : toggleTheme()}
-                        style={{
-                            flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
-                            border: theme === 'dark' ? '2px solid #e50914' : '1px solid #333',
-                            background: theme === 'dark' ? 'rgba(229,9,20,0.08)' : 'transparent',
-                            textAlign:'center', transition:'all 0.15s'
-                        }}>
-                        <div style={{fontSize:'24px', marginBottom:'6px'}}>🌙</div>
-                        <div style={{fontSize:'13px', fontWeight: theme === 'dark' ? '700' : '400'}}>다크 모드</div>
-                        <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>기본 설정</div>
-                    </div>
-                    <div onClick={() => theme === 'light' ? null : toggleTheme()}
-                        style={{
-                            flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
-                            border: theme === 'light' ? '2px solid #e50914' : '1px solid #333',
-                            background: theme === 'light' ? 'rgba(229,9,20,0.08)' : 'transparent',
-                            textAlign:'center', transition:'all 0.15s'
-                        }}>
-                        <div style={{fontSize:'24px', marginBottom:'6px'}}>☀️</div>
-                        <div style={{fontSize:'13px', fontWeight: theme === 'light' ? '700' : '400'}}>라이트 모드</div>
-                        <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>밝은 화면</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 통화 설정 */}
-            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
-                <h3 style={{margin:'0 0 12px 0'}}>통화 설정</h3>
-                <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
-                    게임 가격을 표시할 통화를 선택하세요.
-                </p>
-                <div style={{display:'flex', gap:'10px'}}>
-                    {[
-                        { code:'KRW', label:'🇰🇷 원화', sub:'KRW' },
-                        { code:'USD', label:'🇺🇸 달러', sub:'USD' },
-                        { code:'JPY', label:'🇯🇵 엔화', sub:'JPY' },
-                    ].map(c => (
-                        <div key={c.code} onClick={() => handleCurrencyChange(c.code)}
-                            style={{
-                                flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
-                                border: currency === c.code ? '2px solid #e50914' : '1px solid var(--border)',
-                                background: currency === c.code ? 'rgba(229,9,20,0.08)' : 'transparent',
-                                textAlign:'center', transition:'all 0.15s'
-                            }}>
-                            <div style={{fontSize:'20px', marginBottom:'4px'}}>{c.label.split(' ')[0]}</div>
-                            <div style={{fontSize:'13px', fontWeight: currency === c.code ? '700' : '400'}}>{c.label.split(' ')[1]}</div>
-                            <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>{c.sub}</div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* 게이머 성향 */}
-            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
-                <h3 style={{margin:'0 0 10px 0'}}>게이머 성향</h3>
-                <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
-                    선택한 성향에 맞게 게임을 추천해 드립니다. 언제든 변경 가능합니다.
-                </p>
-                <div style={{display:'flex', flexDirection:'column', gap:'7px'}}>
-                    {[
-                        { key:'casual',       label:'가볍게 즐기는 편',          desc:'힐링, 캐주얼, 퍼즐 위주 추천' },
-                        { key:'beginner',     label:'게임을 즐겨 하는 편',        desc:'인기 게임 + 취향 태그 기반 추천' },
-                        { key:'intermediate', label:'다양한 장르를 즐기는 편',    desc:'트렌드 + 플레이 이력 균형 추천' },
-                        { key:'hardcore',     label:'도전적인 게임을 즐기는 편',  desc:'플레이 이력 기반 심화 게임 추천' },
-                        { key:'streamer',     label:'스트리머 / 크리에이터',      desc:'치지직·SOOP·Twitch 트렌드 위주 추천' },
-                    ].map(({ key, label, desc }) => {
-                        const sel = user?.playerType === key;
-                        return (
-                            <div key={key} onClick={() => handleSavePlayerType(key)} style={{
-                                display:'flex', alignItems:'center', gap:'12px', cursor:'pointer',
-                                padding:'10px 14px', borderRadius:'8px',
-                                border: sel ? '2px solid #e50914' : '1px solid #333',
-                                background: sel ? 'rgba(229,9,20,0.08)' : 'transparent',
-                                transition:'all 0.15s'
-                            }}>
-                                <div style={{
-                                    width:'16px', height:'16px', borderRadius:'50%', flexShrink:0,
-                                    border:`2px solid ${sel ? '#e50914' : '#555'}`,
-                                    background: sel ? '#e50914' : 'transparent',
-                                    display:'flex', alignItems:'center', justifyContent:'center'
-                                }}>
-                                    {sel && <div style={{width:'5px', height:'5px', borderRadius:'50%', background:'#fff'}}/>}
-                                </div>
-                                <div>
-                                    <div style={{color:'var(--text-primary)', fontSize:'13px', fontWeight: sel ? '700' : '400'}}>{label}</div>
-                                    <div style={{color:'#666', fontSize:'11px', marginTop:'2px'}}>{desc}</div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, boxSizing:'border-box', overflow:'hidden'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'}}>
-                    <h3 style={{margin: 0}}>나의 선호 태그</h3>
-                    {isEditingTags ? (
-                        <div>
-                            <button onClick={handleSaveTags} style={{background:'#e50914', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', marginRight:'5px', cursor:'pointer'}}>저장</button>
-                            <button onClick={() => { setIsEditingTags(false); setCurrentTags(user?.likedTags || ['액션', 'RPG', '오픈월드']); }} style={{background:'#666', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', cursor:'pointer'}}>취소</button>
-                        </div>
-                    ) : (
-                        <button onClick={() => setIsEditingTags(true)} style={{background:'none', border:'1px dashed #666', color:'#ccc', padding:'5px 12px', borderRadius:'15px', cursor:'pointer'}}>+ 수정</button>
-                    )}
-                </div>
-
-                {isEditingTags ? (
-                  <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
-                        {AVAILABLE_TAGS.map(tag => {
-                            const isSelected = currentTags.includes(tag);
+            <div className="mypage-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(320px, 1fr))', gap:'20px', marginTop:'20px', minWidth: 0}}>
+                {/* 게이머 성향 */}
+                <div className="search-panel mypage-card" style={{minWidth:0, width:'100%', boxSizing:'border-box', overflow:'hidden'}}>
+                    <h3 style={{margin:'0 0 10px 0'}}>게이머 성향</h3>
+                    <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
+                        선택한 성향에 맞게 게임을 추천해 드립니다. 언제든 변경 가능합니다.
+                    </p>
+                    <div style={{display:'flex', flexDirection:'column', gap:'7px'}}>
+                        {[
+                            { key:'casual',       label:'가볍게 즐기는 편',          desc:'힐링, 캐주얼, 퍼즐 위주 추천' },
+                            { key:'beginner',     label:'게임을 즐겨 하는 편',        desc:'인기 게임 + 취향 태그 기반 추천' },
+                            { key:'intermediate', label:'다양한 장르를 즐기는 편',    desc:'트렌드 + 플레이 이력 균형 추천' },
+                            { key:'hardcore',     label:'도전적인 게임을 즐기는 편',  desc:'플레이 이력 기반 심화 게임 추천' },
+                            { key:'streamer',     label:'스트리머 / 크리에이터',      desc:'치지직·SOOP·Twitch 트렌드 위주 추천' },
+                        ].map(({ key, label, desc }) => {
+                            const sel = user?.playerType === key;
                             return (
-                                <span
-                                    key={tag}
-                                    onClick={() => toggleTag(tag)}
-                                    style={{
-                                        background: isSelected ? '#e50914' : '#333',
-                                        color: isSelected ? '#fff' : '#888',
-                                        padding: '5px 12px',
-                                        borderRadius: '15px',
-                                        fontSize: '13px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        wordBreak: 'keep-all',
-                                        display: 'inline-block'
+                                <div key={key} onClick={() => handleSavePlayerType(key)} style={{
+                                    display:'flex', alignItems:'center', gap:'12px', cursor:'pointer',
+                                    padding:'10px 14px', borderRadius:'8px',
+                                    border: sel ? '2px solid #e50914' : '1px solid #333',
+                                    background: sel ? 'rgba(229,9,20,0.08)' : 'transparent',
+                                    transition:'all 0.15s'
+                                }}>
+                                    <div style={{
+                                        width:'16px', height:'16px', borderRadius:'50%', flexShrink:0,
+                                        border:`2px solid ${sel ? '#e50914' : '#555'}`,
+                                        background: sel ? '#e50914' : 'transparent',
+                                        display:'flex', alignItems:'center', justifyContent:'center'
                                     }}>
-                                    #{tag}
-                                </span>
+                                        {sel && <div style={{width:'5px', height:'5px', borderRadius:'50%', background:'#fff'}}/>}
+                                    </div>
+                                    <div>
+                                        <div style={{color:'var(--text-primary)', fontSize:'13px', fontWeight: sel ? '700' : '400'}}>{label}</div>
+                                        <div style={{color:'#666', fontSize:'11px', marginTop:'2px'}}>{desc}</div>
+                                    </div>
+                                </div>
                             );
                         })}
                     </div>
-                ) : (
-                    <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
-                        {currentTags.map(tag => (
-                            <span key={tag} style={{background:'var(--bg-hover)', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'var(--text-primary)', wordBreak:'keep-all', display:'inline-block'}}>#{tag}</span>
-                        ))}
+                </div>
+
+                <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
+                    {/* 나의 선호 태그 */}
+                    <div className="search-panel mypage-card" style={{minWidth:0, width:'100%', boxSizing:'border-box', overflow:'hidden'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'}}>
+                            <h3 style={{margin: 0}}>나의 선호 태그</h3>
+                            {isEditingTags ? (
+                                <div>
+                                    <button onClick={handleSaveTags} style={{background:'#e50914', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', marginRight:'5px', cursor:'pointer'}}>저장</button>
+                                    <button onClick={() => { setIsEditingTags(false); setCurrentTags(user?.likedTags || ['액션', 'RPG', '오픈월드']); }} style={{background:'#666', border:'none', color:'#fff', padding:'5px 12px', borderRadius:'4px', cursor:'pointer'}}>취소</button>
+                                </div>
+                            ) : (
+                                <button onClick={() => setIsEditingTags(true)} style={{background:'none', border:'1px dashed #666', color:'#ccc', padding:'5px 12px', borderRadius:'15px', cursor:'pointer'}}>+ 수정</button>
+                            )}
+                        </div>
+
+                        {isEditingTags ? (
+                          <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                                {(AVAILABLE_TAGS || ['액션', 'RPG', '오픈월드', 'FPS', '전략', '시뮬레이션', '인디', '협동', '공포', '스포츠', '어드벤처']).map(tag => {
+                                    const isSelected = currentTags.includes(tag);
+                                    return (
+                                        <span
+                                            key={tag}
+                                            onClick={() => toggleTag(tag)}
+                                            style={{
+                                                background: isSelected ? '#e50914' : '#333',
+                                                color: isSelected ? '#fff' : '#888',
+                                                padding: '5px 12px',
+                                                borderRadius: '15px',
+                                                fontSize: '13px',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s',
+                                                wordBreak: 'keep-all',
+                                                display: 'inline-block'
+                                            }}>
+                                            #{tag}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
+                                {currentTags.map(tag => (
+                                    <span key={tag} style={{background:'var(--bg-hover)', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'var(--text-primary)', wordBreak:'keep-all', display:'inline-block'}}>#{tag}</span>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                )}
+
+                    {/* 알림 설정 */}
+                    <div className="search-panel mypage-card" style={{minWidth:0, boxSizing:'border-box', overflow:'hidden'}}>
+                        <h3 style={{margin:'0 0 12px 0'}}>알림 설정</h3>
+                        <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
+                            중요한 게임 할인 소식과 맞춤 정보를 이메일 등으로 받으실 수 있습니다.
+                        </p>
+                        <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
+                            <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                                <div>
+                                    <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>이메일 수신 동의</div>
+                                    <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>AuraProject의 주요 알림을 이메일로 받습니다.</div>
+                                </div>
+                                <input type="checkbox" checked={notificationSettings.emailAlert} onChange={(e) => handleUpdateNoti('emailAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
+                            </label>
+                            <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                                <div>
+                                    <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>찜/목표가 게임 할인 알림</div>
+                                    <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>내가 찜한 게임이나 목표가를 설정한 게임이 할인할 때 알려줍니다.</div>
+                                </div>
+                                <input type="checkbox" checked={notificationSettings.saleAlert} onChange={(e) => handleUpdateNoti('saleAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
+                            </label>
+                            <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
+                                <div>
+                                    <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>신작/트렌드 게임 알림</div>
+                                    <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>요즘 뜨는 트렌드 게임이나 추천 신작을 알려줍니다.</div>
+                                </div>
+                                <input type="checkbox" checked={notificationSettings.newGameAlert} onChange={(e) => handleUpdateNoti('newGameAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* 알림 설정 */}
-            <div className="search-panel mypage-card" style={{marginTop:'20px', minWidth:0, overflow:'hidden'}}>
-                <h3 style={{margin:'0 0 12px 0'}}>알림 설정</h3>
-                <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
-                    중요한 게임 할인 소식과 맞춤 정보를 이메일 등으로 받으실 수 있습니다.
-                </p>
-                <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                    <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
-                        <div>
-                            <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>이메일 수신 동의</div>
-                            <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>AuraProject의 주요 알림을 이메일로 받습니다.</div>
+            {/* 화면 테마 및 통화 설정 */}
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginTop:'20px'}}>
+                <div className="search-panel mypage-card" style={{minWidth:0, width:'100%', boxSizing:'border-box', overflow:'hidden'}}>
+                    <h3 style={{margin:'0 0 12px 0'}}>화면 테마</h3>
+                    <div style={{display:'flex', gap:'10px'}}>
+                        <div onClick={() => theme === 'dark' ? null : toggleTheme()}
+                            style={{
+                                flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
+                                border: theme === 'dark' ? '2px solid #e50914' : '1px solid #333',
+                                background: theme === 'dark' ? 'rgba(229,9,20,0.08)' : 'transparent',
+                                textAlign:'center', transition:'all 0.15s'
+                            }}>
+                            <div style={{fontSize:'24px', marginBottom:'6px'}}>🌙</div>
+                            <div style={{fontSize:'13px', fontWeight: theme === 'dark' ? '700' : '400'}}>다크 모드</div>
+                            <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>기본 설정</div>
                         </div>
-                        <input type="checkbox" checked={notificationSettings.emailAlert} onChange={(e) => handleUpdateNoti('emailAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
-                    </label>
-                    <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
-                        <div>
-                            <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>찜/목표가 게임 할인 알림</div>
-                            <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>내가 찜한 게임이나 목표가를 설정한 게임이 할인할 때 알려줍니다.</div>
+                        <div onClick={() => theme === 'light' ? null : toggleTheme()}
+                            style={{
+                                flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
+                                border: theme === 'light' ? '2px solid #e50914' : '1px solid #333',
+                                background: theme === 'light' ? 'rgba(229,9,20,0.08)' : 'transparent',
+                                textAlign:'center', transition:'all 0.15s'
+                            }}>
+                            <div style={{fontSize:'24px', marginBottom:'6px'}}>☀️</div>
+                            <div style={{fontSize:'13px', fontWeight: theme === 'light' ? '700' : '400'}}>라이트 모드</div>
+                            <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>밝은 화면</div>
                         </div>
-                        <input type="checkbox" checked={notificationSettings.saleAlert} onChange={(e) => handleUpdateNoti('saleAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
-                    </label>
-                    <label style={{display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', padding:'12px 15px', background:'var(--bg-card)', borderRadius:'8px', border:'1px solid var(--border)'}}>
-                        <div>
-                            <div style={{fontSize:'14px', color:'var(--text-primary)', fontWeight:'bold'}}>신작/트렌드 게임 알림</div>
-                            <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>요즘 뜨는 트렌드 게임이나 추천 신작을 알려줍니다.</div>
-                        </div>
-                        <input type="checkbox" checked={notificationSettings.newGameAlert} onChange={(e) => handleUpdateNoti('newGameAlert', e.target.checked)} style={{transform:'scale(1.3)', cursor:'pointer', accentColor:'#E50914'}}/>
-                    </label>
+                    </div>
+                </div>
+
+                <div className="search-panel mypage-card" style={{minWidth:0, width:'100%', boxSizing:'border-box', overflow:'hidden'}}>
+                    <h3 style={{margin:'0 0 12px 0'}}>통화 설정</h3>
+                    <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
+                        게임 가격을 표시할 통화를 선택하세요.
+                    </p>
+                    <div style={{display:'flex', gap:'10px'}}>
+                        {[
+                            { code:'KRW', label:'🇰🇷 원화', sub:'KRW' },
+                            { code:'USD', label:'🇺🇸 달러', sub:'USD' },
+                            { code:'JPY', label:'🇯🇵 엔화', sub:'JPY' },
+                        ].map(c => (
+                            <div key={c.code} onClick={() => handleCurrencyChange(c.code)}
+                                style={{
+                                    flex:1, padding:'14px', borderRadius:'8px', cursor:'pointer',
+                                    border: currency === c.code ? '2px solid #e50914' : '1px solid var(--border)',
+                                    background: currency === c.code ? 'rgba(229,9,20,0.08)' : 'transparent',
+                                    textAlign:'center', transition:'all 0.15s'
+                                }}>
+                                <div style={{fontSize:'20px', marginBottom:'4px'}}>{c.label.split(' ')[0]}</div>
+                                <div style={{fontSize:'13px', fontWeight: currency === c.code ? '700' : '400'}}>{c.label.split(' ')[1]}</div>
+                                <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>{c.sub}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 

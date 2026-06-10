@@ -261,8 +261,8 @@ class RecommendController {
                 }
             }
 
-            // 캐시 키에 playerType + likedTags 포함: 성향/태그 변경 즉시 반영
-            const cacheKey = `reco:${userId || 'guest'}:${userType}:${JSON.stringify([...userSelectedTags, ...userLikedTags].sort())}`;
+            // 캐시 키에 playerType + likedTags + steamGames 수 포함: 성향/태그/스팀연동 변경 즉시 반영
+            const cacheKey = `reco:${userId || 'guest'}:${userType}:${userSteamGames.length}:${JSON.stringify([...userSelectedTags, ...userLikedTags].sort())}`;
             const cached = cache.get(cacheKey);
             if (cached) return res.json({ ...cached, cached: true });
 

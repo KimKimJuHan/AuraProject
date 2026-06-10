@@ -8,6 +8,7 @@ export const CPU_OPTIONS = [
   { name: 'Intel Core i5-11400F', score: 17000 },
   { name: 'Intel Core i5-12400F', score: 19500 },
   { name: 'Intel Core i5-13400F', score: 25000 },
+  { name: 'Intel Core i5-7500', score: 6000 },
   { name: 'Intel Core i7-7700', score: 8600 },
   { name: 'Intel Core i7-8700', score: 13000 },
   { name: 'Intel Core i7-9700K', score: 14500 },
