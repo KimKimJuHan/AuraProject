@@ -307,7 +307,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [priceMin, setPriceMin] = useState(saved.priceMin || '');
   const [priceMax, setPriceMax] = useState(saved.priceMax || '');
   const [minDiscount, setMinDiscount] = useState(saved.minDiscount || 0);
-  const [hideOwned, setHideOwned] = useState(saved.hideOwned || false);
+  const [hideOwned, setHideOwned] = useState(saved.hideOwned !== undefined ? saved.hideOwned : true);
 
   // 필터/탭 변경 시 sessionStorage에 저장
   useEffect(() => {

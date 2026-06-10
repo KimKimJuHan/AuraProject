@@ -24,6 +24,9 @@ function SignupPage({ setUser }) {
   const handleSendCode = async (e) => {
     e.preventDefault();
     setErrorMsg(''); setSuccessMsg('');
+    if (formData.password.length < 8) {
+      return setErrorMsg("비밀번호는 8자 이상이어야 합니다.");
+    }
     if (formData.password !== formData.confirmPassword) {
       return setErrorMsg("비밀번호가 일치하지 않습니다.");
     }
@@ -132,6 +135,9 @@ function SignupPage({ setUser }) {
             </button>
             <button type="button" onClick={() => setStep(1)} style={{...btnStyle, background:'#333', marginTop:'10px'}} disabled={loading}>
                 정보 수정하기 (뒤로)
+            </button>
+            <button type="button" onClick={handleSendCode} style={{...btnStyle, background:'transparent', color:'#aaa', border:'1px solid #555', marginTop:'10px'}} disabled={loading}>
+                인증코드 재발송
             </button>
           </form>
         )}

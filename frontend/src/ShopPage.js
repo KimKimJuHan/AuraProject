@@ -413,7 +413,7 @@ export default function ShopPage({ region, user }) {
           });
           
           // 날짜 오름차순으로 정렬
-          const sortedHistory = Object.values(dailyMap).reverse();
+          const sortedHistory = Object.values(dailyMap);
           setHistoryData(sortedHistory);
         } catch (e) {}
 
