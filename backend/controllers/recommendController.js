@@ -347,8 +347,13 @@ class RecommendController {
 
                 let tagW = hasTags ? weights.tag : 0;
                 let steamW = hasSteam ? weights.steam : 0;
-                let reviewW = weights.review + (hasTags ? 0 : weights.tag * 0.5) + (hasSteam ? 0 : weights.steam * 0.5);
-                let trendW = weights.trend + (hasTags ? 0 : weights.tag * 0.5) + (hasSteam ? 0 : weights.steam * 0.5);
+                
+                let unusedW = (hasTags ? 0 : weights.tag) + (hasSteam ? 0 : weights.steam);
+                let reviewRatio = weights.review / (weights.review + weights.trend);
+                let trendRatio = weights.trend / (weights.review + weights.trend);
+
+                let reviewW = weights.review + (unusedW * reviewRatio);
+                let trendW = weights.trend + (unusedW * trendRatio);
 
                 let tagWeightBonus = 0;
                 if (Object.keys(userTagWeights).length > 0) {
