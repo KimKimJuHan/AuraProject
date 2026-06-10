@@ -55,7 +55,7 @@ async function main() {
     // ── 4. 미디어(스크린샷/트레일러) ──────────────────
     console.log('\n=== [4] 미디어 (스크린샷/트레일러) ===');
     const hasScreenshots = await Game.countDocuments({ 'screenshots.0': { $exists: true } });
-    const hasTrailer = await Game.countDocuments({ 'trailer_url': { $nin: [null, ''] } });
+    const hasTrailer = await Game.countDocuments({ 'trailers': { $nin: [null, ''] } });
     console.log(`  ✅ 스크린샷: ${hasScreenshots.toLocaleString()}개 (${((hasScreenshots/total)*100).toFixed(1)}%)`);
     console.log(`  ${hasTrailer > total*0.3 ? '✅' : '⚠️'} 트레일러 URL: ${hasTrailer.toLocaleString()}개 (${((hasTrailer/total)*100).toFixed(1)}%)`);
 
@@ -64,13 +64,11 @@ async function main() {
     const hasPlaytime = await Game.countDocuments({ 'play_time': { $ne: null } });
     const hasMetacritic = await Game.countDocuments({ 'metacritic_score': { $gt: 0 } });
     const hasSteamCCU = await Game.countDocuments({ 'steam_ccu': { $gt: 0 } });
-    const hasMinReqs = await Game.countDocuments({ 'minimum_requirements': { $nin: [null, ''] } });
-    const hasPCBadge = await Game.countDocuments({ 'pc_compatibility': { $ne: null } });
+    const hasMinReqs = await Game.countDocuments({ 'pc_requirements.minimum': { $nin: [null, ''] } });
     console.log(`  ${hasPlaytime > total*0.5 ? '✅' : '⚠️'} 평균 플레이타임: ${hasPlaytime.toLocaleString()}개 (${((hasPlaytime/total)*100).toFixed(1)}%)`);
     console.log(`  ${hasMetacritic > total*0.2 ? '✅' : '⚠️'} 메타크리틱 점수: ${hasMetacritic.toLocaleString()}개 (${((hasMetacritic/total)*100).toFixed(1)}%)`);
     console.log(`  ✅ 스팀 동접자(steam_ccu): ${hasSteamCCU.toLocaleString()}개 (${((hasSteamCCU/total)*100).toFixed(1)}%)`);
     console.log(`  ${hasMinReqs > total*0.5 ? '✅' : '⚠️'} 최소 사양: ${hasMinReqs.toLocaleString()}개 (${((hasMinReqs/total)*100).toFixed(1)}%)`);
-    console.log(`  ${hasPCBadge > total*0.3 ? '✅' : '⚠️'} PC 호환성 배지: ${hasPCBadge.toLocaleString()}개 (${((hasPCBadge/total)*100).toFixed(1)}%)`);
 
     // ── 6. 트렌드 히스토리(그래프) ───────────────────
     console.log('\n=== [6] 트렌드 그래프 데이터 ===');

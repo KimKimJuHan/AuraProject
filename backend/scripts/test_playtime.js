@@ -1,6 +1,6 @@
 const axios = require('axios');
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const mongoose = require('mongoose');
 
 async function test() {
@@ -11,7 +11,7 @@ async function test() {
         console.log('DB CS2:', cs2);
 
         const res = await axios.get('https://steamspy.com/api.php?request=appdetails&appid=730');
-        console.log('SteamSpy CS2:', res.data.playtime_forever, res.data.playtime_2weeks);
+        console.log('SteamSpy CS2:', res.data.average_forever, res.data.median_forever);
     } catch(e) {
         console.error(e);
     } finally {
