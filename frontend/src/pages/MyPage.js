@@ -161,6 +161,16 @@ function MyPage({ user, setUser }) {
         }
     };
 
+    const handleRemoveFromWishlist = async (slug) => {
+        if (!window.confirm("찜 목록에서 삭제하시겠습니까?")) return;
+        try {
+            await apiClient.delete(`/user/wishlist/${slug}`);
+            fetchData();
+        } catch (e) {
+            alert("삭제에 실패했습니다.");
+        }
+    };
+
     const handleUpdateNoti = async (field, value) => {
         const prevSettings = { ...notificationSettings };
         const newSettings = { ...notificationSettings, [field]: value };
@@ -258,7 +268,7 @@ function MyPage({ user, setUser }) {
     return (
         <div className="reco-container" style={{maxWidth:'1000px', margin:'40px auto', padding:'0 20px'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom:'2px solid #333', paddingBottom:'10px'}}>
-                <h1 style={{color:'#e50914', margin: 0}}>👤 마이페이지</h1>
+                <h1 style={{color:'#e50914', margin: 0}}>마이페이지</h1>
                 <button onClick={handleDeleteAccount} style={{backgroundColor: 'transparent', border: '1px solid #666', color: '#888', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'}}>
                     계정 탈퇴
                 </button>
@@ -311,9 +321,9 @@ function MyPage({ user, setUser }) {
                     {steamInfo.linked ? (
                         <div>
                             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                <p style={{color:'#4CAF50', margin:0}}>✅ 연동 완료</p>
+                                <p style={{color:'#4CAF50', margin:0}}>연동 완료</p>
                                 <button onClick={handleSyncSteam} disabled={isSyncing} className="search-btn" style={{padding:'4px 10px', fontSize:'12px', background: isSyncing ? '#555' : 'transparent', border:'1px solid #666', color:'#ccc'}}>
-                                    {isSyncing ? '동기화 중...' : '🔄 수동 동기화'}
+                                    {isSyncing ? '동기화 중...' : '수동 동기화'}
                                 </button>
                             </div>
                             <p>보유 게임: {steamInfo.games.length}개</p>
@@ -405,7 +415,7 @@ function MyPage({ user, setUser }) {
 
             {/* 화면 테마 */}
             <div className="search-panel" style={{marginTop:'20px'}}>
-                <h3 style={{margin:'0 0 12px 0'}}>🎨 화면 테마</h3>
+                <h3 style={{margin:'0 0 12px 0'}}>화면 테마</h3>
                 <div style={{display:'flex', gap:'10px'}}>
                     <div onClick={() => theme === 'dark' ? null : toggleTheme()}
                         style={{
@@ -425,7 +435,7 @@ function MyPage({ user, setUser }) {
                             background: theme === 'light' ? 'rgba(229,9,20,0.08)' : 'transparent',
                             textAlign:'center', transition:'all 0.15s'
                         }}>
-                        <div style={{fontSize:'16px', marginBottom:'6px', fontWeight:'bold'}}>라이트/다크 모드</div>
+                        <div style={{fontSize:'24px', marginBottom:'6px'}}>☀️</div>
                         <div style={{fontSize:'13px', fontWeight: theme === 'light' ? '700' : '400'}}>라이트 모드</div>
                         <div style={{fontSize:'11px', color:'#666', marginTop:'2px'}}>밝은 화면</div>
                     </div>
@@ -434,7 +444,7 @@ function MyPage({ user, setUser }) {
 
             {/* 통화 설정 */}
             <div className="search-panel" style={{marginTop:'20px'}}>
-                <h3 style={{margin:'0 0 12px 0'}}>💱 통화 설정</h3>
+                <h3 style={{margin:'0 0 12px 0'}}>통화 설정</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'12px', marginTop:0}}>
                     게임 가격을 표시할 통화를 선택하세요.
                 </p>
@@ -500,8 +510,8 @@ function MyPage({ user, setUser }) {
                 </div>
             </div>
 
-            <div className="search-panel" style={{marginTop:'20px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div className="search-panel" style={{marginTop:'20px', minWidth: 0, boxSizing: 'border-box'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'}}>
                     <h3 style={{margin: 0}}>나의 선호 태그</h3>
                     {isEditingTags ? (
                         <div>
@@ -528,7 +538,9 @@ function MyPage({ user, setUser }) {
                                         borderRadius: '15px',
                                         fontSize: '13px',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s'
+                                        transition: 'all 0.2s',
+                                        wordBreak: 'keep-all',
+                                        display: 'inline-block'
                                     }}>
                                     #{tag}
                                 </span>
@@ -538,7 +550,7 @@ function MyPage({ user, setUser }) {
                 ) : (
                     <div className="mypage-tag-grid" style={{display:'flex', gap:'10px', flexWrap:'wrap', marginTop:'15px'}}>
                         {currentTags.map(tag => (
-                            <span key={tag} style={{background:'var(--bg-hover)', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'var(--text-primary)'}}>#{tag}</span>
+                            <span key={tag} style={{background:'var(--bg-hover)', padding:'5px 12px', borderRadius:'15px', fontSize:'13px', color:'var(--text-primary)', wordBreak:'keep-all', display:'inline-block'}}>#{tag}</span>
                         ))}
                     </div>
                 )}
@@ -546,7 +558,7 @@ function MyPage({ user, setUser }) {
 
             {/* 알림 설정 */}
             <div className="search-panel" style={{marginTop:'20px'}}>
-                <h3 style={{margin:'0 0 12px 0'}}>🔔 알림 설정</h3>
+                <h3 style={{margin:'0 0 12px 0'}}>알림 설정</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
                     중요한 게임 할인 소식과 맞춤 정보를 이메일 등으로 받으실 수 있습니다.
                 </p>
@@ -577,7 +589,7 @@ function MyPage({ user, setUser }) {
 
             {/* 목표가 알림 내역 */}
             <div className="result-panel" style={{marginTop:'20px'}}>
-                <h3 style={{margin:'0 0 15px 0'}}>💰 내 목표가 알림 관리 ({priceAlerts.length})</h3>
+                <h3 style={{margin:'0 0 15px 0'}}>내 목표가 알림 관리 ({priceAlerts.length})</h3>
                 {priceAlerts.length === 0 ? (
                     <p style={{color:'#888', fontSize:'13px', margin:0}}>등록된 목표가 알림이 없습니다.</p>
                 ) : (
@@ -606,7 +618,7 @@ function MyPage({ user, setUser }) {
 
             {/* 관심없음 (숨김 처리) 관리 */}
             <div className="result-panel" style={{marginTop:'20px'}}>
-                <h3 style={{margin:'0 0 15px 0'}}>🙈 관심 없는 게임 (숨김 처리됨) ({dislikedGames.length})</h3>
+                <h3 style={{margin:'0 0 15px 0'}}>관심 없는 게임 (숨김 처리됨) ({dislikedGames.length})</h3>
                 <p style={{color:'#888', fontSize:'12px', marginBottom:'15px', marginTop:0}}>
                     추천에 표시되지 않도록 숨김 처리한 게임들입니다. 복구하면 다시 추천 리스트에 나타납니다.
                 </p>
@@ -637,11 +649,27 @@ function MyPage({ user, setUser }) {
                           style={{
                             display:'flex', flexDirection:'column',
                             backgroundColor:'var(--bg-card)', border:'1px solid var(--border)',
-                            borderRadius:'8px', overflow:'hidden', cursor:'pointer', height:'100%'
+                            borderRadius:'8px', overflow:'hidden', cursor:'pointer', height:'100%', position: 'relative'
                           }}>
                             <img src={game.main_image} alt={game.title}
                               style={{width:'100%', aspectRatio:'16/9', objectFit:'cover', display:'block'}}
                               onError={(e)=>{e.target.src='data:image/svg+xml,%3Csvg xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22 width%3D%22300%22 height%3D%22169%22%3E%3Crect width%3D%22300%22 height%3D%22169%22 fill%3D%22%23202020%22%2F%3E%3C%2Fsvg%3E';}} />
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveFromWishlist(game.slug);
+                                }}
+                                title="찜 목록에서 삭제"
+                                style={{
+                                    position: 'absolute', top: '8px', right: '8px', zIndex: 20,
+                                    background: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '50%',
+                                    width: '28px', height: '28px', color: '#ccc', fontSize: '14px',
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    transition: 'background 0.15s, color 0.15s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background='rgba(229,9,20,0.9)'; e.currentTarget.style.color='#fff'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background='rgba(0,0,0,0.7)'; e.currentTarget.style.color='#ccc'; }}
+                            >✕</button>
                             <div style={{padding:'10px', display:'flex', flexDirection:'column', flex:1}}>
                                 <div style={{fontSize:'14px', fontWeight:'bold', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{game.title_ko || game.title}</div>
                                 <PcCompatibilityBadge game={game} compact hideUnknown />
