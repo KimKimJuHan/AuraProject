@@ -36,7 +36,11 @@ export function normalizeGameData(game) {
     
     // 3. 플레이타임 폴백 방지
     if (!normalized.play_time || typeof normalized.play_time !== 'object') {
-        normalized.play_time = { extra: 0, completionist: 0, main: 0, raw: '정보 없음' };
+        if (typeof normalized.play_time === 'string') {
+            normalized.play_time = { extra: 0, completionist: 0, main: 0, raw: normalized.play_time };
+        } else {
+            normalized.play_time = { extra: 0, completionist: 0, main: 0, raw: '정보 없음' };
+        }
     }
 
     return normalized;
