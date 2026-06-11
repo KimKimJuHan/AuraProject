@@ -92,7 +92,7 @@ const styles = {
   },
   storeName: {
     fontWeight: 'bold',
-    color: '#FFFFFF'
+    color: 'var(--text-primary)'
   },
   infoBadge: {
     display: 'inline-flex',
@@ -304,7 +304,7 @@ function RecentGames({ currentSlug }) {
         <a
           key={game.slug}
           href={`/game/${game.slug}`}
-          style={{ minWidth: '150px', textDecoration: 'none', color: '#fff', flexShrink: 0 }}
+          style={{ minWidth: '150px', textDecoration: 'none', color: 'var(--text-primary)', flexShrink: 0 }}
         >
           <img
             src={game.main_image}
@@ -320,7 +320,7 @@ function RecentGames({ currentSlug }) {
           <div
             style={{
               fontSize: '12px',
-              color: '#ddd',
+              color: 'var(--text-secondary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis'
@@ -413,8 +413,14 @@ export default function ShopPage({ region, user }) {
             dailyMap[dateStr].steam = Math.max(dailyMap[dateStr].steam, item.steam_ccu || 0);
           });
           
-          // 날짜 오름차순으로 정렬
-          const sortedHistory = Object.values(dailyMap);
+          // 날짜 오름차순으로 정렬하고 최근 7일치만 자르기
+          const sortedHistory = Object.values(dailyMap).sort((a, b) => {
+            const [m1, d1] = a.time.split('.').map(Number);
+            const [m2, d2] = b.time.split('.').map(Number);
+            if (m1 !== m2) return m1 - m2;
+            return d1 - d2;
+          }).slice(-7);
+          
           setHistoryData(sortedHistory);
         } catch (e) {}
 
