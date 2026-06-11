@@ -2,7 +2,7 @@
 FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_OPTIONS="--max_old_space_size=1024"
