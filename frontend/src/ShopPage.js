@@ -634,7 +634,15 @@ export default function ShopPage({ region, user }) {
   };
 
   const renderStoreList = () => {
-    const deals = pi?.deals || [];
+    const rawDeals = pi?.deals || [];
+    const uniqueDealsMap = {};
+    rawDeals.forEach(d => {
+      const s = (d.shopName || '').toLowerCase();
+      if (!uniqueDealsMap[s] || uniqueDealsMap[s].price > d.price) {
+        uniqueDealsMap[s] = d;
+      }
+    });
+    const deals = Object.values(uniqueDealsMap);
 
     // 무료 게임(isFree)은 가격 비교 불필요
     if (pi?.isFree) {
