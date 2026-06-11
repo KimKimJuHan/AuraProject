@@ -257,7 +257,8 @@ class RecommendController {
                     userSteamGames = user.steamGames || [];
                     userType = user.playerType || 'beginner';
                     userDislikedGames = user.dislikedGames || [];
-                    userTagWeights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
+                    // user.tagWeights is a plain object when using .lean()
+                    userTagWeights = user.tagWeights ? (typeof user.tagWeights.entries === 'function' ? Object.fromEntries(user.tagWeights) : user.tagWeights) : {};
                     
                     if (userSteamGames.length > 0) {
                         const appIds = userSteamGames.map(g => g.appid);
