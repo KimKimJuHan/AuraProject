@@ -307,14 +307,13 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [priceMin, setPriceMin] = useState(saved.priceMin || '');
   const [priceMax, setPriceMax] = useState(saved.priceMax || '');
   const [minDiscount, setMinDiscount] = useState(saved.minDiscount || 0);
-  const [hideOwned, setHideOwned] = useState(saved.hideOwned !== undefined ? saved.hideOwned : true);
 
   // 필터/탭 변경 시 sessionStorage에 저장
   useEffect(() => {
     sessionStorage.setItem('mainPageState', JSON.stringify({
-      activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned
+      activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount
     }));
-  }, [activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
+  }, [activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount]);
 
 
   useEffect(() => {
@@ -332,11 +331,6 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 const gwData = await gwRes.json();
                 if (gwData.success) {
                     let gwGames = gwData.games || [];
-                    // 보유 숨김이 켜져 있으면, 유저의 스팀 게임 목록과 대조하여 프론트단에서 필터링
-                    if (hideOwned && user?.steamGames?.length > 0) {
-                        const ownedAppIds = user.steamGames.map(g => g.appid);
-                        gwGames = gwGames.filter(g => !ownedAppIds.includes(g.steam_appid));
-                    }
                     setGames(normalizeGameList(gwGames));
                     setHasMore(false);
                 }
@@ -357,7 +351,6 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                     priceMin: priceMin ? Number(priceMin) : undefined,
                     priceMax: priceMax ? Number(priceMax) : undefined,
                     minDiscount,
-                    hideOwned,
                 })
             });
             if (!response.ok) throw new Error("서버 연결 실패");
@@ -392,7 +385,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
     };
 
     fetchGames();
-  }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
+  }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -471,17 +464,8 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
             );
           })}
           <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
-          {user && (
-            <button onClick={() => { setHideOwned(v=>!v); setPage(1); setGames([]); }}
-              style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
-                background: hideOwned ? '#E50914':'var(--bg-hover)',
-                color: hideOwned ? '#fff':'var(--text-secondary)',
-                border:`1px solid ${hideOwned ? '#E50914':'var(--border)'}` }}>
-              {hideOwned ? '보유 숨김' : '보유 표시'}
-            </button>
-          )}
-          {(priceRange!=='all' || priceMin || priceMax || minDiscount!==0 || hideOwned) && (
-            <button onClick={() => { setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0); setHideOwned(false); setPage(1); setGames([]); }}
+          {(priceRange!=='all' || priceMin || priceMax || minDiscount!==0) && (
+            <button onClick={() => { setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0); setPage(1); setGames([]); }}
               style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
                 background:'none', border:'1px solid #E50914', color:'#E50914', fontWeight:'600' }}>✕ 초기화</button>
           )}
@@ -541,7 +525,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
             <button onClick={() => {
               setSelectedTags([]); setActiveTab('popular');
               setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0);
-              setHideOwned(false); setPage(1); setGames([]);
+              setPage(1); setGames([]);
             }} style={{ padding:'10px 24px', borderRadius:'8px', cursor:'pointer',
               background:'#E50914', color:'#fff', border:'none', fontSize:'14px', fontWeight:'600' }}>
               필터 모두 초기화
