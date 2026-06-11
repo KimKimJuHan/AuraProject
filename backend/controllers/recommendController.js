@@ -195,9 +195,19 @@ class RecommendController {
                         first: { $first: '$trend_score' },
                         last: { $last: '$trend_score' },
                     }},
-                    { $project: { growth: { $subtract: ['$last', '$first'] } } },
-                    { $match: { growth: { $gt: 0 } } },
-                    { $sort: { growth: -1 } },
+                    { $project: { 
+                        growth: { $subtract: ['$last', '$first'] },
+                        growth_pct: { 
+                            $cond: [ 
+                                { $eq: ['$first', 0] }, 
+                                1, 
+                                { $divide: [ { $subtract: ['$last', '$first'] }, '$first' ] } 
+                            ] 
+                        }
+                    }},
+                    // 급상승 기준: 최소 100명 이상 증가 && 10% 이상 증가 (데스티니 같은 대형 게임의 단순 요동 제외)
+                    { $match: { growth: { $gt: 100 }, growth_pct: { $gte: 0.1 } } },
+                    { $sort: { growth_pct: -1, growth: -1 } },
                     { $limit: 200 },
                 ]);
                 const risingAppids = recent.map(r => r._id);
