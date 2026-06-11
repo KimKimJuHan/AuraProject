@@ -136,7 +136,9 @@ class RecommendController {
                 const user = await User.findById(userId).select('steamGames dislikedGames');
                 const isHideOwned = hideOwned === true || hideOwned === 'true';
                 if (isHideOwned && user?.steamGames?.length > 0) {
-                    query.steam_appid = { $nin: user.steamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
+                    const appIdsNum = user.steamGames.map(g => Number(g.appid)).filter(id => !isNaN(id));
+                    const appIdsStr = appIdsNum.map(String);
+                    query.steam_appid = { $nin: [...appIdsNum, ...appIdsStr] };
                 }
                 if (user?.dislikedGames?.length > 0) {
                     query.slug = { $nin: user.dislikedGames };
@@ -271,8 +273,15 @@ class RecommendController {
             const hasTags = combinedTags.length > 0;
             const hasSteam = userSteamGames.length > 0;
 
+            let ninAppIds = [];
+            if (hasSteam) {
+                const appIdsNum = userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id));
+                const appIdsStr = appIdsNum.map(String);
+                ninAppIds = [...appIdsNum, ...appIdsStr];
+            }
+
             const candidateQuery = { isAdult: { $ne: true } };
-            if (hasSteam) candidateQuery.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
+            if (hasSteam) candidateQuery.steam_appid = { $nin: ninAppIds };
 
             if (term?.trim()) {
                 const keyword = term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -290,12 +299,12 @@ class RecommendController {
             let candidates;
             if (hasTags || hasSteam) {
                 const matched = await Game.find(candidateQuery)
-                    .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score')
+                    .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score pc_requirements')
                     .sort({ trend_score: -1 })
                     .limit(500).lean();
                 const matchedSlugs = new Set(matched.map(g => g.slug));
                 const randomMatch = { isAdult: { $ne: true } };
-                if (hasSteam) randomMatch.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
+                if (hasSteam) randomMatch.steam_appid = { $nin: ninAppIds };
                 const randomExtra = await Game.aggregate([
                     { $match: randomMatch },
                     { $sample: { size: 300 } }
@@ -303,7 +312,7 @@ class RecommendController {
                 candidates = [...matched, ...randomExtra.filter(g => !matchedSlugs.has(g.slug))];
             } else {
                 const coldStartMatch = { isAdult: { $ne: true } };
-                if (hasSteam) coldStartMatch.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
+                if (hasSteam) coldStartMatch.steam_appid = { $nin: ninAppIds };
                 candidates = await Game.aggregate([
                     { $match: coldStartMatch },
                     { $sample: { size: 800 } }
@@ -319,7 +328,7 @@ class RecommendController {
                 });
                 if (orConditions.length > 0) relaxedQuery.$or = orConditions;
                 candidates = await Game.find(relaxedQuery)
-                    .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score')
+                    .select('_id title title_ko slug steam_appid main_image smart_tags price_info steam_reviews steam_ccu trend_score difficulty releaseDate metacritic_score igdb_score pc_requirements')
                     .limit(1000)
                     .lean();
             }
@@ -398,7 +407,7 @@ class RecommendController {
             const comprehensive = diversified.slice(0, 20);
 
             const baseSectionQuery = { isAdult: { $ne: true } };
-            if (hasSteam) baseSectionQuery.steam_appid = { $nin: userSteamGames.map(g => Number(g.appid)).filter(id => !isNaN(id)) };
+            if (hasSteam) baseSectionQuery.steam_appid = { $nin: ninAppIds };
 
             const usedSlugs = new Set(comprehensive.map(g => g.slug));
 
