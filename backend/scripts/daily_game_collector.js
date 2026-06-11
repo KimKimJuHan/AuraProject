@@ -381,6 +381,22 @@ async function run() {
                     };
                 } else if (steamData?.is_free) {
                     steamPrice = { current_price: 0, regular_price: 0, discount_percent: 0, isFree: true };
+                } else {
+                    const meta = await GameMetadata.findOne({ steamAppId: game.steam_appid }).lean();
+                    if (meta?.usePackageId) {
+                        try {
+                            const pkgRes = await axios.get(`https://store.steampowered.com/api/packagedetails`, { params: { packageids: meta.usePackageId, cc: 'kr' }});
+                            const pkgPrice = pkgRes.data?.[meta.usePackageId]?.data?.price;
+                            if (pkgPrice) {
+                                steamPrice = {
+                                    current_price: Math.round((pkgPrice.final || 0) / 100),
+                                    regular_price: Math.round((pkgPrice.initial || 0) / 100),
+                                    discount_percent: pkgPrice.discount_percent || 0,
+                                    isFree: false
+                                };
+                            }
+                        } catch(e) {}
+                    }
                 }
 
                 if (!steamPrice) { await sleep(200); continue; }
