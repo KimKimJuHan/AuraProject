@@ -101,8 +101,9 @@ const styles = {
     borderRadius: '4px',
     marginRight: '10px',
     fontWeight: 'bold',
-    backgroundColor: '#333',
+    backgroundColor: 'var(--bg-hover)',
     color: 'var(--text-primary)',
+    border: '1px solid var(--border)',
     fontSize: '14px',
     cursor: 'help'
   },
@@ -643,8 +644,25 @@ export default function ShopPage({ region, user }) {
     if (deals.length === 0 && pi) {
       return (
         <a href={pi.store_url || (gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
-          <span style={styles.storeName}>{pi.store_name || 'Steam'}</span>
-          <span style={{ color: '#46d369' }}>구매하러 가기 &gt;</span>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={styles.storeName}>{pi.store_name || 'Steam'}</span>
+            {pi.discount_percent > 0 && (
+              <span style={{ marginLeft: '10px', color: '#E50914', fontSize: '12px', fontWeight: 'bold' }}>
+                -{pi.discount_percent}%
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {pi.regular_price > pi.current_price && (
+              <span style={{ textDecoration: 'line-through', color: '#888', fontSize: '12px' }}>
+                {getPriceDisplay(pi.regular_price, false)}
+              </span>
+            )}
+            <span style={{ color: '#A24CD9', fontWeight: 'bold' }}>
+              {getPriceDisplay(pi.current_price, false)}
+            </span>
+            <span style={{ fontSize: '12px', color: '#999' }}>&gt;</span>
+          </div>
         </a>
       );
     }
