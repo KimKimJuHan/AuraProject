@@ -372,11 +372,11 @@ export default function ShopPage({ region, user }) {
   const toKoReview = (summary) => REVIEW_KO[summary] || summary || '정보 없음';
 
   const getReviewColor = (summary) => {
-    if (!summary || summary === '정보 없음') return '#aaa';
-    if (summary.includes('Positive')) return '#66c0f4';
-    if (summary.includes('Mixed')) return '#d29922';
-    if (summary.includes('Negative')) return '#ff7b72';
-    return '#aaa';
+    if (!summary || summary === '정보 없음') return 'var(--text-muted, #aaa)';
+    if (summary.includes('Positive')) return 'var(--color-positive, #66c0f4)';
+    if (summary.includes('Mixed')) return 'var(--color-mixed, #d29922)';
+    if (summary.includes('Negative')) return 'var(--color-negative, #ff7b72)';
+    return 'var(--text-muted, #aaa)';
   };
 
   useEffect(() => {
@@ -818,20 +818,20 @@ export default function ShopPage({ region, user }) {
               gap: '5px',
               marginLeft: '10px',
               paddingLeft: '10px',
-              borderLeft: '1px solid #444'
+              borderLeft: '1px solid var(--border)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#aaa', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary, #aaa)', gap: '10px', flexWrap: 'wrap' }}>
               <span>모든 평가 ({overall.total.toLocaleString()}개)</span>
               <span style={{ color: getReviewColor(reviewSummaryText), fontWeight: 'bold' }}>
                 {toKoReview(reviewSummaryText)} {reviewPercent > 0 ? `(${reviewPercent}%)` : ''}
               </span>
               {reviewPercent > 0 && (
-                <div style={{ marginTop: '6px', background: '#333', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                <div style={{ marginTop: '6px', background: 'var(--bg-hover, #333)', border: '1px solid var(--border, transparent)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
                   <div style={{
                     width: `${reviewPercent}%`,
                     height: '100%',
-                    background: reviewPercent >= 80 ? '#66c0f4' : reviewPercent >= 60 ? '#d29922' : '#ff7b72',
+                    background: reviewPercent >= 80 ? 'var(--color-positive, #66c0f4)' : reviewPercent >= 60 ? 'var(--color-mixed, #d29922)' : 'var(--color-negative, #ff7b72)',
                     borderRadius: '4px',
                     transition: 'width 0.5s ease'
                   }} />
