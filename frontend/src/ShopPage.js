@@ -92,7 +92,7 @@ const styles = {
   },
   storeName: {
     fontWeight: 'bold',
-    color: '#FFFFFF'
+    color: 'var(--text-primary)'
   },
   infoBadge: {
     display: 'inline-flex',
@@ -101,8 +101,9 @@ const styles = {
     borderRadius: '4px',
     marginRight: '10px',
     fontWeight: 'bold',
-    backgroundColor: '#333',
+    backgroundColor: 'var(--bg-hover)',
     color: 'var(--text-primary)',
+    border: '1px solid var(--border)',
     fontSize: '14px',
     cursor: 'help'
   },
@@ -303,7 +304,7 @@ function RecentGames({ currentSlug }) {
         <a
           key={game.slug}
           href={`/game/${game.slug}`}
-          style={{ minWidth: '150px', textDecoration: 'none', color: '#fff', flexShrink: 0 }}
+          style={{ minWidth: '150px', textDecoration: 'none', color: 'var(--text-primary)', flexShrink: 0 }}
         >
           <img
             src={game.main_image}
@@ -319,7 +320,7 @@ function RecentGames({ currentSlug }) {
           <div
             style={{
               fontSize: '12px',
-              color: '#ddd',
+              color: 'var(--text-secondary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis'
@@ -371,11 +372,11 @@ export default function ShopPage({ region, user }) {
   const toKoReview = (summary) => REVIEW_KO[summary] || summary || '정보 없음';
 
   const getReviewColor = (summary) => {
-    if (!summary || summary === '정보 없음') return '#aaa';
-    if (summary.includes('Positive')) return '#66c0f4';
-    if (summary.includes('Mixed')) return '#d29922';
-    if (summary.includes('Negative')) return '#ff7b72';
-    return '#aaa';
+    if (!summary || summary === '정보 없음') return 'var(--text-muted, #aaa)';
+    if (summary.includes('Positive')) return 'var(--color-positive, #66c0f4)';
+    if (summary.includes('Mixed')) return 'var(--color-mixed, #d29922)';
+    if (summary.includes('Negative')) return 'var(--color-negative, #ff7b72)';
+    return 'var(--text-muted, #aaa)';
   };
 
   useEffect(() => {
@@ -412,8 +413,14 @@ export default function ShopPage({ region, user }) {
             dailyMap[dateStr].steam = Math.max(dailyMap[dateStr].steam, item.steam_ccu || 0);
           });
           
-          // 날짜 오름차순으로 정렬
-          const sortedHistory = Object.values(dailyMap);
+          // 날짜 오름차순으로 정렬하고 최근 7일치만 자르기
+          const sortedHistory = Object.values(dailyMap).sort((a, b) => {
+            const [m1, d1] = a.time.split('.').map(Number);
+            const [m2, d2] = b.time.split('.').map(Number);
+            if (m1 !== m2) return m1 - m2;
+            return d1 - d2;
+          }).slice(-7);
+          
           setHistoryData(sortedHistory);
         } catch (e) {}
 
@@ -627,7 +634,15 @@ export default function ShopPage({ region, user }) {
   };
 
   const renderStoreList = () => {
-    const deals = pi?.deals || [];
+    const rawDeals = pi?.deals || [];
+    const uniqueDealsMap = {};
+    rawDeals.forEach(d => {
+      const s = (d.shopName || '').toLowerCase();
+      if (!uniqueDealsMap[s] || uniqueDealsMap[s].price > d.price) {
+        uniqueDealsMap[s] = d;
+      }
+    });
+    const deals = Object.values(uniqueDealsMap);
 
     // 무료 게임(isFree)은 가격 비교 불필요
     if (pi?.isFree) {
@@ -643,8 +658,25 @@ export default function ShopPage({ region, user }) {
     if (deals.length === 0 && pi) {
       return (
         <a href={pi.store_url || (gameData.steam_appid ? `https://store.steampowered.com/app/${gameData.steam_appid}` : '#')} target="_blank" rel="noreferrer" style={styles.storeRowLink}>
-          <span style={styles.storeName}>{pi.store_name || 'Steam'}</span>
-          <span style={{ color: '#46d369' }}>구매하러 가기 &gt;</span>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={styles.storeName}>{pi.store_name || 'Steam'}</span>
+            {pi.discount_percent > 0 && (
+              <span style={{ marginLeft: '10px', color: '#E50914', fontSize: '12px', fontWeight: 'bold' }}>
+                -{pi.discount_percent}%
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {pi.regular_price > pi.current_price && (
+              <span style={{ textDecoration: 'line-through', color: '#888', fontSize: '12px' }}>
+                {getPriceDisplay(pi.regular_price, false)}
+              </span>
+            )}
+            <span style={{ color: '#A24CD9', fontWeight: 'bold' }}>
+              {getPriceDisplay(pi.current_price, false)}
+            </span>
+            <span style={{ fontSize: '12px', color: '#999' }}>&gt;</span>
+          </div>
         </a>
       );
     }
@@ -786,20 +818,20 @@ export default function ShopPage({ region, user }) {
               gap: '5px',
               marginLeft: '10px',
               paddingLeft: '10px',
-              borderLeft: '1px solid #444'
+              borderLeft: '1px solid var(--border)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#aaa', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary, #aaa)', gap: '10px', flexWrap: 'wrap' }}>
               <span>모든 평가 ({overall.total.toLocaleString()}개)</span>
               <span style={{ color: getReviewColor(reviewSummaryText), fontWeight: 'bold' }}>
                 {toKoReview(reviewSummaryText)} {reviewPercent > 0 ? `(${reviewPercent}%)` : ''}
               </span>
               {reviewPercent > 0 && (
-                <div style={{ marginTop: '6px', background: '#333', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                <div style={{ marginTop: '6px', background: 'var(--bg-hover, #333)', border: '1px solid var(--border, transparent)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
                   <div style={{
                     width: `${reviewPercent}%`,
                     height: '100%',
-                    background: reviewPercent >= 80 ? '#66c0f4' : reviewPercent >= 60 ? '#d29922' : '#ff7b72',
+                    background: reviewPercent >= 80 ? 'var(--color-positive, #66c0f4)' : reviewPercent >= 60 ? 'var(--color-mixed, #d29922)' : 'var(--color-negative, #ff7b72)',
                     borderRadius: '4px',
                     transition: 'width 0.5s ease'
                   }} />
