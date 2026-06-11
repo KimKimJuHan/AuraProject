@@ -258,6 +258,15 @@ class RecommendController {
                     userType = user.playerType || 'beginner';
                     userDislikedGames = user.dislikedGames || [];
                     userTagWeights = user.tagWeights ? Object.fromEntries(user.tagWeights) : {};
+                    
+                    if (userSteamGames.length > 0) {
+                        const appIds = userSteamGames.map(g => g.appid);
+                        const dbGames = await Game.find({ steam_appid: { $in: appIds } }).select('steam_appid smart_tags').lean();
+                        userSteamGames = userSteamGames.map(g => {
+                            const match = dbGames.find(dbG => dbG.steam_appid === g.appid);
+                            return { ...g, smart_tags: match ? match.smart_tags : [] };
+                        });
+                    }
                 }
             }
 
