@@ -705,8 +705,10 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   };
 
   const renderSuggestionItem = (item, idx) => {
+    if (!item) return null;
     const itemStyle = idx === selectedIndex ? styles.suggestionItemSelected : styles.suggestionItem;
-    if (item.slug) {
+    
+    if (typeof item === 'object' && item.slug) {
       return (
         <li key={item.slug || idx} style={itemStyle} onMouseDown={() => handleSuggestionClick(item)}>
           <div style={styles.suggestionGameRow}>
@@ -724,10 +726,14 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         </li>
       );
     }
+
+    const text = typeof item === 'object' ? (item.title || item.name || '') : String(item);
+    if (!text) return null;
+
     return (
-      <li key={`${item}-${idx}`} style={itemStyle} onMouseDown={() => { setSearchTerm(item); navigate(`/search?q=${item}`); setIsFocused(false); }}>
+      <li key={`${text}-${idx}`} style={itemStyle} onMouseDown={() => { setSearchTerm(text); navigate(`/search?q=${text}`); setIsFocused(false); }}>
         <div style={styles.historyRow}>
-          <span>{item}</span>
+          <span>{text}</span>
           <span onMouseDown={(e) => handleDeleteHistoryItem(item, e)} style={styles.historyDelete}>✕</span>
         </div>
       </li>
