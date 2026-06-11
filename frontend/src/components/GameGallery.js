@@ -63,18 +63,14 @@ export default function GameGallery({ selectedMedia, setSelectedMedia, mediaList
       <div style={styles.mainMediaDisplay}>
         {selectedMedia?.type === 'video' ? (
           <>
-            <div style={{ width: '100%', height: '100%', display: isPlaying ? 'block' : 'none' }}>
-              <ReactPlayer
-                ref={videoRef}
-                url={selectedMedia.url}
-                playing={isPlaying}
-                controls={true}
-                width="100%"
-                height="100%"
-                style={{ objectFit: 'contain' }}
+            {isPlaying ? (
+              <video
+                src={selectedMedia.url}
+                autoPlay
+                controls
+                style={{ width: '100%', height: '100%', objectFit: 'contain', outline: 'none' }}
               />
-            </div>
-            {!isPlaying && (
+            ) : (
               <>
                 <img
                   src={selectedMedia.thumb}

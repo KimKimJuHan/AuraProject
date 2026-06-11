@@ -93,13 +93,13 @@ const styles = {
   historyRow: { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px', color: 'var(--text-primary, #fff)' },
   historyDelete: { color:'var(--text-muted, #999)', cursor:'pointer', fontSize:'14px', flexShrink:0 },
   highlightText: { fontWeight: '800', color: 'var(--text-primary, #fff)' },
-  bellIcon: { background: 'none', border: 'none', color: '#fff', fontSize: '22px', cursor: 'pointer', position: 'relative' },
+  bellIcon: { background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '22px', cursor: 'pointer', position: 'relative' },
   badge: { position: 'absolute', top: '-5px', right: '-5px', backgroundColor: '#E50914', color: '#fff', fontSize: '10px', fontWeight: 'bold', borderRadius: '50%', padding: '2px 6px' },
-  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: '#202020', border: '1px solid #444', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: '0 4px 12px rgba(0,0,0,0.5)', overflow: 'hidden' },
-  notiItem: { padding: '12px 15px', borderBottom: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
-  notiTitle: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
+  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: 'var(--shadow-card)', overflow: 'hidden' },
+  notiItem: { padding: '12px 15px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
+  notiTitle: { color: 'var(--text-primary)', fontSize: '14px', fontWeight: 'bold' },
   notiMessage: { color: '#aaa', fontSize: '12px', lineHeight: '1.4' },
-  headerNickname: { color: '#fff', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' },
+  headerNickname: { color: 'var(--text-primary)', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' },
   authButton: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' },
   logoutButton: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' }
 };
