@@ -28,6 +28,10 @@
   --text-sub:      #b3b3b3;
   --border-color:  #404040;
   --card-bg:       #2f2f2f;
+  
+  --color-positive: #66c0f4;
+  --color-mixed:    #d29922;
+  --color-negative: #ff7b72;
 }
 
 [data-theme="light"] {
@@ -50,6 +54,9 @@
   --border-hover:  #aaaaaa;
   --shadow:        rgba(0,0,0,0.15);
   --shadow-card:   0 4px 12px rgba(0,0,0,0.12);
+  --color-positive: #0284c7;
+  --color-mixed:    #d97706;
+  --color-negative: #dc2626;
 }
 
 /* 기본 초기화 및 배경색 강제 적용 */
