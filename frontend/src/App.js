@@ -79,27 +79,27 @@ const styles = {
   navBar: { width: '100%', backgroundColor: '#000000', padding: '15px 4%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxSizing: 'border-box', borderBottom: '1px solid #333', position:'sticky', top:0, zIndex:1000 },
   searchContainer: { position: 'relative', display: 'flex', alignItems: 'center', gap: '10px' },
   clearButton: { position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#999', fontSize: '18px', cursor: 'pointer' },
-  suggestionsList: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#141414', border: '1px solid #333', listStyle: 'none', padding: 0, margin: 0, zIndex: 1000, marginTop:'5px', maxHeight:'420px', overflowY:'auto' },
-  suggestionItem: { padding: '10px 15px', cursor: 'pointer', color: '#fff', borderBottom: '1px solid #222' },
-  suggestionItemSelected: { padding: '10px 15px', cursor: 'pointer', color: '#fff', backgroundColor: '#333', fontWeight: 'bold', borderBottom: '1px solid #222' },
+  suggestionsList: { position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: 'var(--bg-card, #141414)', border: '1px solid var(--border)', listStyle: 'none', padding: 0, margin: 0, zIndex: 1000, marginTop:'5px', maxHeight:'420px', overflowY:'auto' },
+  suggestionItem: { padding: '10px 15px', cursor: 'pointer', color: 'var(--text-primary, #fff)', borderBottom: '1px solid var(--border)' },
+  suggestionItemSelected: { padding: '10px 15px', cursor: 'pointer', color: 'var(--text-primary, #fff)', backgroundColor: 'var(--bg-hover)', fontWeight: 'bold', borderBottom: '1px solid var(--border)' },
   clearHistoryButton: { padding: '10px', cursor: 'pointer', color: '#E50914', textAlign: 'center', fontSize: '13px' },
   rightGroup: { display: 'flex', alignItems: 'center', gap: '15px' },
   regionSelect: { backgroundColor: '#000', color: '#fff', border: '1px solid #555', padding: '5px', borderRadius: '4px', fontSize: '13px' },
   suggestionGameRow: { display:'flex', alignItems:'center', gap:'10px', width:'100%' },
   suggestionThumb: { width:'56px', height:'32px', objectFit:'cover', borderRadius:'4px', flexShrink:0, backgroundColor:'#222', border:'1px solid #333' },
   suggestionTextWrap: { display:'flex', flexDirection:'column', minWidth:0, flex:1 },
-  suggestionTitle: { color:'#fff', fontSize:'14px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' },
-  suggestionSubtitle: { color:'#888', fontSize:'12px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:'2px' },
-  historyRow: { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px' },
-  historyDelete: { color:'#999', cursor:'pointer', fontSize:'14px', flexShrink:0 },
-  highlightText: { fontWeight: '800', color: '#fff' },
-  bellIcon: { background: 'none', border: 'none', color: '#fff', fontSize: '22px', cursor: 'pointer', position: 'relative' },
+  suggestionTitle: { color:'var(--text-primary, #fff)', fontSize:'14px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' },
+  suggestionSubtitle: { color:'var(--text-muted, #888)', fontSize:'12px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:'2px' },
+  historyRow: { display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px', color: 'var(--text-primary, #fff)' },
+  historyDelete: { color:'var(--text-muted, #999)', cursor:'pointer', fontSize:'14px', flexShrink:0 },
+  highlightText: { fontWeight: '800', color: 'var(--text-primary, #fff)' },
+  bellIcon: { background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '22px', cursor: 'pointer', position: 'relative' },
   badge: { position: 'absolute', top: '-5px', right: '-5px', backgroundColor: '#E50914', color: '#fff', fontSize: '10px', fontWeight: 'bold', borderRadius: '50%', padding: '2px 6px' },
-  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: '#202020', border: '1px solid #444', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: '0 4px 12px rgba(0,0,0,0.5)', overflow: 'hidden' },
-  notiItem: { padding: '12px 15px', borderBottom: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
-  notiTitle: { color: '#fff', fontSize: '14px', fontWeight: 'bold' },
+  notiDropdown: { position: 'absolute', top: '120%', right: 0, backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', width: '300px', maxHeight: '400px', overflowY: 'auto', zIndex: 1001, boxShadow: 'var(--shadow-card)', overflow: 'hidden' },
+  notiItem: { padding: '12px 15px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '5px', textDecoration: 'none' },
+  notiTitle: { color: 'var(--text-primary)', fontSize: '14px', fontWeight: 'bold' },
   notiMessage: { color: '#aaa', fontSize: '12px', lineHeight: '1.4' },
-  headerNickname: { color: '#fff', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' },
+  headerNickname: { color: 'var(--text-primary)', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' },
   authButton: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' },
   logoutButton: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' }
 };
@@ -307,14 +307,13 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
   const [priceMin, setPriceMin] = useState(saved.priceMin || '');
   const [priceMax, setPriceMax] = useState(saved.priceMax || '');
   const [minDiscount, setMinDiscount] = useState(saved.minDiscount || 0);
-  const [hideOwned, setHideOwned] = useState(saved.hideOwned !== undefined ? saved.hideOwned : true);
 
   // 필터/탭 변경 시 sessionStorage에 저장
   useEffect(() => {
     sessionStorage.setItem('mainPageState', JSON.stringify({
-      activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned
+      activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount
     }));
-  }, [activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
+  }, [activeTab, selectedTags, priceRange, priceMin, priceMax, minDiscount]);
 
 
   useEffect(() => {
@@ -332,11 +331,6 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                 const gwData = await gwRes.json();
                 if (gwData.success) {
                     let gwGames = gwData.games || [];
-                    // 보유 숨김이 켜져 있으면, 유저의 스팀 게임 목록과 대조하여 프론트단에서 필터링
-                    if (hideOwned && user?.steamGames?.length > 0) {
-                        const ownedAppIds = user.steamGames.map(g => g.appid);
-                        gwGames = gwGames.filter(g => !ownedAppIds.includes(g.steam_appid));
-                    }
                     setGames(normalizeGameList(gwGames));
                     setHasMore(false);
                 }
@@ -357,7 +351,6 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
                     priceMin: priceMin ? Number(priceMin) : undefined,
                     priceMax: priceMax ? Number(priceMax) : undefined,
                     minDiscount,
-                    hideOwned,
                 })
             });
             if (!response.ok) throw new Error("서버 연결 실패");
@@ -392,7 +385,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
     };
 
     fetchGames();
-  }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount, hideOwned]);
+  }, [page, selectedTags, activeTab, user, hasMore, priceRange, priceMin, priceMax, minDiscount]);
 
   const toggleTag = (tag) => {
       setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -471,17 +464,8 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
             );
           })}
           <div style={{ width:'1px', height:'22px', background:'var(--border)', flexShrink:0 }} />
-          {user && (
-            <button onClick={() => { setHideOwned(v=>!v); setPage(1); setGames([]); }}
-              style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
-                background: hideOwned ? '#E50914':'var(--bg-hover)',
-                color: hideOwned ? '#fff':'var(--text-secondary)',
-                border:`1px solid ${hideOwned ? '#E50914':'var(--border)'}` }}>
-              {hideOwned ? '보유 숨김' : '보유 표시'}
-            </button>
-          )}
-          {(priceRange!=='all' || priceMin || priceMax || minDiscount!==0 || hideOwned) && (
-            <button onClick={() => { setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0); setHideOwned(false); setPage(1); setGames([]); }}
+          {(priceRange!=='all' || priceMin || priceMax || minDiscount!==0) && (
+            <button onClick={() => { setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0); setPage(1); setGames([]); }}
               style={{ padding:'6px 12px', borderRadius:'6px', fontSize:'13px', cursor:'pointer',
                 background:'none', border:'1px solid #E50914', color:'#E50914', fontWeight:'600' }}>✕ 초기화</button>
           )}
@@ -541,7 +525,7 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
             <button onClick={() => {
               setSelectedTags([]); setActiveTab('popular');
               setPriceRange('all'); setPriceMin(''); setPriceMax(''); setMinDiscount(0);
-              setHideOwned(false); setPage(1); setGames([]);
+              setPage(1); setGames([]);
             }} style={{ padding:'10px 24px', borderRadius:'8px', cursor:'pointer',
               background:'#E50914', color:'#fff', border:'none', fontSize:'14px', fontWeight:'600' }}>
               필터 모두 초기화
@@ -705,8 +689,10 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
   };
 
   const renderSuggestionItem = (item, idx) => {
+    if (!item) return null;
     const itemStyle = idx === selectedIndex ? styles.suggestionItemSelected : styles.suggestionItem;
-    if (item.slug) {
+    
+    if (typeof item === 'object' && item.slug) {
       return (
         <li key={item.slug || idx} style={itemStyle} onMouseDown={() => handleSuggestionClick(item)}>
           <div style={styles.suggestionGameRow}>
@@ -724,10 +710,14 @@ function NavigationBar({ user, setUser, region, setRegion, onCurrencyChange, han
         </li>
       );
     }
+
+    const text = typeof item === 'object' ? (item.title || item.name || '') : String(item);
+    if (!text) return null;
+
     return (
-      <li key={`${item}-${idx}`} style={itemStyle} onMouseDown={() => { setSearchTerm(item); navigate(`/search?q=${item}`); setIsFocused(false); }}>
+      <li key={`${text}-${idx}`} style={itemStyle} onMouseDown={() => { setSearchTerm(text); navigate(`/search?q=${text}`); setIsFocused(false); }}>
         <div style={styles.historyRow}>
-          <span>{item}</span>
+          <span>{text}</span>
           <span onMouseDown={(e) => handleDeleteHistoryItem(item, e)} style={styles.historyDelete}>✕</span>
         </div>
       </li>

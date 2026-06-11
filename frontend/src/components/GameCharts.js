@@ -46,6 +46,7 @@ export default function GameCharts({ historyData, chartWidth }) {
               strokeOpacity={hasTwitch ? 1 : 0.3}
               strokeDasharray={hasTwitch ? undefined : '4 4'}
               dot={false}
+              connectNulls={true}
             />
             <Line
               type="monotone" dataKey="chzzk" name="치지직" stroke="#00FFA3"
@@ -53,6 +54,7 @@ export default function GameCharts({ historyData, chartWidth }) {
               strokeOpacity={hasChzzk ? 1 : 0.3}
               strokeDasharray={hasChzzk ? undefined : '4 4'}
               dot={false}
+              connectNulls={true}
             />
             <Line
               type="monotone" dataKey="soop" name="SOOP" stroke="#FF6B35"
@@ -60,6 +62,7 @@ export default function GameCharts({ historyData, chartWidth }) {
               strokeOpacity={hasSoop ? 1 : 0.3}
               strokeDasharray={hasSoop ? undefined : '4 4'}
               dot={false}
+              connectNulls={true}
             />
           </LineChart>
         </div>
@@ -79,7 +82,7 @@ export default function GameCharts({ historyData, chartWidth }) {
               <XAxis dataKey="time" stroke="#888" style={{ fontSize: '11px' }} />
               <YAxis stroke="#888" style={{ fontSize: '11px' }} domain={['auto', 'auto']} />
               <Tooltip contentStyle={{ backgroundColor: 'var(--bg-hover)', borderColor: '#555' }} />
-              <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" />
+              <Area type="monotone" dataKey="steam" name="Steam 유저" stroke="#66c0f4" fill="#2a475e" connectNulls={true} />
             </AreaChart>
           </div>
         ) : (

@@ -3,7 +3,7 @@ WORKDIR /usr/src/app
 
 # 의존성만 먼저 복사 (레이어 캐시 활용)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 COPY . .
 
