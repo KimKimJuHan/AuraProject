@@ -218,6 +218,11 @@ router.patch("/me/displayName", authenticateToken, async (req, res) => {
       { new: true }
     ).select("-password");
 
+    // 세션에도 반영 (checkStatus 등에서 꼬이지 않도록)
+    if (req.session && req.session.user) {
+      req.session.user.displayName = value;
+    }
+
     return res.json(updated);
   } catch (err) {
     console.error(err);
