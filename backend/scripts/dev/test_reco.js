@@ -1,11 +1,16 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 
-const { getPersonalRecommendations } = require('./controllers/recommendController');
+const { getPersonalRecommendations } = require('../../controllers/recommendController');
+
+if (!process.env.TEST_USER_EMAIL) {
+    console.error('TEST_USER_EMAIL 환경변수를 설정하세요. (예: TEST_USER_EMAIL=you@example.com node scripts/dev/test_reco.js)');
+    process.exit(1);
+}
 
 mongoose.connect(process.env.MONGODB_URI).then(async () => {
-    const User = require('./models/User');
-    const user = await User.findOne({ email: 'test-user@example.com' }).lean();
+    const User = require('../../models/User');
+    const user = await User.findOne({ email: process.env.TEST_USER_EMAIL }).lean();
     
     if(!user) { console.log('User not found'); process.exit(1); }
     

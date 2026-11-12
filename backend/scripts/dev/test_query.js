@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-const User = require('./models/User');
-const Game = require('./models/Game');
+const User = require('../../models/User');
+const Game = require('../../models/Game');
 
 mongoose.connect('mongodb://localhost:27017/auradb').then(async () => {
     const user = await User.findOne({ steamId: { $ne: null } }).lean();

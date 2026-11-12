@@ -1,10 +1,10 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
-const recommendController = require('./controllers/recommendController');
+const recommendController = require('../../controllers/recommendController');
 
 async function test() {
   await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-  const User = require('./models/User');
+  const User = require('../../models/User');
 
   const users = await User.find({ steamId: { $ne: null } }).select('_id');
   const userId = users[users.length - 1]._id;

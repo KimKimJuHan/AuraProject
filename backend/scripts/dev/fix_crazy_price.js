@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
-require('dotenv').config({ path: './.env' });
-const Game = require('./models/Game');
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
+const Game = require('../../models/Game');
 
 mongoose.connect(process.env.MONGODB_URI).then(async () => {
     await Game.updateOne({ steam_appid: 488790 }, { $set: { 'price_info.current_price_krw': 14500 } });

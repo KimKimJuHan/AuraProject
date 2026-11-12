@@ -1,6 +1,6 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
-const Game = require('./models/Game');
+const Game = require('../../models/Game');
 
 mongoose.connect(process.env.MONGODB_URI).then(async () => {
     console.log('--- Sample Game with Trailers ---');

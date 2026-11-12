@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 mongoose.connect(process.env.MONGODB_URI).then(async () => {
   const Game = mongoose.model('Game', new mongoose.Schema({}, { strict: false }), 'games');
   const game = await Game.findOne({ steam_appid: { $in: [271590, '271590'] } });

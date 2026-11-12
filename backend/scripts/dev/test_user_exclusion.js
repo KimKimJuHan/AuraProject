@@ -1,11 +1,11 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 
 async function test() {
   await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-  const User = require('./models/User');
-  const Game = require('./models/Game');
-  const cache = require('./utils/simpleCache');
+  const User = require('../../models/User');
+  const Game = require('../../models/Game');
+  const cache = require('../../utils/simpleCache');
 
   const users = await User.find({ steamId: { $ne: null } }).select('username steamGames dislikedGames playerType');
   console.log(`Found ${users.length} users with steamId.`);

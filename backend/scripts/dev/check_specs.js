@@ -1,9 +1,9 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
 
 async function checkSpecs() {
   await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-  const Game = require('./models/Game');
+  const Game = require('../../models/Game');
 
   const total = await Game.countDocuments();
   const withSpecs = await Game.countDocuments({ 'pc_requirements.minimum': { $exists: true, $ne: null, $ne: "" } });
