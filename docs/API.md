@@ -1,6 +1,6 @@
 # API 명세
 
-> Base URL: `https://playforyou.net`  
+> Base URL: `http://localhost:8000` (로컬 실행 기준 · 운영 서버 `https://playforyou.net`은 종료)  
 > 응답 형식: JSON · 인터랙티브 문서: `/api-docs` (Swagger)
 
 ## 공통 사항

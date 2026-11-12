@@ -1,8 +1,11 @@
 name: AuraProject CI/CD to AWS EC2
 
+# 운영 서버(EC2) 종료로 main push 자동 배포를 비활성화했습니다.
+# 서버를 다시 띄울 경우 아래 push 트리거 주석을 해제하세요.
 on:
-  push:
-    branches: [ "main" ]
+  # push:
+  #   branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   deploy:
