@@ -88,6 +88,10 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 
+// NoSQL Injection 방어: 요청의 $연산자/점(.) 키 제거 (모든 라우터보다 먼저)
+const { sanitizeInput } = require('./middleware/sanitizeInput');
+app.use(sanitizeInput);
+
 const generalLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 100,
@@ -192,17 +196,27 @@ if (process.env.GOOGLE_CLIENT_ID) {
             let user = await User.findOne({ googleId: profile.id });
             const googleName = profile.displayName || `구글유저_${profile.id.substring(0, 4)}`;
             const googleEmail = profile.emails?.[0]?.value || 'no-email@google.com';
+            // 구글이 소유를 확인한 이메일인지 (확인 안 된 이메일로는 기존 계정에 연결하지 않음)
+            const googleEmailVerified = profile.emails?.[0]?.verified === true
+                || profile._json?.email_verified === true;
             const googleAvatar = profile.photos?.[0]?.value || '';
             if (!user) {
                 let existing = await User.findOne({ email: googleEmail });
-                if (existing && googleEmail !== 'no-email@google.com') {
+                // 자동 연결 조건: 양쪽 모두 이메일 소유가 확인된 경우에만
+                // (미인증 가입 계정에 연결하면 선점 가입한 공격자가 피해자 계정을 공유하게 됨)
+                if (existing && googleEmail !== 'no-email@google.com'
+                    && googleEmailVerified && existing.emailVerified) {
                     existing.googleId = profile.id;
                     if (!existing.avatar && googleAvatar) existing.avatar = googleAvatar;
                     if (!VALID_PLAYER_TYPES.includes(existing.playerType)) existing.playerType = 'beginner';
                     await existing.save();
                     return done(null, existing);
                 }
-                user = await User.create({ googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar });
+                if (existing) {
+                    // 같은 이메일의 미인증 계정이 이미 있음 → 자동 연결하지 않고 로그인 거부
+                    return done(null, false, { message: 'email-conflict' });
+                }
+                user = await User.create({ googleId: profile.id, username: `google_${profile.id}`, displayName: googleName, email: googleEmail, avatar: googleAvatar, emailVerified: googleEmailVerified });
             } else {
                 let updated = false;
                 if (!user.displayName || user.displayName === user.username) { user.displayName = googleName; updated = true; }
@@ -230,14 +244,18 @@ if (process.env.NAVER_CLIENT_ID) {
             const naverAvatar = profile.profileImage || res.profile_image || '';
             if (!user) {
                 let existing = await User.findOne({ email: naverEmail });
-                if (existing && !naverEmail.includes('@no-email.com')) {
+                // 네이버는 본인 확인된 계정의 이메일만 제공 → 기존 계정 쪽 인증 여부만 확인
+                if (existing && !naverEmail.includes('@no-email.com') && existing.emailVerified) {
                     existing.naverId = profile.id;
                     if (!existing.avatar && naverAvatar) existing.avatar = naverAvatar;
                     if (!VALID_PLAYER_TYPES.includes(existing.playerType)) existing.playerType = 'beginner';
                     await existing.save();
                     return done(null, existing);
                 }
-                user = await User.create({ naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar });
+                if (existing) {
+                    return done(null, false, { message: 'email-conflict' });
+                }
+                user = await User.create({ naverId: profile.id, username: `naver_${profile.id}`, displayName: naverName, email: naverEmail, avatar: naverAvatar, emailVerified: !naverEmail.includes('@no-email.com') });
             } else {
                 let updated = false;
                 if (!user.displayName || user.displayName === user.username) { user.displayName = naverName; updated = true; }

@@ -6,10 +6,57 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto'); 
 const axios = require('axios'); 
 
+// ── OTP 공통 설정 ─────────────────────────────────────────────────────────────
+const OTP_TTL_MS = 10 * 60 * 1000;          // 인증코드 유효시간 10분
+const OTP_MAX_ATTEMPTS = 5;                 // 코드 하나당 최대 검증 시도 횟수 (무차별 대입 방지)
+const SIGNUP_TOKEN_TTL_MS = 15 * 60 * 1000; // 이메일 인증 후 가입 완료까지 허용 시간
+
+// 요청 값이 문자열일 때만 사용 (객체/배열이 오면 빈 문자열 → NoSQL Injection 2차 방어)
+const str = (v) => (typeof v === 'string' ? v.trim() : '');
+const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
+// Math.random()은 예측 가능 → 암호학적으로 안전한 난수 사용
+const generateOtpCode = () => crypto.randomInt(100000, 1000000).toString();
+
+const safeEqual = (a, b) => {
+    const ba = Buffer.from(String(a));
+    const bb = Buffer.from(String(b));
+    return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+};
+
+/**
+ * OTP 검증 + 1회용 소비
+ * - 코드를 쿼리 조건에 넣지 않고 (email, purpose)로 문서를 찾은 뒤 서버에서 비교
+ * - 실패할 때마다 attempts 증가, 한도 초과 시 코드 폐기
+ * @returns {Promise<boolean>}
+ */
+async function consumeOtp(email, purpose, code) {
+    if (!email || !/^\d{6}$/.test(code)) return false;
+
+    const otp = await Otp.findOne({ email, purpose });
+    if (!otp || otp.expiresAt < new Date()) return false;
+
+    if (!safeEqual(otp.code, code)) {
+        const attempts = (otp.attempts || 0) + 1;
+        if (attempts >= OTP_MAX_ATTEMPTS) {
+            await Otp.deleteOne({ _id: otp._id });
+        } else {
+            await Otp.updateOne({ _id: otp._id }, { $set: { attempts } });
+        }
+        return false;
+    }
+
+    await Otp.deleteOne({ _id: otp._id }); // 1회용: 인증 완료 후 즉시 삭제
+    return true;
+}
+
 class AuthController {
     sendOtp = async (req, res) => {
         try {
-            const { email, username } = req.body;
+            const email = str(req.body.email);
+            const username = str(req.body.username);
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                return res.status(400).json({ success: false, message: '올바른 이메일 형식이 아닙니다.' });
+            }
 
             // 가입 전 중복 체크 (인증코드 보내기 전에 미리 거름 - UX 개선)
             if (email) {
@@ -21,10 +68,11 @@ class AuthController {
                 if (existsUser) return res.status(400).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
             }
 
-            const code = Math.floor(100000 + Math.random() * 900000).toString();
-            const expiresAt = new Date(Date.now() + 600000); 
+            const code = generateOtpCode();
+            const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
-            await Otp.findOneAndUpdate({ email, purpose: 'signup' }, { code, expiresAt }, { upsert: true });
+            // 재발송 시 시도 횟수도 초기화
+            await Otp.findOneAndUpdate({ email, purpose: 'signup' }, { code, expiresAt, attempts: 0 }, { upsert: true });
 
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
@@ -46,18 +94,37 @@ class AuthController {
     }
 
     verifyOtp = async (req, res) => {
-        const { email, code } = req.body;
-        const otp = await Otp.findOne({ email, purpose: 'signup', code });
-        if (!otp || otp.expiresAt < new Date()) {
-            return res.status(400).json({ success: false, message: '인증코드가 틀리거나 만료되었습니다.' });
+        try {
+            const email = str(req.body.email);
+            const code = str(req.body.code);
+
+            const ok = await consumeOtp(email, 'signup', code);
+            if (!ok) {
+                return res.status(400).json({ success: false, message: '인증코드가 틀리거나 만료되었습니다.' });
+            }
+
+            // 이메일 인증 완료 증표: 가입 API에서 반드시 제출해야 하는 1회용 토큰
+            // (DB에는 해시만 저장 — 재설정 토큰과 같은 방식)
+            const signupToken = crypto.randomBytes(32).toString('hex');
+            await Otp.findOneAndUpdate(
+                { email, purpose: 'signup-verified' },
+                { code: sha256(signupToken), expiresAt: new Date(Date.now() + SIGNUP_TOKEN_TTL_MS), attempts: 0 },
+                { upsert: true }
+            );
+
+            res.json({ success: true, signupToken });
+        } catch (error) {
+            console.error('OTP 검증 에러:', error);
+            res.status(500).json({ success: false, message: '서버 내부 에러가 발생했습니다.' });
         }
-        await Otp.deleteOne({ _id: otp._id }); // 1회용: 인증 완료 후 즉시 삭제
-        res.json({ success: true });
     }
 
     signup = async (req, res) => {
         try {
-            const { username, password, email } = req.body;
+            const username = str(req.body.username);
+            const email = str(req.body.email);
+            const signupToken = str(req.body.signupToken);
+            const password = typeof req.body.password === 'string' ? req.body.password : '';
 
             // 입력값 검증
             if (!username || username.length < 3)
@@ -75,8 +142,17 @@ class AuthController {
             const existingEmail = await User.findOne({ email });
             if (existingEmail) return res.status(400).json({ success: false, message: '이미 가입된 이메일입니다.' });
 
+            // 이메일 인증 여부 확인: /verify-otp 에서 받은 토큰이 없으면 가입 불가
+            // (없으면 남의 이메일로 가입한 뒤 소셜 로그인 자동 연결로 계정을 가로챌 수 있음)
+            const verified = await Otp.findOne({ email, purpose: 'signup-verified' });
+            if (!signupToken || !verified || verified.expiresAt < new Date()
+                || !safeEqual(verified.code, sha256(signupToken))) {
+                return res.status(400).json({ success: false, message: '이메일 인증을 먼저 완료해주세요.' });
+            }
+            await Otp.deleteOne({ _id: verified._id });
+
             const hashedPassword = await bcrypt.hash(password, 10);
-            const newUser = new User({ username, password: hashedPassword, email });
+            const newUser = new User({ username, password: hashedPassword, email, emailVerified: true });
             await newUser.save();
             res.status(201).json({ success: true });
         } catch (e) {
@@ -86,12 +162,12 @@ class AuthController {
     }
 
     _sendOtpWithPurpose = async (email, purpose, subject, text) => {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 600000); 
+        const code = generateOtpCode();
+        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
         await Otp.findOneAndUpdate(
             { email, purpose },
-            { code, expiresAt },
+            { code, expiresAt, attempts: 0 },
             { upsert: true, new: true }
         );
 
@@ -110,7 +186,8 @@ class AuthController {
 
     sendFindUsernameOtp = async (req, res) => {
         try {
-            const { email } = req.body;
+            const email = str(req.body.email);
+            if (!email) return res.status(400).json({ success: false, message: '이메일을 입력해주세요.' });
             const userExists = await User.exists({ email });
 
             if (userExists) {
@@ -139,14 +216,13 @@ class AuthController {
 
     verifyFindUsernameOtp = async (req, res) => {
         try {
-            const { email, code } = req.body;
+            const email = str(req.body.email);
+            const code = str(req.body.code);
 
-            const otp = await Otp.findOne({ email, purpose: 'find-username', code });
-            if (!otp || otp.expiresAt < new Date()) {
+            const ok = await consumeOtp(email, 'find-username', code);
+            if (!ok) {
                 return res.status(400).json({ success: false, message: '인증코드가 틀리거나 만료되었습니다.' });
             }
-
-            await Otp.deleteOne({ _id: otp._id });
 
              const users = await User.find({ email }).select('username');
             const usernames = users.map(u => u.username);
@@ -159,7 +235,9 @@ class AuthController {
 
     sendResetPasswordOtp = async (req, res) => {
         try {
-            const { email, username } = req.body;
+            const email = str(req.body.email);
+            const username = str(req.body.username);
+            if (!email) return res.status(400).json({ success: false, message: '이메일을 입력해주세요.' });
             const query = username ? { email, username } : { email };
             const userExists = await User.exists(query);
 
@@ -181,14 +259,14 @@ class AuthController {
 
     verifyResetPasswordOtp = async (req, res) => {
         try {
-            const { email, code, username } = req.body;
+            const email = str(req.body.email);
+            const code = str(req.body.code);
+            const username = str(req.body.username);
 
-            const otp = await Otp.findOne({ email, purpose: 'reset-password', code });
-            if (!otp || otp.expiresAt < new Date()) {
+            const ok = await consumeOtp(email, 'reset-password', code);
+            if (!ok) {
                 return res.status(400).json({ success: false, message: '인증코드가 틀리거나 만료되었습니다.' });
             }
-
-            await Otp.deleteOne({ _id: otp._id });
 
             const query = username ? { email, username } : { email };
             const user = await User.findOne(query);
@@ -213,7 +291,8 @@ class AuthController {
 
     confirmResetPassword = async (req, res) => {
         try {
-            const { resetToken, newPassword } = req.body;
+            const resetToken = str(req.body.resetToken);
+            const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
             if (!resetToken || !newPassword) {
                 return res.status(400).json({ success: false, message: '필수 값이 누락되었습니다.' });
             }
@@ -251,7 +330,8 @@ class AuthController {
                 return res.status(401).json({ success: false, message: '로그인이 필요합니다.' });
             }
 
-            const { currentPassword, newPassword } = req.body;
+            const currentPassword = typeof req.body.currentPassword === 'string' ? req.body.currentPassword : '';
+            const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
             if (!currentPassword || !newPassword) {
                 return res.status(400).json({ success: false, message: '필수 값이 누락되었습니다.' });
             }
@@ -288,7 +368,12 @@ class AuthController {
 
     login = async (req, res) => {
         try {
-            const { username, password, rememberMe } = req.body;
+            const username = str(req.body.username);
+            const password = typeof req.body.password === 'string' ? req.body.password : '';
+            const { rememberMe } = req.body;
+            if (!username || !password) {
+                return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
+            }
             const user = await User.findOne({ username });
             if (!user || !user.password) {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });

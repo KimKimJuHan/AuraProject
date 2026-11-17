@@ -2,8 +2,11 @@ const mongoose = require('mongoose');
 
 const otpSchema = new mongoose.Schema({
   email: { type: String, required: true, index: true },
-  purpose: { type: String, required: true, index: true }, // signup | find-username | reset-password
+  // signup | signup-verified | find-username | reset-password
+  purpose: { type: String, required: true, index: true },
+  // OTP 6자리 코드, 또는 signup-verified 의 경우 가입 토큰의 SHA-256 해시
   code: { type: String, required: true },
+  attempts: { type: Number, default: 0 }, // 틀린 시도 횟수 (한도 초과 시 코드 폐기)
   expiresAt: { type: Date, required: true },
 }, { timestamps: true });
 

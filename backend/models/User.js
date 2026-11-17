@@ -6,6 +6,9 @@ const userSchema = new mongoose.Schema({
     avatar: { type: String },      // 프로필 사진 연동
     password: { type: String }, 
     email: { type: String, required: true, unique: true, index: true },
+    // 이메일 소유가 확인된 계정인지 (OTP 인증 가입 = true).
+    // 소셜 로그인은 이 값이 true인 계정에만 이메일 기준으로 자동 연결된다.
+    emailVerified: { type: Boolean, default: false },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     
     // ★ 수정: 유저 플레이 성향 기반 맞춤 추천을 위한 핵심 필드 확장

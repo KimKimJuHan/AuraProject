@@ -52,14 +52,18 @@ function SignupPage({ setUser }) {
     setErrorMsg(''); setSuccessMsg('');
     setLoading(true);
     try {
-      await apiClient.post('/auth/verify-otp', {
+      // 1) 이메일 인증 → 1회용 가입 토큰 발급 (비밀번호는 여기로 보내지 않음)
+      const verifyRes = await apiClient.post('/auth/verify-otp', {
         email: formData.email,
-        username: formData.username,
-        password: formData.password,
         code: formData.code
       });
-      // 백엔드 라우터(signup) 호출 추가
-      await apiClient.post('/auth/signup', formData);
+      // 2) 가입 토큰을 함께 보내야 서버가 가입을 허용함
+      await apiClient.post('/auth/signup', {
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        signupToken: verifyRes.data?.signupToken,
+      });
       
       // 가입 후 자동 로그인 시도
       try {
