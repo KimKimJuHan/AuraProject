@@ -144,7 +144,7 @@ const otpVerifyLimiter = rateLimit({
 
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter); // 실제 가입 경로 (기존 '/register'는 존재하지 않는 경로)
-app.use('/api/auth/change-password', authLimiter);
+app.use(['/api/auth/change-password', '/api/user/password'], authLimiter); // 비밀번호 변경 경로가 두 곳
 app.use(['/api/auth/send-otp', '/api/auth/find-username/send-otp', '/api/auth/reset-password/send-otp'], otpSendLimiter);
 app.use(['/api/auth/verify-otp', '/api/auth/find-username/verify-otp',
          '/api/auth/reset-password/verify-otp', '/api/auth/reset-password/confirm'], otpVerifyLimiter);

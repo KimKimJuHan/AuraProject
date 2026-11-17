@@ -29,13 +29,24 @@ router.get("/info", authenticateToken, async (req, res) => {
 
 // 3. 유저 정보 수정 (기존 username 변경용)
 router.put("/info", authenticateToken, async (req, res) => {
-  const { username } = req.body;
+  // 문자열만 허용 + 가입과 같은 규칙(3~20자) 적용
+  const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
   try {
+    if (username && (username.length < 3 || username.length > 20)) {
+      return res.status(400).json({ success: false, message: '아이디는 3~20자여야 합니다.' });
+    }
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
-    if (username) user.username = username;
+    if (username && username !== user.username) {
+      if (await User.exists({ username })) {
+        return res.status(409).json({ success: false, message: '이미 사용 중인 아이디입니다.' });
+      }
+      user.username = username;
+    }
     await user.save();
-    res.json(user);
+    // 응답에서 비밀번호 해시·재설정 토큰 제외 (기존: user 문서를 통째로 반환)
+    const { password, passwordResetTokenHash, passwordResetTokenExpiresAt, ...safe } = user.toObject();
+    res.json(safe);
   } catch (error) {
         console.error('API Error:', error);
     res.status(500).json({ message: "오류" });

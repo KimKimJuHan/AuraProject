@@ -382,6 +382,10 @@ class AuthController {
                 return res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
             }
 
+            // 세션 고정(Session Fixation) 방지: 로그인 성공 시 세션 ID를 새로 발급
+            await new Promise((resolve, reject) =>
+                req.session.regenerate((err) => (err ? reject(err) : resolve())));
+
             // ★ 세션에 스팀 보유 게임 배열과 유저 등급 동기화
             req.session.user = { 
                 id: user._id, 
