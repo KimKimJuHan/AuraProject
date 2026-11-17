@@ -341,8 +341,8 @@ function MainPage({ user, region, userWishlist, onToggleWishlist }) {
             const response = await fetch(`${API_BASE_URL}/api/recommend`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include', // 로그인 세션 쿠키 전송 (서버가 본인 확인)
                 body: JSON.stringify({
-                    userId: user?._id,
                     tags: selectedTags,
                     sortBy: activeTab,
                     page,

@@ -21,70 +21,84 @@ const loadUserFromDb = async (userId) => {
   return User.findById(id).select('-password');
 };
 
+const toReqUser = (dbUser) => ({ ...dbUser.toObject(), _id: dbUser._id, role: dbUser.role });
+
+/**
+ * 요청에서 로그인 사용자를 찾아 "DB에 실제로 존재하는" 유저만 반환한다.
+ * 확인 순서: Passport 세션 → 자체 세션(req.session.user) → JWT 쿠키
+ *
+ * 이전에는 DB 조회에 실패해도 세션에 남은 정보로 통과시켰다.
+ * → 탈퇴/삭제/차단된 계정이 세션이 살아 있는 동안 계속 로그인 상태가 되는 문제.
+ * 이제는 DB에 없으면 세션을 정리하고 비로그인으로 처리한다.
+ *
+ * @returns {Promise<object|null>} req.user 형태의 유저 객체 또는 null
+ * @throws JWT 검증 실패 시 (호출 측에서 처리)
+ */
+const resolveUser = async (req) => {
+  // 1) Passport 세션 인증 (OAuth/Steam)
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    const passportUser = req.user;
+    const candidateId =
+      passportUser?._id || passportUser?.id || passportUser?.userId || passportUser;
+    const dbUser = await loadUserFromDb(candidateId);
+    if (dbUser) return toReqUser(dbUser);
+    clearStaleSession(req);
+    return null;
+  }
+
+  // 2) 자체 로그인 세션
+  if (req.session && req.session.user) {
+    const sessionUser = req.session.user;
+    const dbUser = await loadUserFromDb(sessionUser.id || sessionUser._id);
+    if (dbUser) return toReqUser(dbUser);
+    clearStaleSession(req);
+    return null;
+  }
+
+  // 3) JWT 쿠키
+  const token = req.cookies?.token;
+  if (token) {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const dbUser = await loadUserFromDb(decoded.id);
+    return dbUser ? toReqUser(dbUser) : null;
+  }
+
+  return null;
+};
+
+// DB에 없는 유저의 세션 정보 제거 (다음 요청부터는 비로그인)
+const clearStaleSession = (req) => {
+  if (req.session) delete req.session.user;
+  if (req.session?.passport) delete req.session.passport;
+  req.user = undefined;
+};
+
+/** 로그인 필수 라우트용 */
 const authenticateToken = async (req, res, next) => {
   try {
-    // 1) Passport 세션 인증 (예: OAuth/Steam 등)
-    if (req.isAuthenticated && req.isAuthenticated()) {
-      const passportUser = req.user;
-
-      // passport deserializeUser가 반환하는 형태가 다양해서 모두 대응
-      const candidateId =
-        passportUser?._id ||
-        passportUser?.id ||
-        passportUser?.userId ||
-        passportUser;
-
-      const dbUser = await loadUserFromDb(candidateId);
-
-      // DB 유저가 있으면 항상 DB 유저 기준으로 req.user 세팅(권한/role 보장)
-      if (dbUser) {
-        req.user = { ...dbUser.toObject(), _id: dbUser._id, role: dbUser.role };
-      } else {
-        // 혹시 db 조회가 실패해도 최소한 기존 req.user는 유지
-        req.user = passportUser;
-      }
-
-      return next();
+    const user = await resolveUser(req);
+    if (!user) {
+      return res.status(401).json({ message: '로그인이 필요합니다. 다시 로그인 해주세요.' });
     }
-
-    // 2) 자체 로그인 세션 인증 (req.session.user 사용)
-    if (req.session && req.session.user) {
-      const sessionUser = req.session.user;
-      const candidateId = sessionUser.id || sessionUser._id;
-
-      const dbUser = await loadUserFromDb(candidateId);
-
-      if (dbUser) {
-        req.user = { ...dbUser.toObject(), _id: dbUser._id, role: dbUser.role };
-      } else {
-        // session.user만 있는 경우(예: 세션 구조 변경/임시값)에도 최대한 유지
-        req.user = { ...sessionUser, _id: candidateId };
-      }
-
-      return next();
-    }
-
-    // 3) JWT 쿠키 인증 (token 쿠키)
-    const token = req.cookies?.token;
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      const dbUser = await loadUserFromDb(decoded.id);
-
-      if (dbUser) {
-        req.user = { ...dbUser.toObject(), _id: dbUser._id, role: dbUser.role };
-        return next();
-      }
-
-      // 토큰은 유효하지만 유저가 없는 경우
-      return res.status(401).json({ message: '사용자를 찾을 수 없습니다. 다시 로그인 해주세요.' });
-    }
-
-    return res.status(401).json({ message: '인증 토큰이 없거나 로그인이 필요합니다.' });
+    req.user = user;
+    return next();
   } catch (err) {
-    console.error('Auth Middleware Error:', err);
+    console.error('Auth Middleware Error:', err.message);
     return res.status(403).json({ message: '토큰이 유효하지 않거나 만료되었습니다.' });
   }
+};
+
+/**
+ * 로그인 선택 라우트용 (비로그인도 허용, 로그인 상태면 req.user 세팅)
+ * 추천 API처럼 게스트도 쓰지만, 개인화는 "본인" 데이터로만 해야 하는 곳에 사용.
+ */
+const optionalAuth = async (req, _res, next) => {
+  try {
+    req.user = (await resolveUser(req)) || undefined;
+  } catch (_err) {
+    req.user = undefined; // 토큰이 깨졌으면 게스트로 처리
+  }
+  return next();
 };
 
 const requireAdmin = (req, res, next) => {
@@ -94,4 +108,4 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticateToken, requireAdmin };
+module.exports = { authenticateToken, optionalAuth, requireAdmin, resolveUser };

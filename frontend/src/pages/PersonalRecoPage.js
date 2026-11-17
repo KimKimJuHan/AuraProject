@@ -185,7 +185,7 @@ export default function PersonalRecoPage({ user }) {
           
           // 1. 기존 맞춤형 추천 API 호출
           const res = await axios.post(`${API_BASE_URL}/api/recommend/reco`, { 
-              userId: user?._id, tags: tagsArray, term 
+              tags: tagsArray, term   // userId는 보내지 않음: 서버가 세션으로 본인 확인
           }, { withCredentials: true });
           
           if (res.data.success && res.data.data) {
@@ -198,9 +198,8 @@ export default function PersonalRecoPage({ user }) {
                   tags: tagsArray,
                   sortBy: 'popular', // 태그가 최우선이므로 기본 인기순 정렬
                   playerType: user?.playerType || 'beginner',
-                  userId: user?._id,
                   hideOwned: true
-              });
+              }, { withCredentials: true }); // 보유 게임 숨김은 서버가 로그인 세션으로 판단
               
               if (tagRes.data.success) {
                   setTagSpecificData(tagRes.data.games);

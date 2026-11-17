@@ -126,7 +126,11 @@ class RecommendController {
     // ── 메인 페이지 ────────────────────────────────────────────────────────
     async getMainPageGames(req, res) {
         try {
-            const { userId, tags, sortBy, page = 1, priceRange = 'all', priceMin, priceMax, minDiscount = 0, hideOwned = false } = req.body;
+            const { tags, sortBy, priceRange = 'all', priceMin, priceMax, minDiscount = 0, hideOwned = false } = req.body;
+            // 개인화 기준은 요청 본문이 아니라 로그인 세션의 본인 ID (남의 userId 조회 방지)
+            const userId = req.user?._id || null;
+            // page 검증: 음수/문자열/과도한 값으로 skip 이 깨지거나 DB 부하가 커지는 것 방지
+            const page = Math.min(Math.max(parseInt(req.body.page, 10) || 1, 1), 500);
             const limit = 20;
             const skip = (page - 1) * limit;
 
@@ -253,7 +257,8 @@ class RecommendController {
     // ── 개인화 추천 ────────────────────────────────────────────────────────
     async getPersonalRecommendations(req, res) {
         try {
-            const { userId, tags = [], term } = req.body;
+            const { tags = [], term } = req.body;
+            const userId = req.user?._id || null; // 본인 정보로만 개인화
             const userSelectedTags = Array.isArray(tags) ? tags : [];
 
             let userLikedTags = [];
