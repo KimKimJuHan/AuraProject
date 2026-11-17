@@ -44,10 +44,14 @@ if (missingEnv.length > 0) {
 
 // ── 전역 예외 처리 (처리 안 된 에러로 서버가 통째로 죽는 것 방지) ────────────
 const logger = require('./utils/logger');
+// uncaughtException 이후 프로세스 상태는 신뢰할 수 없음 (Node.js 공식 권고)
+// → 로그를 남기고 종료하면 Docker restart: always 가 깨끗한 상태로 재시작한다.
 process.on('uncaughtException', (err) => {
     logger.error('uncaughtException', { message: err.message, stack: err.stack?.split('\n').slice(0, 3).join(' | ') });
-    // 치명적이지 않으면 계속 동작 (로깅만)
+    console.error('CRITICAL - Uncaught Exception, 프로세스를 종료합니다:', err);
+    setTimeout(() => process.exit(1), 500).unref(); // 로그 flush 시간 확보
 });
+// Promise 거부는 대부분 요청 단위 오류 → 기록만 하고 서버는 유지
 process.on('unhandledRejection', (reason) => {
     logger.error('unhandledRejection', { reason: String(reason).slice(0, 200) });
 });
@@ -98,7 +102,9 @@ const generalLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
-    skip: (req) => req.path.startsWith('/api/auth'),
+    // app.use('/api/', ...) 에 마운트되면 req.path 에서 '/api' 가 빠지므로 '/auth' 로 비교해야 함
+    // (기존 '/api/auth' 비교는 절대 참이 되지 않던 죽은 코드)
+    skip: (req) => req.path.startsWith('/auth'),
 });
 
 const recommendLimiter = rateLimit({
@@ -119,8 +125,29 @@ const authLimiter = rateLimit({
 
 app.use('/api/', generalLimiter);
 app.use('/api/recommend', recommendLimiter);
+// 인증 메일 발송: 메일 폭탄/비용 방지 (IP당 10분 5회)
+const otpSendLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '인증 메일 요청이 너무 많습니다. 10분 후 다시 시도해주세요.' },
+});
+// 인증코드 검증: 코드별 5회 제한과 별개로 IP 단위 무차별 대입 방지
+const otpVerifyLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: '인증 시도가 너무 많습니다. 15분 후 다시 시도해주세요.' },
+});
+
 app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/signup', authLimiter); // 실제 가입 경로 (기존 '/register'는 존재하지 않는 경로)
+app.use('/api/auth/change-password', authLimiter);
+app.use(['/api/auth/send-otp', '/api/auth/find-username/send-otp', '/api/auth/reset-password/send-otp'], otpSendLimiter);
+app.use(['/api/auth/verify-otp', '/api/auth/find-username/verify-otp',
+         '/api/auth/reset-password/verify-otp', '/api/auth/reset-password/confirm'], otpVerifyLimiter);
 
 app.use(session({
     secret: process.env.SESSION_SECRET,
@@ -344,17 +371,6 @@ cron.schedule('0 0,6,12,18 * * *', () => runScript('fast_update_korean_trends.js
 cron.schedule('0 4 * * *', () => runScript('daily_game_collector.js'));
 // 매주 일요일 새벽 5시: 가격 알림 발송
 cron.schedule('0 5 * * 0', () => runScript('notify_sales.js'));
-
-// Uncaught Exception / Unhandled Rejection 전역 에러 핸들링 (서버 다운 방지)
-process.on('uncaughtException', (err) => {
-    console.error('CRITICAL ERROR - Uncaught Exception:', err);
-    // Node.js 권장사항: 치명적 에러 시 종료 후 프로세스 매니저(Docker/PM2)가 재시작하게 냅둠
-    // 하지만 가벼운 스크립트 에러로 인해 메인 서버가 죽는 것을 최대한 로깅만 하고 유지할 수도 있음
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('CRITICAL ERROR - Unhandled Rejection at:', promise, 'reason:', reason);
-});
 
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
