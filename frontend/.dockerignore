@@ -1,0 +1,6 @@
+# 빌드 컨텍스트에서 제외 (로컬 의존성·빌드 산출물)
+# 프론트 .env 는 REACT_APP_* 공개 빌드 변수용이라 제외하지 않음 (번들에 그대로 포함되는 값)
+node_modules
+build
+npm-debug.log*
+.git

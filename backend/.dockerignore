@@ -1,0 +1,10 @@
+# 이미지에 들어가면 안 되는 파일 (비밀값, 로컬 의존성, 로그/백업)
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.example
+logs
+backups
+*.log
+.git
