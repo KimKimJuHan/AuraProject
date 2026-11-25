@@ -1,13 +1,15 @@
 name: AuraProject Data Pipeline
 
+# 운영 종료(EC2·외부 API 키 회수)로 예약 수집을 비활성화했습니다.
+# 운영 당시 스케줄은 아래 주석과 같으며, 서버를 다시 띄울 경우 주석을 해제하세요.
 on:
-  schedule:
-    # KST 03:00 (UTC 18:00 전날) — 신규 게임 + 가격 + 메타데이터
-    - cron: '0 18 * * *'
-    # KST 19:00 (UTC 10:00) — 트렌드 (CCU + Twitch + 치지직)
-    - cron: '0 10 * * *'
-    # KST 매주 월요일 02:00 (UTC 일요일 17:00) — 전체 리뷰/가격 전수 갱신
-    - cron: '0 17 * * 0'
+  # schedule:
+  #   # KST 03:00 (UTC 18:00 전날) — 신규 게임 + 가격 + 메타데이터
+  #   - cron: '0 18 * * *'
+  #   # KST 19:00 (UTC 10:00) — 트렌드 (CCU + Twitch + 치지직)
+  #   - cron: '0 10 * * *'
+  #   # KST 매주 월요일 02:00 (UTC 일요일 17:00) — 전체 리뷰/가격 전수 갱신
+  #   - cron: '0 17 * * 0'
 
   workflow_dispatch:
     inputs:
